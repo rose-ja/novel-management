@@ -2,25 +2,27 @@
 
 ## Start Here
 1. Read this file.
-2. Read `project/constitution.md`.
-3. Read `project/PROJECT-SETUP.md`.
-4. For the current task, read its change directory and relevant Specs.
-5. Inspect the actual code before proposing edits.
+2. Read `project/constitution.md` and `project/PROJECT-SETUP.md`.
+3. For the current task, read its change directory and relevant Specs.
+4. Read relevant UX/UI files (`project/design-system.md`, `project/user-flow.md`, `project/page-specs/`) when changing UI.
+5. Inspect the actual code and Git status before proposing edits.
 
 ## Source of Truth
-- Product baseline: `project/requirements.md`
-- Architecture: `project/architecture.md`
+- Product direction / MVP: `project/product-brief.md`, `project/mvp-scope.md` (human-approved)
+- Requirements: `project/requirements.md`, `project/user-stories.md`
+- UX/UI baseline: `project/user-flow.md`, `project/design-system.md`, `project/page-specs/`
+- Architecture: `project/architecture.md`, `project/tech-stack.md`
 - Technical decisions: `project/adr/`
 - Current behavior: `project/specs/`
 - Current change: `changes/<change-id>/`
-- Commands: `project/PROJECT-SETUP.md`
+- Commands and environment: `project/PROJECT-SETUP.md`
 
-If documents conflict, stop and report the conflict. Do not silently choose one.
+If documents conflict, stop and report the conflict. Do not silently choose one. After a human decision, update the authoritative source and all affected downstream documents, including change history.
 
 ## Scope
 - Implement only approved tasks.
 - Do not refactor unrelated code.
-- Do not alter public API/data contracts without approval.
+- Do not alter product scope, public API/data contracts, architecture, or approved UI baselines without approval.
 - Report out-of-scope necessities and wait for approval.
 
 ## Evidence
@@ -36,4 +38,4 @@ If documents conflict, stop and report the conflict. Do not silently choose one.
 - Ask before adding dependencies or changing infrastructure.
 
 ## Completion
-A task is complete only when its DoD is met, required checks pass, review findings are resolved/waived, and documentation is synchronized.
+A task is complete only when its DoD is met, required checks pass, review findings are resolved/waived, acceptance is recorded, and documentation is synchronized.
