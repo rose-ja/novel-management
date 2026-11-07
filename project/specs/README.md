@@ -19,5 +19,8 @@
 - `migration/`（飞书《正文》与图片迁移）
 - `backup/`（导出、还原、快照）
 - `trash/`（回收站与撤销）
+- `platform/`（应用壳层、全局状态、数据完整性、部署与性能等跨域约束）
+
+> `platform/` 为 P6 新增的跨域目录：README 原列表为示例，P6 用它承载 PG-00 与 EX/NFR 类跨域行为。
 
 每条 Spec 使用稳定 ID，包含来源 Requirement/User Story/Page Spec ID、行为描述、边界、验收场景（Given/When/Then）、状态和变更历史。P6 新建的 Spec 一律标记 `planned`；F10 只把已合并且验收的行为更新为 `implemented` 或 `verified`，未实现行为不得写成当前能力。

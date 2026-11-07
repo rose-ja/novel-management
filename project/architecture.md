@@ -2,8 +2,8 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.1 |
-| 状态 | 修订（P5b，2026-11-07，待复审） |
+| 文档版本 | v1.2 |
+| 状态 | 已批准（P5b 复审通过；P6 同步 C-03） |
 | 日期 | 2026-11-07 |
 | 架构风格 | 模块化单体 + 三容器（Go 应用 / PostgreSQL / Redis 缓存） |
 | 推荐技术栈 | Go 1.24 + gin + gorm + Next.js 15 + PostgreSQL 16 + Redis 7（仅缓存） |
@@ -496,21 +496,21 @@ flowchart TB
 
 | Requirement | Page Spec | 模块 | API | 表 | 验收 |
 |---|---|---|---|---|---|
-| FR-01~03 | PG-00、PG-13 | works、settings | `/works`、`/settings` | works | AC-01、AC-13 |
-| FR-04~08 | PG-02、PG-03 | characters、media、chronicles | `/characters`、`/media`、`/chronicles` | characters、character_names、media_assets | AC-02~04 |
-| FR-09~12 | PG-04、PG-05 | factions、chronicles | `/factions` | factions | AC-05 |
-| FR-13~16 | PG-06、PG-07 | locations | `/locations` | locations、character_locations、location_factions | AC-06 |
-| FR-17~20 | PG-08、PG-09 | rankings | `/rankings` | rankings、ranking_seats | AC-07 |
-| FR-21~26 | PG-10 | system | `/system-categories`、`/system-nodes` | system_categories、system_nodes、character_system_refs | AC-10 |
-| FR-27~33 | PG-01 | search、cache | `/search` | search_documents + pg_trgm | AC-08、V-01 |
-| FR-34~38 | PG-03/05/07/09/10 | references、service | 各详情端点 | 全部引用列/关系表 | AC-09 |
-| FR-39~46 | PG-11 | imports | `/imports` | import_runs | AC-12、V-02 |
-| FR-47~51 | PG-02/03/05/07/09/10 | domain | 各写端点 | 约束/索引 | AC-11 |
-| FR-52~56 | PG-13 | exports、snapshots、cli | `/exports`、`/snapshots` | export_runs、snapshots | AC-18~22 |
-| FR-57~63 | PG-12 | trash | `/trash` | 各表 `deleted_at`/`deleted_root_id` | AC-15~17 |
-| FR-64~69 | PG-00~PG-13 | frontend | — | — | AC-13、AC-23 |
-| NFR 性能 | — | search、cache、service | — | 索引 | V-01~V-05 |
-| NFR 安全 | — | httpapi、imports、media | — | — | 安全测试 |
+| FR-01~03 | PG-00、PG-13 | works、settings | `/works`、`/settings` | works、system_categories | AC-01、AC-13 |
+| FR-04~08 | PG-02、PG-03 | characters、media、chronicles | `/characters`、`/media`、`/chronicles` | characters、character_names、media_assets | AC-02、AC-03、AC-14、AC-33 |
+| FR-09~12 | PG-04、PG-05 | factions、chronicles | `/factions` | factions | AC-04、AC-14 |
+| FR-13~16 | PG-06、PG-07 | locations | `/locations` | locations、character_locations、location_factions | AC-05、AC-14 |
+| FR-17~20 | PG-08、PG-09 | rankings | `/rankings` | rankings、ranking_seats | AC-06 |
+| FR-21~26 | PG-10 | system | `/system-categories`、`/system-nodes` | system_categories、system_nodes、character_system_refs | AC-07、AC-13、AC-14 |
+| FR-27~33 | PG-01 | search、cache | `/search` | search_documents + pg_trgm | AC-08、AC-23 |
+| FR-34~38 | PG-03/05/07/09/10 | references、service | 各详情端点 | 全部引用列/关系表 | AC-09、AC-14 |
+| FR-39~46 | PG-11 | imports | `/imports` | import_runs | AC-10、AC-11、AC-18~AC-21、V-02 |
+| FR-47~51 | PG-02/03/05/07/09/10 | domain | 各写端点 | 约束/索引 | AC-11、AC-14、AC-17 |
+| FR-52~56 | PG-13 | exports、snapshots、cli | `/exports`、`/snapshots` | export_runs、snapshots | AC-12、AC-22 |
+| FR-57~63 | PG-12 | trash | `/trash` | 各表 `deleted_at`/`deleted_root_id` | AC-13、AC-14 |
+| FR-64~69 | PG-00~PG-13 | frontend | — | — | AC-15、AC-27、AC-28 |
+| NFR 性能 | — | search、cache、service | — | 索引 | AC-23、AC-24、AC-32、AC-33、V-01~V-05 |
+| NFR 安全 | — | httpapi、imports、media | — | — | AC-29、AC-30 |
 
 ---
 
@@ -571,3 +571,4 @@ flowchart TB
 | 2026-11-07 | v1.1 | RT-11 | 检索排序 `score DESC, updated_at DESC, id ASC`；分组 total 与当前页切片语义、`matched_fields` | 保证分页稳定与结果可解释 |
 | 2026-11-07 | v1.1 | RT-17 | 快照触发对齐 requirements FR-55；回收站单项恢复不生成；手动快照仅 CLI | 修正 D-07/C-02 字面“仅 CLI 全量恢复生成快照” |
 | 2026-11-07 | v1.1 | RT-22/23 | CLI migrate 获取同一 advisory lock；Host 白名单由 `APP_PORT`/`ALLOWED_HOSTS` 派生 | 避免迁移与在线写入并发；改端口不再 403 |
+| 2026-11-07 | v1.2（P6） | C-03 | 修正 §10 追溯矩阵验收列错位（FR-09~12→AC-04、FR-13~16→AC-05、FR-17~20→AC-06、FR-21~26→AC-07、FR-39~46→AC-10/11、FR-52~56→AC-12/22、FR-57~63→AC-13/14、FR-64~69→AC-27/28） | 原矩阵验收 ID 整体错位，无法作为 P6 追踪基线 |

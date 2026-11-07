@@ -4,7 +4,7 @@
 |---|---|
 | Page ID | PG-02 |
 | 路由建议 | `/characters` |
-| 状态 | 修订（P5b，2026-11-07，待复审） |
+| 状态 | Approved（P6，2026-11-07） |
 | 关联需求 | FR-04、FR-05、FR-08、FR-34、FR-36、FR-38、FR-47、FR-48、FR-66、FR-67；EX-01、EX-02、EX-03、EX-04、EX-09、EX-21、EX-22 |
 | 关联 User Story | US-002、US-008、US-012 |
 | 关联验收 | AC-02、AC-03、AC-09、AC-15、AC-24 |
