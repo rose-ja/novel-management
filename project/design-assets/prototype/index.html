@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>小说设定管理系统 · 高保真原型</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳至内容</a>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <svg class="logo-mark" viewBox="0 0 32 32" role="img" aria-label="小说设定管理系统标记">
+          <defs>
+            <linearGradient id="markGradient" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#2E7D5B"></stop>
+              <stop offset="1" stop-color="#4C9F79"></stop>
+            </linearGradient>
+          </defs>
+          <rect width="32" height="32" rx="8" fill="url(#markGradient)"></rect>
+          <path d="M7.5 21.5L12.2 14.2L16.2 19.2L20.4 10.8L24.8 21.5" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M8.5 24.5H23.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.62" stroke-width="1.2" stroke-linecap="round"></path>
+        </svg>
+        <span class="product-name">小说设定管理系统</span>
+      </div>
+
+      <div class="topbar__work">
+        <button class="work-switcher" id="work-switcher" type="button" aria-haspopup="menu" aria-expanded="false">
+          <span class="work-switcher__label">作品</span>
+          <span class="work-switcher__name" id="current-work-name">山海志异</span>
+          <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+        </button>
+        <div class="work-menu" id="work-menu" role="menu" aria-label="作品切换" hidden>
+          <div class="work-menu__header">切换作品</div>
+          <button class="work-menu__item is-selected" type="button" role="menuitemradio" aria-checked="true" data-work="山海志异">
+            <span>山海志异</span><span class="meta">128 人物</span>
+          </button>
+          <button class="work-menu__item" type="button" role="menuitemradio" aria-checked="false" data-work="星穹之下">
+            <span>星穹之下</span><span class="meta">36 人物</span>
+          </button>
+          <div class="work-menu__divider"></div>
+          <button class="work-menu__item" type="button" role="menuitem" data-action="new-work">新建作品</button>
+          <button class="work-menu__item" type="button" role="menuitem" data-action="edit-work">编辑当前作品</button>
+          <button class="work-menu__item work-menu__item--danger" type="button" role="menuitem" data-action="delete-work">删除当前作品</button>
+        </div>
+      </div>
+
+      <div class="topbar__right">
+        <span class="local-pill"><span class="local-pill__dot"></span>本机 · 127.0.0.1</span>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <nav aria-label="主导航">
+        <div class="nav-group">
+          <div class="nav-group__label">资料</div>
+          <a class="nav-item" href="#search" data-nav="search">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>检索
+          </a>
+          <a class="nav-item" href="#character" data-nav="character">
+            <svg class="icon" aria-hidden="true"><use href="#i-user"></use></svg>人物
+          </a>
+          <a class="nav-item" href="#faction" data-nav="faction">
+            <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>势力
+          </a>
+          <a class="nav-item" href="#location" data-nav="location" data-uncovered="地点列表与详情见 PG-06 / PG-07，本原型未覆盖">
+            <svg class="icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>地点
+          </a>
+          <a class="nav-item" href="#ranking" data-nav="ranking">
+            <svg class="icon" aria-hidden="true"><use href="#i-trophy"></use></svg>榜单
+          </a>
+          <a class="nav-item" href="#system" data-nav="system">
+            <svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg>体系
+          </a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group__label">工具</div>
+          <a class="nav-item" href="#import" data-nav="import">
+            <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>导入
+          </a>
+          <a class="nav-item" href="#trash" data-nav="trash">
+            <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>回收站
+          </a>
+          <a class="nav-item" href="#settings" data-nav="settings" data-uncovered="设置与备份见 PG-13，本原型未覆盖">
+            <svg class="icon" aria-hidden="true"><use href="#i-sliders"></use></svg>设置 / 备份
+          </a>
+        </div>
+      </nav>
+      <div class="sidebar__footer">
+        <span class="sidebar__version">v0.1 · 原型基线</span>
+        <span class="sidebar__note">数据仅存本机</span>
+      </div>
+    </aside>
+
+    <main class="main" id="main" tabindex="-1">
+      <div class="desktop-notice" role="status">
+        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-info"></use></svg>
+        本系统按桌面端设计，建议使用 1024px 以上窗口。
+      </div>
+
+      <section class="view search-page" id="view-search" data-view="search" aria-labelledby="search-title">
+        <div class="page">
+          <header class="page-header">
+            <div class="page-header__main">
+              <h1 class="page-title" id="search-title">检索</h1>
+              <p class="page-subtitle">在当前作品《山海志异》内查找人物、势力、地点、榜单与体系节点</p>
+            </div>
+          </header>
+
+          <div class="search-hero">
+            <div class="search-field search-field--lg">
+              <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+              <label class="sr-only" for="search-input">检索关键词</label>
+              <input class="input input--lg" id="search-input" type="search" value="山海" placeholder="输入名称、别名、称号或关键词…" autocomplete="off">
+              <button class="search-field__clear" type="button" aria-label="清除关键词" data-action="clear-search">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="#i-x"></use></svg>
+              </button>
+            </div>
+            <div class="search-controls">
+              <div class="segmented" role="group" aria-label="检索模式">
+                <button class="segmented__btn" type="button" aria-pressed="true" data-search-mode="quick">快速搜索</button>
+                <button class="segmented__btn" type="button" aria-pressed="false" data-search-mode="conditional">条件检索</button>
+              </div>
+              <span class="search-controls__hint">
+                <svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+                输入即搜 · 空格分词 · 只在当前作品内
+              </span>
+            </div>
+
+            <div class="filter-panel" id="filter-panel" hidden>
+              <div class="filter-grid">
+                <div class="form-field">
+                  <label class="form-label" for="filter-type">实体类型</label>
+                  <div class="select-wrap">
+                    <select class="select" id="filter-type">
+                      <option>全部</option>
+                      <option>人物</option>
+                      <option>势力</option>
+                      <option>地点</option>
+                      <option>榜单</option>
+                      <option>体系节点</option>
+                    </select>
+                    <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label class="form-label" for="filter-faction">势力 / 分支</label>
+                  <div class="select-wrap">
+                    <select class="select" id="filter-faction">
+                      <option>不限</option>
+                      <option>万族</option>
+                      <option>山海妖族</option>
+                      <option>青丘分支</option>
+                      <option>归墟遗族</option>
+                      <option>天枢院</option>
+                    </select>
+                    <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label class="form-label" for="filter-realm">境界</label>
+                  <div class="select-wrap">
+                    <select class="select" id="filter-realm">
+                      <option>不限</option>
+                      <option>帝境</option>
+                      <option>帝境 · 五重天</option>
+                      <option>圣者境</option>
+                      <option>凡境</option>
+                    </select>
+                    <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label class="form-label" for="filter-location">地点</label>
+                  <div class="select-wrap">
+                    <select class="select" id="filter-location">
+                      <option>不限</option>
+                      <option>苍梧星城</option>
+                      <option>归墟秘境</option>
+                      <option>东荒</option>
+                    </select>
+                    <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label class="form-label" for="filter-ranking">榜单</label>
+                  <div class="select-wrap">
+                    <select class="select" id="filter-ranking">
+                      <option>不限</option>
+                      <option>封神榜</option>
+                      <option>草黄纸</option>
+                      <option>星火榜</option>
+                    </select>
+                    <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="filter-actions">
+                <button class="btn btn--ghost btn--sm" type="button" data-action="reset-filters">重置条件</button>
+                <button class="btn btn--primary btn--sm" type="button" data-action="run-filter">检索</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-summary">
+            <h2 class="result-summary__title">结果</h2>
+            <span class="result-summary__count">共 12 条 · 当前作品内</span>
+            <span class="result-sort">
+              <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+              排序：名称命中优先，同权重按更新时间
+            </span>
+          </div>
+
+          <div class="results-panel" aria-label="检索结果">
+            <div class="result-group">
+              <div class="result-group__header">
+                <span class="result-group__title">人物</span>
+                <span class="result-group__count">4</span>
+              </div>
+              <a class="result-row" href="#character">
+                <span class="avatar" aria-hidden="true">司</span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">司空摘天</span>
+                    <span class="badge badge--warning"><span class="badge__dot"></span>待校对</span>
+                  </span>
+                  <span class="result-row__meta">帝境 · 五重天 · 山海妖族 · 封神榜第 3 席</span>
+                  <span class="result-row__snippet">主名称命中：<mark>山海</mark>妖族之主，帝境五重天；别名「摘天」「帝君」。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+              <a class="result-row" href="#character">
+                <span class="avatar" aria-hidden="true">姜</span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">姜黎</span>
+                    <span class="badge badge--warning"><span class="badge__dot"></span>待校对</span>
+                  </span>
+                  <span class="result-row__meta">圣者境 · 大成 · 青丘分支 · 星火榜第 2 席</span>
+                  <span class="result-row__snippet">关联实体名命中：青丘分支首领，统属<mark>山海</mark>妖族。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+              <a class="result-row" href="#character">
+                <span class="avatar" aria-hidden="true">白</span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">白无咎</span>
+                  </span>
+                  <span class="result-row__meta">圣者境 · 初阶 · 天枢院</span>
+                  <span class="result-row__snippet">别名命中：无咎先生；简介提及<mark>山海</mark>旧盟。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+              <a class="result-row" href="#character">
+                <span class="avatar" aria-hidden="true">沈</span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">沈照夜</span>
+                  </span>
+                  <span class="result-row__meta">圣者境 · 大成 · 归墟遗族</span>
+                  <span class="result-row__snippet">称号命中：照夜君；关联地点<mark>山海</mark>古战场。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+            </div>
+
+            <div class="result-group">
+              <div class="result-group__header">
+                <span class="result-group__title">势力</span>
+                <span class="result-group__count">3</span>
+              </div>
+              <a class="result-row" href="#faction">
+                <span class="entity-icon"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-users"></use></svg></span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">山海妖族</span>
+                    <span class="badge badge--warning"><span class="badge__dot"></span>待校对</span>
+                  </span>
+                  <span class="result-row__meta">万族 → 妖族 · 首领 司空摘天</span>
+                  <span class="result-row__snippet">名称命中：<mark>山海</mark>妖族为万族之首，居于东荒；直属成员 12 人。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+              <a class="result-row" href="#faction">
+                <span class="entity-icon"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-users"></use></svg></span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">青丘分支</span>
+                  </span>
+                  <span class="result-row__meta">山海妖族 · 首领 姜黎 · 直属 8</span>
+                  <span class="result-row__snippet">上级命中：隶属<mark>山海</mark>妖族，镇守东荒南境。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+              <a class="result-row" href="#faction">
+                <span class="entity-icon"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-users"></use></svg></span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">归墟遗族</span>
+                  </span>
+                  <span class="result-row__meta">万族 · 首领 — · 直属 4</span>
+                  <span class="result-row__snippet">简介命中：归墟遗族与<mark>山海</mark>妖族有旧约。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+            </div>
+
+            <div class="result-group">
+              <div class="result-group__header">
+                <span class="result-group__title">地点</span>
+                <span class="result-group__count">2</span>
+              </div>
+              <a class="result-row" href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">
+                <span class="entity-icon"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-map-pin"></use></svg></span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">苍梧星城</span>
+                  </span>
+                  <span class="result-row__meta">星城 · 东荒 · 关联势力 山海妖族</span>
+                  <span class="result-row__snippet">关联实体名命中：<mark>山海</mark>妖族祖地，位于东荒苍梧。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+              <a class="result-row" href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">
+                <span class="entity-icon"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-map-pin"></use></svg></span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">归墟秘境</span>
+                  </span>
+                  <span class="result-row__meta">秘境 · 归墟 · 关联人物 沈照夜</span>
+                  <span class="result-row__snippet">简介命中：旧<mark>山海</mark>纪元的封印之地。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+            </div>
+
+            <div class="result-group">
+              <div class="result-group__header">
+                <span class="result-group__title">榜单</span>
+                <span class="result-group__count">2</span>
+              </div>
+              <a class="result-row" href="#ranking">
+                <span class="entity-icon"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-trophy"></use></svg></span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">封神榜</span>
+                  </span>
+                  <span class="result-row__meta">100 席 · 已占 23 · 空席 77</span>
+                  <span class="result-row__snippet">在榜人物命中：<mark>山海</mark>妖族司空摘天居第 3 席。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+              <a class="result-row" href="#ranking">
+                <span class="entity-icon"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-trophy"></use></svg></span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">星火榜</span>
+                  </span>
+                  <span class="result-row__meta">100 席 · 已占 18 · 空席 82</span>
+                  <span class="result-row__snippet">在榜人物命中：青丘分支姜黎居第 2 席，隶属<mark>山海</mark>妖族。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+            </div>
+
+            <div class="result-group">
+              <div class="result-group__header">
+                <span class="result-group__title">体系节点</span>
+                <span class="result-group__count">1</span>
+              </div>
+              <a class="result-row" href="#system">
+                <span class="entity-icon"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-layers"></use></svg></span>
+                <span class="result-row__body">
+                  <span class="result-row__name-line">
+                    <span class="result-row__name">帝境 · 五重天</span>
+                    <span class="badge badge--neutral">境界</span>
+                  </span>
+                  <span class="result-row__meta">父级：帝境 · 被引用 6 人</span>
+                  <span class="result-row__snippet">父级命中：<mark>山海</mark>妖族之主司空摘天为帝境五重天。</span>
+                </span>
+                <svg class="icon result-row__arrow" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+              </a>
+            </div>
+          </div>
+
+          <nav class="pagination" aria-label="检索结果分页">
+            <span class="pagination__total">每页 20 条 · 共 12 条</span>
+            <button class="page-btn" type="button" disabled>上一页</button>
+            <button class="page-btn page-btn--active" type="button" aria-current="page">1</button>
+            <button class="page-btn" type="button" disabled>下一页</button>
+          </nav>
+        </div>
+      </section>
+
+      <section class="view" id="view-character" data-view="character" aria-labelledby="character-title">
+        <div class="page">
+          <header class="page-header">
+            <div class="page-header__main">
+              <nav class="breadcrumb" aria-label="当前位置">
+                <a href="#search">资料</a><span class="breadcrumb__sep">/</span>
+                <a href="#character">人物</a><span class="breadcrumb__sep">/</span>
+                <span aria-current="page">司空摘天</span>
+              </nav>
+              <div class="page-title-row">
+                <h1 class="page-title" id="character-title">司空摘天</h1>
+                <span class="badge badge--warning"><span class="badge__dot"></span>待校对</span>
+              </div>
+              <p class="page-subtitle">别名：摘天 · 帝君 · 山海帝君 &nbsp;·&nbsp; 所属作品《山海志异》</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn--secondary" type="button" data-action="edit-character">
+                <svg class="icon" aria-hidden="true"><use href="#i-edit"></use></svg>编辑
+              </button>
+              <button class="icon-btn" type="button" aria-label="更多人物操作" data-action="more-actions">
+                <svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg>
+              </button>
+            </div>
+          </header>
+
+          <div class="detail-layout">
+            <div class="detail-main">
+              <div id="character-view-mode">
+                <div class="identity-card">
+                  <span class="avatar avatar--120 identity__avatar" aria-hidden="true">司</span>
+                  <div class="identity__content">
+                    <div class="identity__names">
+                      <span class="chip">摘天</span>
+                      <span class="chip">帝君</span>
+                      <span class="chip">山海帝君</span>
+                    </div>
+                    <div class="identity__fields">
+                      <div class="field-row">
+                        <span class="field-label">境界</span>
+                        <span class="field-value"><a href="#system">帝境 · 五重天</a> <span class="muted">/ 帝境九重天体系</span></span>
+                      </div>
+                      <div class="field-row">
+                        <span class="field-label">所属势力</span>
+                        <span class="field-value inline-links"><a href="#faction">山海妖族</a><span class="sep">·</span><span class="text-secondary">首领</span></span>
+                      </div>
+                      <div class="field-row">
+                        <span class="field-label">所在榜单</span>
+                        <span class="field-value inline-links"><a href="#ranking">封神榜 · 第 3 席</a><span class="sep">·</span><a href="#ranking">星火榜 · 第 11 席</a></span>
+                      </div>
+                      <div class="field-row">
+                        <span class="field-label">关联地点</span>
+                        <span class="field-value inline-links"><a href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">苍梧星城</a><span class="sep">·</span><a href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">山海古战场</a></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card" style="margin-top: 16px;">
+                  <p class="bio-text">山海妖族当代首领，帝境五重天。出身苍梧星城，少年时以「摘天」之名行走东荒；在归墟之战中与归墟遗族缔结旧约，划定东荒南境边界。性情寡言，重誓约，不擅权谋。飞书迁移后尚未逐项校对。</p>
+                </div>
+
+                <section class="section">
+                  <div class="section__header">
+                    <h2 class="section__title">关系</h2>
+                    <span class="section__meta">双向可跳转 · 改名后自动同步</span>
+                  </div>
+                  <div class="relation-grid">
+                    <div class="relation-card">
+                      <div class="relation-card__title">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-users"></use></svg>势力与身份
+                      </div>
+                      <div class="relation-list">
+                        <div class="relation-item">
+                          <span class="relation-item__main"><a href="#faction">山海妖族</a></span>
+                          <span class="relation-item__meta">首领 · 直属 12 人</span>
+                          <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                        </div>
+                        <div class="relation-item">
+                          <span class="relation-item__main"><span class="text-secondary">上级势力</span></span>
+                          <span class="relation-item__meta">万族 → 妖族</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="relation-card">
+                      <div class="relation-card__title">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-trophy"></use></svg>所在榜单
+                      </div>
+                      <div class="relation-list">
+                        <div class="relation-item">
+                          <span class="relation-item__main"><a href="#ranking">封神榜</a></span>
+                          <span class="relation-item__meta">第 3 席 · 帝境之首</span>
+                          <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                        </div>
+                        <div class="relation-item">
+                          <span class="relation-item__main"><a href="#ranking">星火榜</a></span>
+                          <span class="relation-item__meta">第 11 席</span>
+                          <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="relation-card">
+                      <div class="relation-card__title">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-map-pin"></use></svg>关联地点
+                      </div>
+                      <div class="relation-list">
+                        <div class="relation-item">
+                          <span class="relation-item__main"><a href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">苍梧星城</a></span>
+                          <span class="relation-item__meta">常驻</span>
+                        </div>
+                        <div class="relation-item">
+                          <span class="relation-item__main"><a href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">山海古战场</a></span>
+                          <span class="relation-item__meta">封印之战</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="relation-card">
+                      <div class="relation-card__title">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-layers"></use></svg>体系引用
+                      </div>
+                      <div class="relation-list">
+                        <div class="relation-item">
+                          <span class="relation-item__main"><a href="#system">帝境 · 五重天</a></span>
+                          <span class="relation-item__meta">境界</span>
+                        </div>
+                        <div class="relation-item">
+                          <span class="relation-item__main"><a href="#system">北辰</a></span>
+                          <span class="relation-item__meta">星命</span>
+                        </div>
+                        <div class="relation-item">
+                          <span class="relation-item__main"><a href="#system">玄龟体</a></span>
+                          <span class="relation-item__meta">圣体</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="section">
+                  <div class="section__header">
+                    <h2 class="section__title">大事记</h2>
+                    <span class="section__meta">4 条 · 手工维护</span>
+                    <div class="section__actions">
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="add-chronicle">
+                        <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>新增
+                      </button>
+                    </div>
+                  </div>
+                  <div class="chronicle">
+                    <div class="chronicle-item">
+                      <span class="chronicle__index">01</span>
+                      <div class="chronicle__content">
+                        <div class="chronicle__time">开元 1024 年 · 苍梧星城</div>
+                        <div class="chronicle__text">随父兄迁入苍梧星城，以「摘天」之名初入东荒。</div>
+                      </div>
+                      <div class="chronicle__actions">
+                        <button class="btn btn--ghost btn--sm" type="button" data-action="edit-chronicle">编辑</button>
+                        <button class="btn btn--ghost btn--sm" type="button" data-action="delete-chronicle">删除</button>
+                      </div>
+                    </div>
+                    <div class="chronicle-item">
+                      <span class="chronicle__index">02</span>
+                      <div class="chronicle__content">
+                        <div class="chronicle__time">开元 1088 年 · 山海妖族</div>
+                        <div class="chronicle__text">继任山海妖族首领，改族约为「守东荒、不越归墟」。</div>
+                      </div>
+                      <div class="chronicle__actions">
+                        <button class="btn btn--ghost btn--sm" type="button" data-action="edit-chronicle">编辑</button>
+                        <button class="btn btn--ghost btn--sm" type="button" data-action="delete-chronicle">删除</button>
+                      </div>
+                    </div>
+                    <div class="chronicle-item">
+                      <span class="chronicle__index">03</span>
+                      <div class="chronicle__content">
+                        <div class="chronicle__time">开元 1103 年 · 封神榜</div>
+                        <div class="chronicle__text">封神榜定榜，居第 3 席；备注「帝境之首」。</div>
+                      </div>
+                      <div class="chronicle__actions">
+                        <button class="btn btn--ghost btn--sm" type="button" data-action="edit-chronicle">编辑</button>
+                        <button class="btn btn--ghost btn--sm" type="button" data-action="delete-chronicle">删除</button>
+                      </div>
+                    </div>
+                    <div class="chronicle-item">
+                      <span class="chronicle__index">04</span>
+                      <div class="chronicle__content">
+                        <div class="chronicle__time">开元 1120 年 · 归墟秘境</div>
+                        <div class="chronicle__text">归墟之战后与归墟遗族缔结旧约，划定东荒南境边界。</div>
+                      </div>
+                      <div class="chronicle__actions">
+                        <button class="btn btn--ghost btn--sm" type="button" data-action="edit-chronicle">编辑</button>
+                        <button class="btn btn--ghost btn--sm" type="button" data-action="delete-chronicle">删除</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="edit-panel" id="character-edit-mode" hidden>
+                <div class="section__header">
+                  <h2 class="section__title">编辑人物</h2>
+                  <span class="section__meta">同页内联编辑 · 主名称必填</span>
+                </div>
+                <form class="form-grid" id="character-edit-form" novalidate>
+                  <div class="form-field">
+                    <label class="form-label" for="edit-name">主名称 <span class="form-label__required">*</span></label>
+                    <input class="input" id="edit-name" name="name" value="司空摘天">
+                    <span class="form-help">同一作品内唯一；修改后关联页面与检索索引同步更新。</span>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label" for="edit-realm">境界</label>
+                    <div class="select-wrap">
+                      <select class="select" id="edit-realm" name="realm">
+                        <option selected>帝境 · 五重天</option>
+                        <option>帝境 · 九重天</option>
+                        <option>圣者境 · 大成</option>
+                        <option>圣者境 · 初阶</option>
+                        <option>凡境</option>
+                        <option>未设置</option>
+                      </select>
+                      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                    </div>
+                    <span class="form-help">仅显示当前作品已启用的体系类别。</span>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label" for="edit-alias">别名</label>
+                    <div class="tag-input">
+                      <span class="chip">摘天<button class="chip__remove" type="button" aria-label="移除别名 摘天">×</button></span>
+                      <span class="chip">帝君<button class="chip__remove" type="button" aria-label="移除别名 帝君">×</button></span>
+                      <input id="edit-alias" type="text" placeholder="输入后按 Enter 添加" aria-label="添加别名">
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label" for="edit-title">称号</label>
+                    <div class="tag-input">
+                      <span class="chip">山海帝君<button class="chip__remove" type="button" aria-label="移除称号 山海帝君">×</button></span>
+                      <input id="edit-title" type="text" placeholder="输入后按 Enter 添加" aria-label="添加称号">
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label" for="edit-faction">所属势力 / 分支</label>
+                    <div class="select-wrap">
+                      <select class="select" id="edit-faction" name="faction">
+                        <option selected>山海妖族（首领）</option>
+                        <option>青丘分支</option>
+                        <option>归墟遗族</option>
+                        <option>天枢院</option>
+                        <option>未归属</option>
+                      </select>
+                      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label" for="edit-image">主图</label>
+                    <div class="inline-links">
+                      <span class="avatar avatar--40" aria-hidden="true">司</span>
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="upload-image">上传图片</button>
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="remove-image">移除</button>
+                    </div>
+                    <span class="form-help">JPG / PNG / WebP，单图 ≤10MB。</span>
+                  </div>
+                  <div class="form-field form-field--full">
+                    <label class="form-label" for="edit-bio">简介</label>
+                    <textarea class="textarea" id="edit-bio" name="bio">山海妖族当代首领，帝境五重天。出身苍梧星城，少年时以「摘天」之名行走东荒；在归墟之战中与归墟遗族缔结旧约，划定东荒南境边界。性情寡言，重誓约，不擅权谋。</textarea>
+                  </div>
+                  <div class="form-field form-field--full">
+                    <div class="edit-bar">
+                      <span class="edit-bar__hint">保存后，所有关联页面与检索结果自动同步。</span>
+                      <button class="btn btn--secondary" type="button" data-action="cancel-edit-character">取消</button>
+                      <button class="btn btn--primary" type="submit">保存</button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <aside class="detail-side" aria-label="档案与快捷入口">
+              <div class="side-card">
+                <h2 class="side-card__title">档案</h2>
+                <div class="meta-list">
+                  <div class="meta-row"><span class="meta-label">所属作品</span><span class="meta-value">山海志异</span></div>
+                  <div class="meta-row"><span class="meta-label">校对状态</span><span class="meta-value"><span class="badge badge--warning"><span class="badge__dot"></span>待校对</span></span></div>
+                  <div class="meta-row"><span class="meta-label">主图</span><span class="meta-value">已上传 · 1200×1600</span></div>
+                  <div class="meta-row"><span class="meta-label">创建时间</span><span class="meta-value">2026-11-05 14:20</span></div>
+                  <div class="meta-row"><span class="meta-label">更新时间</span><span class="meta-value">2026-11-07 09:42</span></div>
+                  <div class="meta-row"><span class="meta-label">人物 ID</span><span class="meta-value mono">CH-00017</span></div>
+                </div>
+              </div>
+              <div class="side-card">
+                <h2 class="side-card__title">快速链接</h2>
+                <div class="quick-links">
+                  <a class="quick-link" href="#faction">所属势力 · 山海妖族<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>
+                  <a class="quick-link" href="#ranking">所在榜单 · 封神榜<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>
+                  <a class="quick-link" href="#system">体系节点 · 帝境五重天<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>
+                  <a class="quick-link" href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">关联地点 · 苍梧星城<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>
+                </div>
+              </div>
+              <div class="side-card">
+                <h2 class="side-card__title">校对提示</h2>
+                <p class="text-secondary" style="font-size: 13px; line-height: 20px;">该人物由飞书《正文》迁移，名称、势力与境界需人工确认后标记为「已校对」。</p>
+                <button class="btn btn--secondary btn--sm" type="button" style="margin-top: 12px;" data-action="mark-proofread">
+                  <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>标记为已校对
+                </button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-faction" data-view="faction" aria-labelledby="faction-title">
+        <div class="page">
+          <header class="page-header">
+            <div class="page-header__main">
+              <nav class="breadcrumb" aria-label="当前位置">
+                <a href="#search">资料</a><span class="breadcrumb__sep">/</span>
+                <a href="#faction">势力</a><span class="breadcrumb__sep">/</span>
+                <span aria-current="page">山海妖族</span>
+              </nav>
+              <div class="page-title-row">
+                <h1 class="page-title" id="faction-title">山海妖族</h1>
+                <span class="badge badge--warning"><span class="badge__dot"></span>待校对</span>
+              </div>
+              <p class="page-subtitle">万族 → 妖族 &nbsp;·&nbsp; 东荒 &nbsp;·&nbsp; 树路径 2 层</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn--secondary" type="button" data-action="edit-faction">
+                <svg class="icon" aria-hidden="true"><use href="#i-edit"></use></svg>编辑
+              </button>
+              <button class="icon-btn" type="button" aria-label="更多势力操作" data-action="more-actions">
+                <svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg>
+              </button>
+            </div>
+          </header>
+
+          <div class="detail-layout">
+            <div class="detail-main">
+              <div class="summary-bar">
+                <div class="summary-item">
+                  <div class="summary-item__label">首领</div>
+                  <div class="summary-item__value"><a href="#character">司空摘天</a></div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-item__label">直属成员</div>
+                  <div class="summary-item__value">12</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-item__label">含下级成员</div>
+                  <div class="summary-item__value">34</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-item__label">下级分支</div>
+                  <div class="summary-item__value">3</div>
+                </div>
+              </div>
+
+              <div class="card" style="margin-top: 16px;">
+                <p class="bio-text">万族之首，居东荒苍梧星城。族内不细分「族 / 分支」类型，以节点名称表达层级：万族之下为妖族，妖族之下设青丘、白狐、玄狐三支。族约「守东荒、不越归墟」由当代首领司空摘天改定。</p>
+              </div>
+
+              <section class="section">
+                <div class="section__header">
+                  <h2 class="section__title">下级分支</h2>
+                  <span class="section__meta">3 个 · 改名后自动同步</span>
+                </div>
+                <div class="branch-list">
+                  <div class="branch-row">
+                    <span class="avatar" aria-hidden="true">青</span>
+                    <div class="branch-row__main">
+                      <a class="branch-row__name" href="#faction">青丘分支</a>
+                      <div class="branch-row__meta">首领 姜黎 · 镇守东荒南境</div>
+                    </div>
+                    <div class="branch-row__counts"><span>直属 8</span><span>含下级 12</span></div>
+                    <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                  </div>
+                  <div class="branch-row">
+                    <span class="avatar" aria-hidden="true">白</span>
+                    <div class="branch-row__main">
+                      <a class="branch-row__name" href="#faction">白狐分支</a>
+                      <div class="branch-row__meta">首领 白无咎 · 掌族中典籍</div>
+                    </div>
+                    <div class="branch-row__counts"><span>直属 4</span><span>含下级 6</span></div>
+                    <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                  </div>
+                  <div class="branch-row">
+                    <span class="avatar" aria-hidden="true">玄</span>
+                    <div class="branch-row__main">
+                      <a class="branch-row__name" href="#faction">玄狐分支</a>
+                      <div class="branch-row__meta">首领 顾长庚 · 驻归墟边境</div>
+                    </div>
+                    <div class="branch-row__counts"><span>直属 0</span><span>含下级 3</span></div>
+                    <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                  </div>
+                </div>
+              </section>
+
+              <section class="section">
+                <div class="section__header">
+                  <h2 class="section__title">成员</h2>
+                  <div class="segmented" role="group" aria-label="成员范围">
+                    <button class="segmented__btn" type="button" aria-pressed="true" data-member-scope="direct">仅直属</button>
+                    <button class="segmented__btn" type="button" aria-pressed="false" data-member-scope="all">含下级</button>
+                  </div>
+                  <span class="section__meta">成员由人物归属自动推导</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="table table--members">
+                    <thead>
+                      <tr>
+                        <th scope="col">人物</th>
+                        <th scope="col">势力路径</th>
+                        <th scope="col">境界</th>
+                        <th scope="col">所在榜单</th>
+                      </th>
+                    </tr>
+                    <tbody id="faction-member-body">
+                      <tr>
+                        <td><span class="member-cell"><span class="avatar" aria-hidden="true">司</span><a class="member-cell__name" href="#character">司空摘天</a><span class="badge badge--brand">首领</span></span></td>
+                        <td>山海妖族</td>
+                        <td>帝境 · 五重天</td>
+                        <td>封神榜第 3 席</td>
+                      </tr>
+                      <tr>
+                        <td><span class="member-cell"><span class="avatar" aria-hidden="true">陆</span><a class="member-cell__name" href="#character">陆青崖</a></span></td>
+                        <td>山海妖族</td>
+                        <td>圣者境 · 大成</td>
+                        <td>草黄纸第 7 席</td>
+                      </tr>
+                      <tr>
+                        <td><span class="member-cell"><span class="avatar" aria-hidden="true">云</span><a class="member-cell__name" href="#character">云栖</a></span></td>
+                        <td>山海妖族</td>
+                        <td>圣者境 · 初阶</td>
+                        <td>—</td>
+                      </tr>
+                      <tr>
+                        <td><span class="member-cell"><span class="avatar" aria-hidden="true">谢</span><a class="member-cell__name" href="#character">谢孤鸿</a></span></td>
+                        <td>山海妖族</td>
+                        <td>凡境 · 九层</td>
+                        <td>—</td>
+                      </tr>
+                      <tr data-scope="all" hidden>
+                        <td><span class="member-cell"><span class="avatar" aria-hidden="true">姜</span><a class="member-cell__name" href="#character">姜黎</a><span class="badge badge--neutral">青丘</span></span></td>
+                        <td>山海妖族 → 青丘分支</td>
+                        <td>圣者境 · 大成</td>
+                        <td>星火榜第 2 席</td>
+                      </tr>
+                      <tr data-scope="all" hidden>
+                        <td><span class="member-cell"><span class="avatar" aria-hidden="true">白</span><a class="member-cell__name" href="#character">白无咎</a><span class="badge badge--neutral">白狐</span></span></td>
+                        <td>山海妖族 → 白狐分支</td>
+                        <td>圣者境 · 初阶</td>
+                        <td>—</td>
+                      </tr>
+                      <tr data-scope="all" hidden>
+                        <td><span class="member-cell"><span class="avatar" aria-hidden="true">顾</span><a class="member-cell__name" href="#character">顾长庚</a><span class="badge badge--neutral">玄狐</span></span></td>
+                        <td>山海妖族 → 玄狐分支</td>
+                        <td>圣者境 · 初阶</td>
+                        <td>—</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="section">
+                <div class="section__header">
+                  <h2 class="section__title">关联地点</h2>
+                  <span class="section__meta">2 个 · 地点 ↔ 势力双向</span>
+                </div>
+                <div class="relation-grid">
+                  <div class="relation-card">
+                    <div class="relation-card__title"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-map-pin"></use></svg>势力驻地</div>
+                    <div class="relation-list">
+                      <div class="relation-item">
+                        <span class="relation-item__main"><a href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">苍梧星城</a></span>
+                        <span class="relation-item__meta">祖地</span>
+                        <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                      </div>
+                      <div class="relation-item">
+                        <span class="relation-item__main"><a href="#location" data-uncovered="地点详情见 PG-07，本原型未覆盖">山海古战场</a></span>
+                        <span class="relation-item__meta">旧盟战场</span>
+                        <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="relation-card">
+                    <div class="relation-card__title"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-user"></use></svg>关键人物</div>
+                    <div class="relation-list">
+                      <div class="relation-item">
+                        <span class="relation-item__main"><a href="#character">司空摘天</a></span>
+                        <span class="relation-item__meta">首领</span>
+                        <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                      </div>
+                      <div class="relation-item">
+                        <span class="relation-item__main"><a href="#character">姜黎</a></span>
+                        <span class="relation-item__meta">青丘分支首领</span>
+                        <svg class="icon icon--sm relation-item__arrow" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="section">
+                <div class="section__header">
+                  <h2 class="section__title">势力大事记</h2>
+                  <span class="section__meta">3 条 · 手工维护</span>
+                  <div class="section__actions">
+                    <button class="btn btn--ghost btn--sm" type="button" data-action="add-chronicle">
+                      <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>新增
+                    </button>
+                  </div>
+                </div>
+                <div class="chronicle">
+                  <div class="chronicle-item">
+                    <span class="chronicle__index">01</span>
+                    <div class="chronicle__content">
+                      <div class="chronicle__time">开元 1024 年 · 苍梧星城</div>
+                      <div class="chronicle__text">山海妖族立族，定苍梧星城为祖地。</div>
+                    </div>
+                    <div class="chronicle__actions">
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="edit-chronicle">编辑</button>
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="delete-chronicle">删除</button>
+                    </div>
+                  </div>
+                  <div class="chronicle-item">
+                    <span class="chronicle__index">02</span>
+                    <div class="chronicle__content">
+                      <div class="chronicle__time">开元 1088 年 · 山海妖族</div>
+                      <div class="chronicle__text">司空摘天继任首领，设青丘、白狐、玄狐三支。</div>
+                    </div>
+                    <div class="chronicle__actions">
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="edit-chronicle">编辑</button>
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="delete-chronicle">删除</button>
+                    </div>
+                  </div>
+                  <div class="chronicle-item">
+                    <span class="chronicle__index">03</span>
+                    <div class="chronicle__content">
+                      <div class="chronicle__time">开元 1120 年 · 归墟秘境</div>
+                      <div class="chronicle__text">归墟之战后与归墟遗族缔结旧约，划定东荒南境。</div>
+                    </div>
+                    <div class="chronicle__actions">
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="edit-chronicle">编辑</button>
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="delete-chronicle">删除</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <aside class="detail-side" aria-label="档案与快捷入口">
+              <div class="side-card">
+                <h2 class="side-card__title">档案</h2>
+                <div class="meta-list">
+                  <div class="meta-row"><span class="meta-label">所属作品</span><span class="meta-value">山海志异</span></div>
+                  <div class="meta-row"><span class="meta-label">树路径</span><span class="meta-value">万族 → 妖族</span></div>
+                  <div class="meta-row"><span class="meta-label">校对状态</span><span class="meta-value"><span class="badge badge--warning"><span class="badge__dot"></span>待校对</span></span></div>
+                  <div class="meta-row"><span class="meta-label">创建时间</span><span class="meta-value">2026-11-05 14:32</span></div>
+                  <div class="meta-row"><span class="meta-label">更新时间</span><span class="meta-value">2026-11-07 09:40</span></div>
+                  <div class="meta-row"><span class="meta-label">势力 ID</span><span class="meta-value mono">FA-00006</span></div>
+                </div>
+              </div>
+              <div class="side-card">
+                <h2 class="side-card__title">树结构</h2>
+                <div class="quick-links">
+                  <a class="quick-link" href="#faction">上级 · 万族<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>
+                  <a class="quick-link" href="#faction">下级 · 青丘分支<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>
+                  <a class="quick-link" href="#faction">下级 · 白狐分支<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>
+                  <a class="quick-link" href="#faction">下级 · 玄狐分支<svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>
+                </div>
+              </div>
+              <div class="side-card">
+                <h2 class="side-card__title">删除检查</h2>
+                <p class="text-secondary" style="font-size: 13px; line-height: 20px;">该势力含 3 个下级分支、被 12 位人物引用，当前不可删除；需先清空下级与人物归属。</p>
+                <button class="btn btn--danger-outline btn--sm" type="button" style="margin-top: 12px;" disabled title="存在 15 条引用，无法删除">删除势力</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-ranking" data-view="ranking" aria-labelledby="ranking-title">
+        <div class="page">
+          <header class="page-header">
+            <div class="page-header__main">
+              <nav class="breadcrumb" aria-label="当前位置">
+                <a href="#search">资料</a><span class="breadcrumb__sep">/</span>
+                <a href="#ranking">榜单</a><span class="breadcrumb__sep">/</span>
+                <span aria-current="page">封神榜</span>
+              </nav>
+              <div class="page-title-row">
+                <h1 class="page-title" id="ranking-title">封神榜</h1>
+                <span class="badge badge--warning"><span class="badge__dot"></span>待校对</span>
+              </div>
+              <p class="page-subtitle">《山海志异》&nbsp;·&nbsp; 席位号即名次 &nbsp;·&nbsp; 允许空缺，不做并列</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn--secondary" type="button" data-action="expand-ranking">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>扩容席位
+              </button>
+              <button class="icon-btn" type="button" aria-label="更多榜单操作" data-action="more-actions">
+                <svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg>
+              </button>
+            </div>
+          </header>
+
+          <div class="ranking-summary">
+            <div class="ranking-stat"><span class="ranking-stat__value">100</span><span class="ranking-stat__label">总席位</span></div>
+            <div class="ranking-stat"><span class="ranking-stat__value">23</span><span class="ranking-stat__label">已占</span></div>
+            <div class="ranking-stat"><span class="ranking-stat__value">77</span><span class="ranking-stat__label">空席</span></div>
+            <div class="ranking-stat"><span class="ranking-stat__value">5</span><span class="ranking-stat__label">备注含「并列」</span></div>
+          </div>
+
+          <div class="ranking-toolbar">
+            <div class="search-field ranking-search">
+              <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+              <label class="sr-only" for="seat-search">搜索席位人物或备注</label>
+              <input class="input" id="seat-search" type="search" placeholder="搜索人物或备注…">
+            </div>
+            <div class="jump-field">
+              <label class="jump-label" for="jump-seat">跳至席位</label>
+              <input class="input" id="jump-seat" type="number" min="1" max="100" placeholder="1–100">
+              <button class="btn btn--secondary btn--sm" type="button" data-action="jump-seat">跳转</button>
+            </div>
+            <span class="page-indicator">第 1–50 席 / 共 100 席</span>
+          </div>
+
+          <div class="table-wrap">
+            <table class="table table--ranking">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 64px;">席位</th>
+                  <th scope="col">人物</th>
+                  <th scope="col" style="width: 240px;">所属势力 / 境界</th>
+                  <th scope="col" style="width: 150px;">备注</th>
+                  <th scope="col" style="width: 130px;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="seat-body"></tbody>
+            </table>
+          </div>
+
+          <p class="seat-note">席位号即名次；同一人物在同一榜单仅 1 席。调整时使用「移动到空席」或「与目标席位交换」，不改变其他席位。</p>
+
+          <nav class="pagination" aria-label="榜单席位分页">
+            <span class="pagination__total">第 1–50 席 · 共 100 席</span>
+            <button class="page-btn" type="button" disabled aria-label="上一页">
+              <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-left"></use></svg>
+            </button>
+            <button class="page-btn page-btn--active" type="button" aria-current="page">1</button>
+            <button class="page-btn" type="button" data-action="ranking-page-2">2</button>
+            <button class="page-btn" type="button" aria-label="下一页" data-action="ranking-page-2">
+              <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </nav>
+        </div>
+      </section>
+
+      <section class="view" id="view-system" data-view="system" aria-labelledby="system-title">
+        <div class="page">
+          <header class="page-header">
+            <div class="page-header__main">
+              <nav class="breadcrumb" aria-label="当前位置">
+                <a href="#search">资料</a><span class="breadcrumb__sep">/</span>
+                <span aria-current="page">体系</span>
+              </nav>
+              <h1 class="page-title" id="system-title">体系配置</h1>
+              <p class="page-subtitle">《山海志异》&nbsp;·&nbsp; 类别与层级 &nbsp;·&nbsp; 已用 5 / 10 类</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn--primary" type="button" data-action="add-category">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>新增类别
+              </button>
+            </div>
+          </header>
+
+          <div class="system-layout">
+            <div class="category-panel" aria-label="体系类别">
+              <div class="category-panel__header">
+                <span class="category-panel__title">类别</span>
+                <span class="category-panel__count">5 / 10</span>
+              </div>
+              <div class="category-list">
+                <button class="category-item active" type="button" data-category="境界" aria-current="true">
+                  <span class="category-item__name-line">
+                    <span class="category-item__name">境界</span>
+                    <span class="badge badge--neutral">内置</span>
+                    <span class="badge badge--brand">必开</span>
+                  </span>
+                  <span class="category-item__meta">普通<span class="dot">·</span>24 节点<span class="dot">·</span>引用 86</span>
+                </button>
+                <button class="category-item" type="button" data-category="星命">
+                  <span class="category-item__name-line"><span class="category-item__name">星命</span></span>
+                  <span class="category-item__meta">普通<span class="dot">·</span>12 节点<span class="dot">·</span>引用 8</span>
+                </button>
+                <button class="category-item" type="button" data-category="圣体">
+                  <span class="category-item__name-line"><span class="category-item__name">圣体</span></span>
+                  <span class="category-item__meta">普通<span class="dot">·</span>9 节点<span class="dot">·</span>引用 6</span>
+                </button>
+                <button class="category-item" type="button" data-category="纪元">
+                  <span class="category-item__name-line"><span class="category-item__name">纪元</span><span class="badge badge--info">纪元</span></span>
+                  <span class="category-item__meta">6 节点<span class="dot">·</span>引用 0</span>
+                </button>
+                <button class="category-item category-item--disabled" type="button" data-category="幽府">
+                  <span class="category-item__name-line"><span class="category-item__name">幽府</span><span class="badge badge--neutral">已停用</span></span>
+                  <span class="category-item__meta">普通<span class="dot">·</span>0 节点<span class="dot">·</span>引用 0</span>
+                </button>
+              </div>
+              <button class="btn btn--ghost btn--sm category-add" type="button" data-action="add-category">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>新增类别
+              </button>
+            </div>
+
+            <div class="category-detail">
+              <div class="category-header">
+                <div class="category-header__main">
+                  <div class="category-title-row">
+                    <h2 class="category-title">境界</h2>
+                    <span class="badge badge--neutral">内置</span>
+                    <span class="badge badge--brand">必开</span>
+                  </div>
+                  <p class="category-desc">内置体系类别，名称固定，不可停用或删除。人物可引用 0..1 个境界节点；未启用的类别不会出现在人物表单与详情页。</p>
+                </div>
+              </div>
+
+              <div class="category-meta">
+                <span class="category-meta__item">类型 <span class="category-meta__value">普通</span></span>
+                <span class="category-meta__item">节点 <span class="category-meta__value">24</span></span>
+                <span class="category-meta__item">被引用 <span class="category-meta__value">86 人</span></span>
+                <span class="category-meta__item">层级 <span class="category-meta__value">两级</span></span>
+              </div>
+
+              <div class="node-section">
+                <div class="node-toolbar">
+                  <span class="node-toolbar__title">层级节点</span>
+                  <span class="node-toolbar__hint">最多两级 · 同级可排序 · 当前显示 6 / 24</span>
+                  <div class="node-toolbar__actions">
+                    <button class="btn btn--secondary btn--sm" type="button" data-action="add-node">
+                      <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>新增主层级
+                    </button>
+                  </div>
+                </div>
+                <div class="node-tree" aria-label="境界节点树">
+                  <div class="tree-row">
+                    <button class="tree-toggle" type="button" aria-label="收起帝境下级" aria-expanded="true" data-action="toggle-node">
+                      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                    </button>
+                    <span class="tree-name">帝境</span>
+                    <span class="tree-refs">引用 42</span>
+                    <div class="tree-actions">
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="在帝境下新增子层级" data-action="add-child-node">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-plus"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="上移帝境" data-action="move-node-up">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="下移帝境" data-action="move-node-down">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-down"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="更多帝境操作" data-action="node-menu">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-more"></use></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="tree-row tree-row--child">
+                    <span class="tree-toggle tree-toggle--empty" aria-hidden="true"></span>
+                    <span class="tree-name">五重天</span>
+                    <span class="tree-refs">引用 6</span>
+                    <div class="tree-actions">
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="上移五重天" data-action="move-node-up">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="下移五重天" data-action="move-node-down">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-down"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="更多五重天操作" data-action="node-menu">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-more"></use></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="tree-row tree-row--child">
+                    <span class="tree-toggle tree-toggle--empty" aria-hidden="true"></span>
+                    <span class="tree-name">九重天</span>
+                    <span class="tree-refs">引用 9</span>
+                    <div class="tree-actions">
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="上移九重天" data-action="move-node-up">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="下移九重天" data-action="move-node-down">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-down"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="更多九重天操作" data-action="node-menu">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-more"></use></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="tree-row">
+                    <button class="tree-toggle" type="button" aria-label="展开圣者境下级" aria-expanded="true" data-action="toggle-node">
+                      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                    </button>
+                    <span class="tree-name">圣者境</span>
+                    <span class="tree-refs">引用 23</span>
+                    <div class="tree-actions">
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="在圣者境下新增子层级" data-action="add-child-node">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-plus"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="上移圣者境" data-action="move-node-up">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="下移圣者境" data-action="move-node-down">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-down"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="更多圣者境操作" data-action="node-menu">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-more"></use></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="tree-row tree-row--child">
+                    <span class="tree-toggle tree-toggle--empty" aria-hidden="true"></span>
+                    <span class="tree-name">初阶</span>
+                    <span class="tree-refs">引用 11</span>
+                    <div class="tree-actions">
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="上移初阶" data-action="move-node-up">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="下移初阶" data-action="move-node-down">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-down"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="更多初阶操作" data-action="node-menu">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-more"></use></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="tree-row tree-row--child">
+                    <span class="tree-toggle tree-toggle--empty" aria-hidden="true"></span>
+                    <span class="tree-name">大成</span>
+                    <span class="tree-refs">引用 12</span>
+                    <div class="tree-actions">
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="上移大成" data-action="move-node-up">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="下移大成" data-action="move-node-down">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-down"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="更多大成操作" data-action="node-menu">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-more"></use></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="tree-row">
+                    <span class="tree-toggle tree-toggle--empty" aria-hidden="true"></span>
+                    <span class="tree-name">凡境</span>
+                    <span class="tree-refs">引用 45</span>
+                    <div class="tree-actions">
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="在凡境下新增子层级" data-action="add-child-node">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-plus"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="上移凡境" data-action="move-node-up">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="下移凡境" data-action="move-node-down">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-down"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="更多凡境操作" data-action="node-menu">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-more"></use></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="tree-row">
+                    <span class="tree-toggle tree-toggle--empty" aria-hidden="true"></span>
+                    <span class="tree-name">神境</span>
+                    <span class="tree-refs">引用 0</span>
+                    <div class="tree-actions">
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="在神境下新增子层级" data-action="add-child-node">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-plus"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="上移神境" data-action="move-node-up">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-up"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="下移神境" data-action="move-node-down">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-arrow-down"></use></svg>
+                      </button>
+                      <button class="icon-btn icon-btn--sm" type="button" aria-label="更多神境操作" data-action="node-menu">
+                        <svg class="icon icon--sm" aria-hidden="true"><use href="#i-more"></use></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p class="node-footnote">
+                  <svg class="icon icon--sm" aria-hidden="true"><use href="#i-info"></use></svg>
+                  「境界」为内置类别，名称固定且不可停用 / 删除；删除任何节点前必须无人物引用。
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-import" data-view="import" aria-labelledby="import-title">
+        <div class="page">
+          <header class="page-header">
+            <div class="page-header__main">
+              <nav class="breadcrumb" aria-label="当前位置">
+                <a href="#search">工具</a><span class="breadcrumb__sep">/</span>
+                <span aria-current="page">导入</span>
+              </nav>
+              <h1 class="page-title" id="import-title">导入设定</h1>
+              <p class="page-subtitle">固定模板 Markdown + 图片 zip &nbsp;·&nbsp; 一次性迁入新建空作品</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn--secondary" type="button" data-action="download-template">
+                <svg class="icon" aria-hidden="true"><use href="#i-file"></use></svg>下载模板
+              </button>
+            </div>
+          </header>
+
+          <div class="stepper" aria-label="导入步骤">
+            <button class="step is-done" type="button" data-import-step="1">
+              <span class="step__index" aria-hidden="true"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-check"></use></svg></span>
+              上传文件
+            </button>
+            <span class="step__connector is-done" aria-hidden="true"></span>
+            <button class="step is-error" type="button" data-import-step="2" aria-current="step">
+              <span class="step__index" aria-hidden="true"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-alert"></use></svg></span>
+              校验预览
+            </button>
+            <span class="step__connector" aria-hidden="true"></span>
+            <button class="step is-disabled" type="button" disabled>
+              <span class="step__index" aria-hidden="true">3</span>
+              确认导入
+            </button>
+            <span class="step__connector" aria-hidden="true"></span>
+            <button class="step is-disabled" type="button" disabled>
+              <span class="step__index" aria-hidden="true">4</span>
+              导入报告
+            </button>
+            <span class="step__connector" aria-hidden="true"></span>
+            <button class="step is-disabled" type="button" disabled>
+              <span class="step__index" aria-hidden="true">5</span>
+              待校对
+            </button>
+          </div>
+
+          <div class="import-layout">
+            <div class="import-main">
+              <div id="import-step-panel-1" hidden>
+                <div class="dropzone">
+                  <span class="dropzone__icon"><svg class="icon icon--24" aria-hidden="true"><use href="#i-upload"></use></svg></span>
+                  <span class="dropzone__title">拖入固定模板 Markdown 与图片 zip</span>
+                  <span class="dropzone__hint">或点击选择文件 · 仅接受固定模板 v1.0 · 单个文件 ≤ 500MB</span>
+                  <span class="btn btn--secondary btn--sm" style="margin-top: 16px;" data-action="choose-files">选择文件</span>
+                </div>
+                <div class="import-section">
+                  <div class="import-section__title">已选择文件</div>
+                  <div class="file-list">
+                    <div class="file-row">
+                      <span class="file-row__icon"><svg class="icon" aria-hidden="true"><use href="#i-file"></use></svg></span>
+                      <div class="file-row__main">
+                        <div class="file-row__name">山海志异设定.md</div>
+                        <div class="file-row__meta">86 KB · UTF-8 · 模板版本 v1.0</div>
+                      </div>
+                      <button class="file-row__remove" type="button" data-action="remove-file">移除</button>
+                    </div>
+                    <div class="file-row">
+                      <span class="file-row__icon"><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg></span>
+                      <div class="file-row__main">
+                        <div class="file-row__name">images.zip</div>
+                        <div class="file-row__meta">42.6 MB · 142 张图片 · jpg / png / webp</div>
+                      </div>
+                      <button class="file-row__remove" type="button" data-action="remove-file">移除</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="upload-actions">
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="download-sample">
+                    <svg class="icon" aria-hidden="true"><use href="#i-file"></use></svg>下载示例文件
+                  </button>
+                  <div class="upload-actions__right">
+                    <button class="btn btn--secondary" type="button" data-action="cancel-import">取消</button>
+                    <button class="btn btn--primary" type="button" data-action="start-validation">
+                      开始校验<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div id="import-step-panel-2">
+                <div class="alert alert--danger" role="alert" style="margin-bottom: 20px;">
+                  <svg class="icon" aria-hidden="true"><use href="#i-alert"></use></svg>
+                  <div class="alert__content">
+                    <div class="alert__title">发现 2 个错误，整批暂不写入</div>
+                    <div class="alert__text">修正 Markdown 或补齐图片后重新上传即可重跑；导入过程不会产生半成品数据。</div>
+                  </div>
+                </div>
+
+                <div class="import-section">
+                  <div class="import-section__title">
+                    <svg class="icon icon--sm" aria-hidden="true"><use href="#i-file"></use></svg>已读取文件
+                  </div>
+                  <div class="file-list">
+                    <div class="file-row">
+                      <span class="file-row__icon"><svg class="icon" aria-hidden="true"><use href="#i-file"></use></svg></span>
+                      <div class="file-row__main">
+                        <div class="file-row__name">山海志异设定.md</div>
+                        <div class="file-row__meta">86 KB · UTF-8 · 模板版本 v1.0 · 共 486 行</div>
+                      </div>
+                      <span class="badge badge--brand"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-check"></use></svg>已解析</span>
+                    </div>
+                    <div class="file-row">
+                      <span class="file-row__icon"><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg></span>
+                      <div class="file-row__main">
+                        <div class="file-row__name">images.zip</div>
+                        <div class="file-row__meta">42.6 MB · 142 张图片 · jpg / png / webp · 无加密</div>
+                      </div>
+                      <span class="badge badge--brand"><svg class="icon icon--sm" aria-hidden="true"><use href="#i-check"></use></svg>可读取</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="import-section">
+                  <div class="import-section__title">解析结果</div>
+                  <div class="count-grid">
+                    <div class="count-item"><div class="count-item__value">128</div><div class="count-item__label">人物</div></div>
+                    <div class="count-item"><div class="count-item__value">64</div><div class="count-item__label">势力节点</div></div>
+                    <div class="count-item"><div class="count-item__value">37</div><div class="count-item__label">地点</div></div>
+                    <div class="count-item"><div class="count-item__value">3</div><div class="count-item__label">榜单</div></div>
+                    <div class="count-item"><div class="count-item__value">5</div><div class="count-item__label">体系类别</div></div>
+                    <div class="count-item"><div class="count-item__value">48</div><div class="count-item__label">体系节点</div></div>
+                    <div class="count-item"><div class="count-item__value">214</div><div class="count-item__label">大事记</div></div>
+                    <div class="count-item"><div class="count-item__value">142</div><div class="count-item__label">图片</div></div>
+                  </div>
+                </div>
+
+                <div class="import-section">
+                  <div class="import-section__title">错误清单 <span class="badge badge--danger">2</span></div>
+                  <div class="error-list">
+                    <div class="error-list__header">
+                      <svg class="icon icon--sm" aria-hidden="true"><use href="#i-alert"></use></svg>
+                      修正后重新上传，不支持在预览中直接编辑源文件
+                    </div>
+                    <div class="error-list__body">
+                      <div class="error-row">
+                        <span class="error-row__line">第 214 行</span>
+                        <span>人物「无咎」缺少必填字段「主名称」；请补充 `name::` 后重新校验。</span>
+                      </div>
+                      <div class="error-row">
+                        <span class="error-row__line">第 486 行</span>
+                        <span>图片 `baiwujiu.png` 在 zip 中未找到对应文件；请检查相对文件名与大小写。</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="import-section">
+                  <div class="import-section__title">图片匹配</div>
+                  <div class="image-match">
+                    <span class="match-stat"><strong>140</strong> 已匹配</span>
+                    <span class="match-stat match-stat--danger"><strong>1</strong> 缺失</span>
+                    <span class="match-stat"><strong>1</strong> 多余</span>
+                    <span class="match-stat"><strong>0</strong> 格式不支持</span>
+                    <span class="match-stat"><strong>0</strong> 超限</span>
+                  </div>
+                  <p class="form-help" style="margin-top: 8px;">人物主图为 0..1 张；缺失图片会阻止整批导入。多余图片不写入数据库，但会在报告中列出。</p>
+                </div>
+
+                <div class="import-section">
+                  <div class="import-section__title">写入前检查</div>
+                  <div class="alert alert--success">
+                    <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <div class="alert__content">模板版本、作品名称唯一性、人物主名称唯一性、引用闭合与体系类别上限检查均通过；仅剩上述 2 个错误。</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="import-aside" aria-label="导入规则">
+              <h2 class="import-aside__title">目标与规则</h2>
+              <div class="meta-list">
+                <div class="meta-row"><span class="meta-label">导入目标</span><span class="meta-value">新建空作品</span></div>
+                <div class="meta-row"><span class="meta-label">模板版本</span><span class="meta-value mono">v1.0</span></div>
+                <div class="meta-row"><span class="meta-label">写入方式</span><span class="meta-value">原子写入</span></div>
+                <div class="meta-row"><span class="meta-label">导入前快照</span><span class="meta-value">自动创建</span></div>
+                <div class="meta-row"><span class="meta-label">校对状态</span><span class="meta-value">全部「待校对」</span></div>
+              </div>
+              <p class="import-aside__note">任一错误整批不写入；失败后可修正源文件重跑。导入不做增量 upsert，也不覆盖已有作品。</p>
+              <div class="import-aside__actions" id="import-aside-actions-1" hidden>
+                <button class="btn btn--secondary" type="button" data-action="download-template">下载固定模板</button>
+              </div>
+              <div class="import-aside__actions" id="import-aside-actions-2">
+                <button class="btn btn--secondary" type="button" data-action="reupload">
+                  <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>重新上传
+                </button>
+                <button class="btn btn--primary" type="button" disabled aria-describedby="import-disabled-reason">确认导入</button>
+                <p class="disabled-reason" id="import-disabled-reason">存在 2 个错误，无法导入</p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-trash" data-view="trash" aria-labelledby="trash-title">
+        <div class="page">
+          <header class="page-header">
+            <div class="page-header__main">
+              <nav class="breadcrumb" aria-label="当前位置">
+                <a href="#search">工具</a><span class="breadcrumb__sep">/</span>
+                <span aria-current="page">回收站</span>
+              </nav>
+              <h1 class="page-title" id="trash-title">回收站</h1>
+              <p class="page-subtitle">跨作品查看已删除项 &nbsp;·&nbsp; 共 18 项 &nbsp;·&nbsp; 恢复后可继续编辑</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn--danger-outline" type="button" data-action="empty-trash">
+                <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>清空回收站
+              </button>
+            </div>
+          </header>
+
+          <div class="filter-bar" role="search">
+            <div class="search-field filter-bar__search">
+              <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+              <label class="sr-only" for="trash-search">搜索回收站</label>
+              <input class="input" id="trash-search" type="search" placeholder="搜索名称…">
+            </div>
+            <div class="select-wrap filter-bar__select">
+              <label class="sr-only" for="trash-type">类型</label>
+              <select class="select" id="trash-type">
+                <option>全部类型</option>
+                <option>作品</option>
+                <option>人物</option>
+                <option>势力</option>
+                <option>地点</option>
+                <option>榜单</option>
+                <option>体系类别</option>
+                <option>体系节点</option>
+                <option>大事记</option>
+              </select>
+              <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+            </div>
+            <div class="select-wrap filter-bar__select">
+              <label class="sr-only" for="trash-work">原作品</label>
+              <select class="select" id="trash-work">
+                <option>全部作品</option>
+                <option>山海志异</option>
+                <option>星穹之下</option>
+              </select>
+              <svg class="icon icon--sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+            </div>
+            <button class="btn btn--ghost btn--sm filter-bar__reset" type="button" data-action="reset-trash-filters">重置</button>
+          </div>
+
+          <div class="alert alert--info" role="status" style="margin: 16px 0 20px;">
+            <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+            <div class="alert__content">恢复时若父级、势力或榜单引用已删除，会先提示补齐；永久删除与清空回收站前自动创建快照，保留最近 3 份。</div>
+          </div>
+
+          <div class="table-wrap" id="trash-table-wrap">
+            <table class="table table--trash">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 104px;">类型</th>
+                  <th scope="col">名称</th>
+                  <th scope="col" style="width: 140px;">原作品</th>
+                  <th scope="col" style="width: 160px;">删除时间</th>
+                  <th scope="col" style="width: 180px;">删除前父级</th>
+                  <th scope="col" style="width: 180px;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="trash-body">
+                <tr data-name="白无咎">
+                  <td><span class="badge badge--neutral">人物</span></td>
+                  <td><span class="trash-name">白无咎<span class="trash-name__note">别名：无咎先生</span></span></td>
+                  <td>山海志异</td>
+                  <td class="mono">2026-11-07 09:18</td>
+                  <td>势力 · 天枢院</td>
+                  <td>
+                    <div class="trash-actions">
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="restore-item" data-name="白无咎">恢复</button>
+                      <button class="btn btn--danger-text btn--sm" type="button" data-action="delete-item" data-name="白无咎">永久删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="旧青丘">
+                  <td><span class="badge badge--neutral">势力</span></td>
+                  <td><span class="trash-name">旧青丘<span class="trash-name__note">含 3 个下级节点 · 12 位成员</span></span></td>
+                  <td>山海志异</td>
+                  <td class="mono">2026-11-07 08:52</td>
+                  <td>万族</td>
+                  <td>
+                    <div class="trash-actions">
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="restore-item" data-name="旧青丘">恢复</button>
+                      <button class="btn btn--danger-text btn--sm" type="button" data-action="delete-item" data-name="旧青丘">永久删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="幽府">
+                  <td><span class="badge badge--info">体系类别</span></td>
+                  <td><span class="trash-name">幽府<span class="trash-name__note">含 6 个节点 · 整组删除</span></span></td>
+                  <td>山海志异</td>
+                  <td class="mono">2026-11-06 22:10</td>
+                  <td>—</td>
+                  <td>
+                    <div class="trash-actions">
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="restore-item" data-name="幽府">恢复</button>
+                      <button class="btn btn--danger-text btn--sm" type="button" data-action="delete-item" data-name="幽府">永久删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="星穹之下">
+                  <td><span class="badge badge--brand">作品</span></td>
+                  <td><span class="trash-name">星穹之下<span class="trash-name__note">整本作品 · 36 人物</span></span></td>
+                  <td>—</td>
+                  <td class="mono">2026-11-06 18:30</td>
+                  <td>—</td>
+                  <td>
+                    <div class="trash-actions">
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="restore-item" data-name="星穹之下">恢复整本</button>
+                      <button class="btn btn--danger-text btn--sm" type="button" data-action="delete-item" data-name="星穹之下">永久删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="旧星火榜">
+                  <td><span class="badge badge--info">榜单</span></td>
+                  <td><span class="trash-name">旧星火榜<span class="trash-name__note">100 席 · 在榜 18 人</span></span></td>
+                  <td>山海志异</td>
+                  <td class="mono">2026-11-06 16:44</td>
+                  <td>—</td>
+                  <td>
+                    <div class="trash-actions">
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="restore-item" data-name="旧星火榜">恢复</button>
+                      <button class="btn btn--danger-text btn--sm" type="button" data-action="delete-item" data-name="旧星火榜">永久删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="归墟渡口">
+                  <td><span class="badge badge--neutral">地点</span></td>
+                  <td><span class="trash-name">归墟渡口<span class="trash-name__note">类型：渡口</span></span></td>
+                  <td>山海志异</td>
+                  <td class="mono">2026-11-05 21:02</td>
+                  <td>归墟</td>
+                  <td>
+                    <div class="trash-actions">
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="restore-item" data-name="归墟渡口">恢复</button>
+                      <button class="btn btn--danger-text btn--sm" type="button" data-action="delete-item" data-name="归墟渡口">永久删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="五重天">
+                  <td><span class="badge badge--info">体系节点</span></td>
+                  <td><span class="trash-name">五重天<span class="trash-name__note">境界 / 帝境 · 6 人引用</span></span></td>
+                  <td>山海志异</td>
+                  <td class="mono">2026-11-05 19:37</td>
+                  <td>帝境</td>
+                  <td>
+                    <div class="trash-actions">
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="restore-item" data-name="五重天">恢复</button>
+                      <button class="btn btn--danger-text btn--sm" type="button" data-action="delete-item" data-name="五重天">永久删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="青丘残卷">
+                  <td><span class="badge badge--neutral">大事记</span></td>
+                  <td><span class="trash-name">青丘残卷<span class="trash-name__note">人物：姜黎</span></span></td>
+                  <td>山海志异</td>
+                  <td class="mono">2026-11-05 17:12</td>
+                  <td>姜黎</td>
+                  <td>
+                    <div class="trash-actions">
+                      <button class="btn btn--secondary btn--sm" type="button" data-action="restore-item" data-name="青丘残卷">恢复</button>
+                      <button class="btn btn--danger-text btn--sm" type="button" data-action="delete-item" data-name="青丘残卷">永久删除</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="empty-state" id="trash-empty" hidden>
+            <span class="empty-state__icon"><svg class="icon icon--24" aria-hidden="true"><use href="#i-trash"></use></svg></span>
+            <h2 class="empty-state__title">回收站为空</h2>
+            <p class="empty-state__text">删除的人物、势力、地点、榜单、体系节点与作品会先进入这里；可在快照保留期内恢复。</p>
+            <div class="empty-state__actions">
+              <a class="btn btn--secondary" href="#search">返回检索</a>
+            </div>
+          </div>
+
+          <nav class="pagination" id="trash-pagination" aria-label="回收站分页">
+            <span class="pagination__total">每页 20 项 · 共 18 项</span>
+            <button class="page-btn" type="button" disabled>上一页</button>
+            <button class="page-btn page-btn--active" type="button" aria-current="page">1</button>
+            <button class="page-btn" type="button" disabled>下一页</button>
+          </nav>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div class="toast-host" id="toast-host" aria-live="polite" aria-atomic="true"></div>
+
+  <dialog class="dialog" id="assign-dialog" aria-labelledby="assign-dialog-title">
+    <div class="dialog__header">
+      <h2 class="dialog__title" id="assign-dialog-title">指派到第 7 席</h2>
+      <p class="dialog__desc">只列出当前作品内、尚未在「封神榜」中占席的人物。</p>
+    </div>
+    <div class="dialog__body">
+      <div class="search-field dialog__search">
+        <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+        <input class="input" type="search" placeholder="搜索人物姓名或别名…" aria-label="搜索人物">
+      </div>
+      <div class="candidate-list" role="listbox" aria-label="候选人物">
+        <button class="candidate-row" type="button" role="option" aria-selected="false" data-candidate="陆青崖">
+          <span class="avatar" aria-hidden="true">陆</span>
+          <span class="candidate-row__main">
+            <span class="candidate-row__name">陆青崖</span>
+            <span class="candidate-row__meta">圣者境 · 大成 / 山海妖族</span>
+          </span>
+          <span class="badge badge--neutral">未上榜</span>
+        </button>
+        <button class="candidate-row" type="button" role="option" aria-selected="false" data-candidate="沈照夜">
+          <span class="avatar" aria-hidden="true">沈</span>
+          <span class="candidate-row__main">
+            <span class="candidate-row__name">沈照夜</span>
+            <span class="candidate-row__meta">圣者境 · 大成 / 归墟遗族</span>
+          </span>
+          <span class="badge badge--neutral">未上榜</span>
+        </button>
+        <button class="candidate-row" type="button" role="option" aria-selected="false" data-candidate="顾长庚">
+          <span class="avatar" aria-hidden="true">顾</span>
+          <span class="candidate-row__main">
+            <span class="candidate-row__name">顾长庚</span>
+            <span class="candidate-row__meta">圣者境 · 初阶 / 天枢院</span>
+          </span>
+          <span class="badge badge--neutral">未上榜</span>
+        </button>
+      </div>
+      <p class="dialog__hint">同一人物在同一榜单只能占 1 席；如已在榜，请先移出或与目标席位交换。</p>
+    </div>
+    <div class="dialog__footer">
+      <button class="btn btn--secondary" type="button" data-close-dialog>取消</button>
+      <button class="btn btn--primary" type="button" id="assign-confirm" disabled>指派到第 7 席</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog" id="confirm-dialog" role="alertdialog" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-desc">
+    <div class="dialog__header">
+      <h2 class="dialog__title" id="confirm-dialog-title">确认操作</h2>
+      <p class="dialog__desc" id="confirm-dialog-desc"></p>
+    </div>
+    <div class="dialog__footer">
+      <button class="btn btn--secondary" type="button" data-close-dialog>取消</button>
+      <button class="btn btn--danger-solid" type="button" id="confirm-dialog-action">确认</button>
+    </div>
+  </dialog>
+
+  <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+    <symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"></path></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="21" y1="4" x2="14" y2="4"></line><line x1="10" y1="4" x2="3" y2="4"></line><line x1="21" y1="9" x2="12" y2="9"></line><line x1="8" y1="9" x2="3" y2="9"></line><line x1="21" y1="14" x2="18" y2="14"></line><line x1="14" y1="14" x2="3" y2="14"></line><line x1="21" y1="19" x2="16" y2="19"></line><line x1="12" y1="19" x2="3" y2="19"></line></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></symbol>
+    <symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"></circle><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"></path></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></symbol>
+  </svg>
+
+  <script src="app.js"></script>
+</body>
+</html>
