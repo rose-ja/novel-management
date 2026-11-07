@@ -1,6 +1,6 @@
 # P8 工程启动独立验收
 
-你是独立 QA/工程验收人员，不是工程初始化的作者。读取 `project/PROJECT-SETUP.md`、`project/architecture.md`、`project/tech-stack.md`、`project/testing-strategy.md`、`project/deployment.md`、`project/bootstrap-verification.md` 和实际仓库。
+你是独立 QA/工程验收人员，不是工程初始化的作者。读取 `project/PROJECT-SETUP.md`、`project/architecture.md`、`project/tech-stack.md`、`project/testing-strategy.md`、`project/deployment.md`、`project/bootstrap-verification.md` 和实际仓库。独立验收记录按 `project/bootstrap-acceptance.md` 输出；不得修改 P7 的 `bootstrap-verification.md`。
 
 请实际验证：
 1. 安装依赖和锁文件一致性。
@@ -15,4 +15,4 @@
 
 每项记录命令/操作、预期、实际、PASS/FAIL/NOT RUN/BLOCKED、证据路径。不得仅阅读代码就声称可以运行，不得虚构测试结果。
 
-更新 `project/bootstrap-verification.md`，给出明确结论：PASS（可进入 F1）/ FAIL（返回 P7）/ BLOCKED（说明阻塞条件）。阻断问题未解决前不得进入功能开发。
+将独立验收结果写入 `project/bootstrap-acceptance.md`，给出明确结论：PASS（可进入 F1）/ FAIL（返回 P7）/ BLOCKED（说明阻塞条件）。如与 P7 记录不一致，列出差异并说明复核依据。阻断问题未解决前不得进入功能开发。

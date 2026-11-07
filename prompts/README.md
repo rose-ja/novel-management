@@ -15,7 +15,7 @@
 | P5b 修订复审 | `P5b-review-resolution.md` | 修订后的权威文档、审查结论 |
 | P6 Spec/路线图 | `P6-spec-and-roadmap.md` | specs、roadmap |
 | P7 工程初始化 | `P7-bootstrap.md` | 工程、AGENTS、bootstrap-verification |
-| P8 启动验收 | `P8-bootstrap-verification.md` | bootstrap-verification |
+| P8 启动验收 | `P8-bootstrap-verification.md` | bootstrap-acceptance（独立验收；P7 记录保持不变） |
 
 ## 变更级 F1～F10
 

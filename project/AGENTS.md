@@ -13,7 +13,7 @@
 - UX/UI baseline: `project/user-flow.md`, `project/design-system.md`, `project/page-specs/`
 - Architecture: `project/architecture.md`, `project/tech-stack.md`
 - Technical decisions: `project/adr/`
-- Current behavior: `project/specs/`
+- Behavior specs: `project/specs/`（仅 `implemented` / `verified` 表示当前能力；`planned` 是待实现目标）
 - Current change: `changes/<change-id>/`
 - Commands and environment: `project/PROJECT-SETUP.md`
 

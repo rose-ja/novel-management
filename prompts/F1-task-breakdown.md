@@ -4,7 +4,7 @@
 
 变更 ID：`{{change-id}}`；目标：`{{change-goal}}`。
 
-读取：`project/AGENTS.md`、`project/constitution.md`、`project/PROJECT-SETUP.md`、相关 `project/specs/`、`project/architecture.md`、相关 ADR、UX Page Spec、当前代码和 Git 状态。
+读取：`project/AGENTS.md`、`project/constitution.md`、`project/PROJECT-SETUP.md`、相关 `project/specs/`（区分 `planned` 与 `implemented`/`verified`）、`project/architecture.md`、相关 ADR、UX Page Spec、当前代码和 Git 状态。
 
 先检查需求、Spec、设计和当前代码是否冲突。若冲突或任务范围外改动不可避免，暂停并列出问题，不得自行修改上游基线。
 

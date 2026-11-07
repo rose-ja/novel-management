@@ -5,7 +5,7 @@
 读取当前变更目录、最终 Diff、verification、acceptance、PR/MR 和发布记录。
 
 完成：
-1. 将已实现且验收的行为同步到 `project/specs/`，保留稳定 Spec ID。
+1. 将已实现且验收的行为同步到 `project/specs/`，保留稳定 Spec ID；仅把已合并并验收的行为从 `planned` 更新为 `implemented` 或 `verified`，未实现/未验证的行为保持 `planned`。
 2. 更新受影响的 architecture/API/data model/ADR/design-system/page-specs/roadmap。
 3. 更新变更状态和文档变更历史。
 4. 补全 verification.md、acceptance.md 和发布状态。

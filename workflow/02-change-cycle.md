@@ -39,18 +39,18 @@
 
 Reviewer 必须独立于作者，审查实际 Diff、Spec、任务卡和自测报告。检查正确性、需求一致性、异常边界、权限、安全、并发幂等、数据兼容、性能、副作用和测试。
 
-通过：无未处理 P0；P1 有修复计划或人工豁免。
+通过：无未处理 S0；S1 有修复计划或人工豁免。
 
 ## F5：修复与复审
 
 **提示词：** `prompts/F5-fix-and-rereview.md`
 
-1. 作者逐条分析审查发现，修复 P0/P1。
+1. 作者逐条分析审查发现，修复 S0/S1。
 2. 重新执行受影响测试。
 3. 独立 Reviewer 对修复 Diff 复审。
 4. 不成立的问题必须给出依据，并由人确认是否豁免。
 
-通过：P0 清零，P1 已修复或批准豁免，复测通过。
+通过：S0 清零，S1 已修复或批准豁免，复测通过。
 
 ## F6：集成与 E2E
 
@@ -91,7 +91,7 @@ Reviewer 必须独立于作者，审查实际 Diff、Spec、任务卡和自测�
 
 **提示词：** `prompts/F10-archive.md`
 
-1. 将已实现且验收的行为同步到 `project/specs/`。
+1. 将已实现且验收的行为同步到 `project/specs/`，并按 `project/specs/README.md` 更新状态。
 2. 更新受影响架构、API、数据模型、ADR 和 roadmap。
 3. 补全 verification/acceptance。
 4. 将变更目录移动到 `changes/archive/`。

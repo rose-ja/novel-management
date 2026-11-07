@@ -38,7 +38,7 @@
 1. 复述目标、用户、场景和 MVP。
 2. 按影响排序提问，每轮最多 5 个关键问题。
 3. 检查范围、非目标、业务规则、角色权限、异常、边界、NFR 和验收。
-4. 检查 P0/P1 文档之间是否存在冲突；发现冲突先暂停，按总手册第 5 节处理。
+4. 检查 P0/P1 文档与 `PROJECT-SETUP.md` 之间是否存在冲突；发现冲突先暂停，按总手册第 5 节处理。
 5. 用户确认决策后，先更新对应上游权威文件，再生成需求基线。
 6. 将核心场景写成 Given/When/Then。
 
@@ -58,7 +58,7 @@
 6. 为关键页面提供可供实现的高保真参考：设计稿、截图、原型或明确的结构化描述；若使用生成式 UI/图片，必须人工确认后作为参考资产。
 7. 人工确认关键页面和视觉基线。
 
-**文件：** `project/user-flow.md`、`project/design-system.md`、`project/page-specs/*.md`；设计资产放 `project/design-assets/`（如适用）。
+**文件：** `project/user-flow.md`、`project/design-system.md`、`project/page-specs/*.md`（按 `project/page-specs/_template.md`）；设计资产放 `project/design-assets/`（如适用）。
 
 **门禁：** 核心页面、主要交互状态和视觉方向明确；设计不能静默增加业务需求。
 
@@ -74,7 +74,7 @@
 6. 评估 UI 设计对组件、前端架构和数据接口的约束。
 7. 重大决策写 ADR；高风险技术先做 PoC。
 
-**文件：** `project/architecture.md`、`project/tech-stack.md`、`project/api-contract.md`、`project/data-model.md`、`project/testing-strategy.md`、`project/deployment.md`、`project/adr/`
+**文件：** `project/architecture.md`、`project/tech-stack.md`、`project/api-contract.md`、`project/data-model.md`、`project/testing-strategy.md`、`project/deployment.md`、`project/adr/`（ADR 按 `ADR-TEMPLATE.md`）
 
 **门禁：** 方案可落地；关键风险有验证或兜底；不以未经验证的假设支撑设计。
 
@@ -83,15 +83,15 @@
 **提示词：** `prompts/P5-red-team.md`，修订使用 `prompts/P5b-review-resolution.md`。
 
 1. 独立 Reviewer 审查 P2～P4 的完整文档，不参与原方案撰写。
-2. 按 P0/P1/P2 输出具体问题、依据、影响和建议。
+2. 按 S0/S1/S2 输出具体问题、依据、影响和建议。
 3. 方案作者逐条给出接受/部分接受/拒绝/延期的决定。
 4. 任何涉及产品取舍或重大架构的拒绝/豁免必须由人批准。
 5. 修改权威源文件，并同步受影响的派生文件。
-6. Reviewer 复审 P0/P1；必要时重新执行 P2/P3/P4。
+6. Reviewer 复审 S0/S1；必要时重新执行 P2/P3/P4。
 
-**文件：** `project/reviews/P5-red-team-review.md` 及被修订的权威文档。
+**文件：** `project/reviews/P5-red-team-review.md`（按 `P5-red-team-review-template.md`）及被修订的权威文档。
 
-**门禁：** P0 清零；P1 已修复或有人工批准的豁免；复审结论通过。
+**门禁：** S0 清零；S1 已修复或有人工批准的豁免；复审结论通过。
 
 ## P6：Spec 与 MVP 增量
 
@@ -103,7 +103,7 @@
 4. 检查依赖图无环，需求→Spec→变更→验收可追踪。
 5. 人确认路线图和增量顺序。
 
-**文件：** `project/specs/`、`project/roadmap.md`
+**文件：** `project/specs/`（按 `project/specs/README.md` 的状态与结构规则）、`project/roadmap.md`
 
 **门禁：** 每个 MVP 需求都有对应 Spec 和变更计划；没有无法验收的模糊增量。
 
@@ -128,9 +128,9 @@
 
 1. 独立 QA 按 `testing-strategy.md` 执行安装、启动、健康检查、最小 API/页面链路、lint、typecheck、unit、build 和 CI。
 2. 对照架构和工程初始化范围检查目录、配置、依赖和安全。
-3. 输出 PASS/FAIL/BLOCKED 及证据。
+3. 输出 PASS/FAIL/BLOCKED 及证据，写入 `project/bootstrap-acceptance.md`。
 4. FAIL/BLOCKED 的阻断项返回 P7 修复后重验。
 
-**文件：** `project/bootstrap-verification.md`
+**文件：** `project/bootstrap-acceptance.md`（独立验收结论；P7 的 `bootstrap-verification.md` 保持不变）
 
 **门禁：** 只有 PASS 才进入功能变更循环。

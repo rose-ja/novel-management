@@ -44,7 +44,7 @@
 
 ## D. 页面级规格
 
-为每个 MVP 页面在 `project/page-specs/` 创建独立文档，至少包含：
+按 `project/page-specs/_template.md` 为每个 MVP 页面在 `project/page-specs/` 创建独立文档，至少包含：
 - Page ID / 页面目标 / 对应 Requirement 和 User Story ID
 - 页面布局与区域说明（可附线框图/ASCII 图/设计稿链接）
 - 组件树与组件职责
@@ -67,7 +67,7 @@
 
 - `project/user-flow.md`
 - `project/design-system.md`
-- `project/page-specs/<page-id>-<name>.md`
+- `project/page-specs/<page-id>-<name>.md`（按 `_template.md`）
 - 如有设计稿/图标/图片：`project/design-assets/`（只保存项目有权使用的资产）
 
 不得擅自增加业务功能。若设计发现需求缺口或矛盾，暂停相关页面设计，返回 P2 澄清；决策确认后同步需求文档，再继续设计。最终等待人工确认视觉方向、Design System 和核心页面。

@@ -16,6 +16,7 @@ required = [
     "changes/_template/tasks.md",
     "changes/_template/checklist.md",
     "changes/_template/verification.md",
+    "changes/_template/acceptance.md",
 ]
 missing = [p for p in required if not (ROOT / p).is_file()]
 if missing:

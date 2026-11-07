@@ -25,6 +25,6 @@
 - `project/data-model.md`
 - `project/testing-strategy.md`
 - `project/deployment.md`
-- 重大决策写入 `project/adr/ADR-xxx.md`
+- 重大决策按 `project/adr/ADR-TEMPLATE.md` 写入 `project/adr/ADR-xxx.md`
 
 架构必须追溯到 Requirement/Page Spec ID。优先简单成熟方案，不无需求引入基础设施。无法验证的假设列为 PoC，不得当成既定事实。等待人工确认重大技术决策。

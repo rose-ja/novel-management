@@ -1,8 +1,10 @@
 # Bootstrap Verification
 
+> P7 工程初始化作者记录。P8 独立验收结论见 `project/bootstrap-acceptance.md`；P8 不修改本文件。
+
 - Commit:
 - Environment:
-- Tester:
+- Author / Tester:
 - Date:
 - Conclusion: PASS / FAIL / BLOCKED
 

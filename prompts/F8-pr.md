@@ -1,6 +1,6 @@
 # F8 PR/MR 准备
 
-你是交付负责人。请检查当前变更是否满足 PR/MR 条件：F3 自测、F4/F5 独立审查、F6 E2E 和 F7 人工验收结论齐全；无未处理 P0；P1 已修复或获批豁免。
+你是交付负责人。请检查当前变更是否满足 PR/MR 条件：F3 自测、F4/F5 独立审查、F6 E2E 和 F7 人工验收结论齐全；无未处理 S0；S1 已修复或获批豁免。
 
 读取 Git Diff、proposal、design、tasks、checklist、verification、acceptance 和相关 Spec。
 

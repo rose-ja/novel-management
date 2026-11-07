@@ -3,7 +3,7 @@
 > 本文件是项目初始化阶段的产品、范围与约束基线。
 > 当前阶段只确认「做什么、为谁做、做到什么程度」，不确认技术架构与代码实现。
 > 未确认内容标记 `TBD`；建议性内容标记「建议，待确认」；不得把建议写成事实。
-> 详细需求已在 `requirements.md` v1.0 冻结；两者冲突时以 `requirements.md` 为准，并应同步修正本文件。
+> 详细需求已在 `requirements.md` v1.1（Approved）冻结；产品方向见 `product-brief.md`，MVP 范围见 `mvp-scope.md`，调研结论见 `research.md`，来源索引见 `sources.md`，跨阶段摘要见 `project-context.md`。本文件的产品/MVP 摘要必须与 `product-brief.md`、`mvp-scope.md` 一致；冲突时以两者为准并同步修正本文件。工程环境、命令与工程约束以本文件为准；`project-context.md` 仅为摘要，不作为权威源。
 
 ## 1. 基本信息
 
@@ -310,7 +310,7 @@
 
 ### 15.3 下一阶段
 
-1. 项目发起人确认本文件、`requirements.md` v1.0 与 `project/constitution.md` 已对齐。
+1. 项目发起人确认本文件、`requirements.md` v1.1 与 `project/constitution.md` 已对齐。
 2. 进入架构阶段：数据模型、技术栈、部署方案、ADR。未批准前不编码。
 3. 按 MVP 范围实现，并用真实小说数据验收。
 4. 执行迁移、人工校对与用户签收。
