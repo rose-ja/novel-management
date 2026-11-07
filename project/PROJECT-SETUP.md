@@ -220,21 +220,23 @@
 
 ## 11. 工程命令
 
-> P4 已批准；以下为计划命令，脚手架落地后必须实测并回写本节。
+> P7（2026-11-07）已实测并回写；实测记录见 `bootstrap-verification.md`。本节命令以仓库根目录为起点，后端命令在 `backend/`、前端命令在 `frontend/` 执行。
 
-| 用途 | 命令 |
-|---|---|
-| 安装依赖 | `cd backend && go mod download`；`cd frontend && npm ci` |
-| 启动开发环境 | `docker compose up -d db cache`；`go run ./cmd/server`；`npm run dev` |
-| Lint | `golangci-lint run`；`npm run lint` |
-| Format check | `gofmt -l .` |
-| Type check | `go vet ./...`；`npm run typecheck` |
-| Unit test | `go test -race ./internal/... -run Unit`；`npm run test` |
-| Integration test | `go test -race -tags=integration ./...` |
-| E2E test | `npx playwright test` |
-| Build | `npm run build`；`go build ./...`；`docker compose build` |
-| Database migration | `docker compose run --rm cli migrate` |
-| Smoke test | `powershell -File scripts/smoke.ps1` |
+| 用途 | 命令 | 实测结果 |
+|---|---|---|
+| 安装依赖 | `cd backend && go mod download`；`cd frontend && npm ci` | 通过；npm 默认缓存不可写时加 `--cache "$env:USERPROFILE\.npm"` |
+| 启动开发环境 | `docker compose -f docker-compose.yml -f compose.dev.yml up -d db cache`；`go run ./cmd/server`；`npm run dev` | 通过（db/cache 仅开发映射宿主回环端口） |
+| 启动完整栈 | `docker compose build`；`docker compose up -d`；`docker compose ps` | 通过（app/db/cache 均 healthy） |
+| Lint | `golangci-lint run`；`npm run lint` | 前端通过；后端 `golangci-lint` 在本地 Go 1.27 工具链下未能完成（导出数据格式版本高于 lint 二进制支持范围，见 `bootstrap-verification.md`） |
+| Format check | `gofmt -l .` | 通过（无输出） |
+| Type check | `go vet ./...`；`npm run typecheck` | 通过 |
+| Unit test | `go test ./...`；`npm test` | 通过（后端 2 个包，前端 4 条） |
+| Integration test | 尚未建立（P7 无集成测试） | NOT RUN |
+| E2E test | 尚未引入 Playwright | NOT RUN |
+| Build | `npm run build`；`go build ./...`；`docker compose build` | 通过（静态导出 `frontend/out`，镜像 `novel-settings:dev`） |
+| Database migration | `docker compose run --rm cli migrate` | 通过（`goose_db_version` version 1，`pg_trgm` 已启用；迁移由 server 启动时自动执行） |
+| Smoke test | `powershell -File scripts/smoke.ps1` | 通过（`SMOKE OK: version=0.1.0 db=ok cache=ok`） |
+| 本地 CI | `powershell -File scripts/ci.ps1` | 通过 |
 
 ## 12. 风险与敏感操作
 

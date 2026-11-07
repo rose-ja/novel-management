@@ -1,0 +1,70 @@
+services:
+  app:
+    image: novel-settings:${APP_VERSION:-dev}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:17860:17860"
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 17860
+      ALLOWED_HOSTS: 127.0.0.1:${APP_PORT:-17860},localhost:${APP_PORT:-17860}
+      DATA_DIR: /data
+      DATABASE_URL: postgres://novel:${POSTGRES_PASSWORD:-nm_local_only}@db:5432/novel?sslmode=disable
+      REDIS_ADDR: cache:6379
+      CACHE_TTL_SEC: 60
+      GIN_MODE: release
+      TZ: Asia/Shanghai
+    volumes:
+      - appdata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: novel
+      POSTGRES_USER: novel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nm_local_only}
+      TZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novel -d novel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  cli:
+    image: novel-settings:${APP_VERSION:-dev}
+    profiles: ["tools"]
+    entrypoint: ["/app/cli"]
+    environment:
+      DATA_DIR: /data
+      DATABASE_URL: postgres://novel:${POSTGRES_PASSWORD:-nm_local_only}@db:5432/novel?sslmode=disable
+      REDIS_ADDR: cache:6379
+    volumes:
+      - appdata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  appdata:

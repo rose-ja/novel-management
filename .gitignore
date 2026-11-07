@@ -1,0 +1,28 @@
+# 环境与密钥
+.env
+.env.local
+
+# 运行数据
+data/
+backend/.data/
+*.dump
+snapshots/
+exports/
+
+# Go
+backend/server
+backend/server.exe
+backend/cli
+backend/cli.exe
+backend/bin/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/*.tsbuildinfo
+
+# 日志与系统文件
+*.log
+.DS_Store
+Thumbs.db
