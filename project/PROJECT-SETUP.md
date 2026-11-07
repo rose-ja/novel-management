@@ -1,7 +1,7 @@
 # Project Setup
 
-> 本文件是项目初始化阶段的产品、范围与约束基线。
-> 当前阶段只确认「做什么、为谁做、做到什么程度」，不确认技术架构与代码实现。
+> 本文件是项目初始化阶段的产品、范围与约束基线；P4 架构已于 2026-11-07 批准，技术栈与部署见 `architecture.md`、`tech-stack.md`、`deployment.md`。
+> 产品与范围在此冻结；技术实现细节以 P4 文档为准。
 > 未确认内容标记 `TBD`；建议性内容标记「建议，待确认」；不得把建议写成事实。
 > 详细需求已在 `requirements.md` v1.1（Approved）冻结；产品方向见 `product-brief.md`，MVP 范围见 `mvp-scope.md`，调研结论见 `research.md`，来源索引见 `sources.md`，跨阶段摘要见 `project-context.md`。本文件的产品/MVP 摘要必须与 `product-brief.md`、`mvp-scope.md` 一致；冲突时以两者为准并同步修正本文件。工程环境、命令与工程约束以本文件为准；`project-context.md` 仅为摘要，不作为权威源。
 
@@ -182,7 +182,7 @@
 | 数据 | 本地存储；属于个人创作数据，按私密数据处理；必须可导出 / 备份 |
 | 迁移 | 仅飞书《正文》与文档内现有配图一次性迁移；全量结构化 + 人工校对；素材库不纳入本版 |
 | 范围 | 四类对象结构化；不做图谱、正文、协作、移动端、AI 生成、自动排名 |
-| 技术 | 技术栈 `TBD`；必须可在 Docker 中运行；不引入云端大模型；不引入持续付费依赖 |
+| 技术 | Go + gin/gorm + Next.js + PostgreSQL 16 + Redis（仅缓存）；必须可在 Docker 中运行；不引入云端大模型；不引入持续付费依赖 |
 | 未来扩展 | 可能开放公网只读访问；第一版不实现账号 / 权限，但架构阶段不得堵死扩展路径 |
 | 界面 | 浅绿色渐变、简洁；中文；桌面优先；不以视觉牺牲检索效率 |
 | 验收 | 项目发起人本人验收；必须用真实小说数据试用 |
@@ -204,13 +204,14 @@
 
 ## 10. 技术约束（架构阶段确认）
 
-> 本节只记录已确认的约束。具体技术选型不得在本阶段决定。
+> P4 架构已于 2026-11-07 批准；以下为已确认技术约束，详见 `architecture.md`、`tech-stack.md`、`deployment.md`。
 
 | 项目 | 约束 |
 |---|---|
-| 前端 | `TBD` |
-| 后端 | `TBD` |
-| 数据库 | `TBD` |
+| 前端 | Next.js 15（App Router，静态导出）+ React 19 + TypeScript 5 + Tailwind CSS 4 + TanStack Query 5 + RHF/Zod + Radix UI + lucide-react |
+| 后端 | Go 1.24 + gin + gorm（postgres driver）+ pgx v5 + goose + viper + cobra + validator + slog |
+| 数据库 | PostgreSQL 16；迁移由 goose 嵌入式 SQL 管理；中文检索 `pg_trgm`（V-01 待执行） |
+| 缓存 | Redis 7，仅 cache-aside；无持久化、不暴露端口、故障自动旁路（ADR-007） |
 | AI / 模型服务 | 不调用大模型 API；只做关键词/条件检索；不生成内容 |
 | 部署平台 | 本地 Docker Desktop；未来公网部署；公网必须增加访问控制 |
 | 必须复用的系统 | 飞书《正文》与文档内现有配图仅作为一次性迁移来源，不作为运行时依赖；素材库不纳入本版 |
@@ -219,21 +220,21 @@
 
 ## 11. 工程命令
 
-> 项目尚未进入架构与编码阶段，以下命令均为 `TBD`。
+> P4 已批准；以下为计划命令，脚手架落地后必须实测并回写本节。
 
 | 用途 | 命令 |
 |---|---|
-| 安装依赖 | `TBD` |
-| 启动开发环境 | `TBD` |
-| Lint | `TBD` |
-| Format check | `TBD` |
-| Type check | `TBD` |
-| Unit test | `TBD` |
-| Integration test | `TBD` |
-| E2E test | `TBD` |
-| Build | `TBD` |
-| Database migration | `TBD` |
-| Smoke test | `TBD` |
+| 安装依赖 | `cd backend && go mod download`；`cd frontend && npm ci` |
+| 启动开发环境 | `docker compose up -d db cache`；`go run ./cmd/server`；`npm run dev` |
+| Lint | `golangci-lint run`；`npm run lint` |
+| Format check | `gofmt -l .` |
+| Type check | `go vet ./...`；`npm run typecheck` |
+| Unit test | `go test -race ./internal/... -run Unit`；`npm run test` |
+| Integration test | `go test -race -tags=integration ./...` |
+| E2E test | `npx playwright test` |
+| Build | `npm run build`；`go build ./...`；`docker compose build` |
+| Database migration | `docker compose run --rm cli migrate` |
+| Smoke test | `powershell -File scripts/smoke.ps1` |
 
 ## 12. 风险与敏感操作
 

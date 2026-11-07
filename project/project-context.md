@@ -29,9 +29,10 @@
 
 ## 当前技术栈
 
-- `TBD`。本阶段不拍板技术栈；进入架构阶段后确认并记录 ADR。
-- 已确认的技术约束：必须可在 Docker Desktop 运行；数据库/后端/前端未定；不调用云端大模型；不引入持续付费依赖。
-- 候选与调研见 `sources.md` 2.4、`research.md` 第 7 节。
+- 已确认（P4，2026-11-07）：Go 1.24 + gin + gorm + Next.js 15 + PostgreSQL 16 + Redis 7（仅缓存）。
+- 部署：Docker Compose 三容器（app/db/cache），仅监听 `127.0.0.1:17860`。
+- 约束：不调用云端大模型；不引入持续付费依赖；Redis 故障自动旁路。
+- 详见 `tech-stack.md`、`architecture.md`、`deployment.md` 与 `adr/ADR-001~007`。
 
 ## 系统边界
 
@@ -89,7 +90,7 @@
 |---|---|---|---|
 | A-01 | 用户愿意按固定模板整理《正文》并整理图片 zip | 待验证 | 用真实片段完成一次模板整理与导入演练 |
 | A-02 | 20–30 条真实人物样例足以验收检索与一致性 | 待验证 | 建立样例集并逐条验收 |
-| A-03 | SQLite FTS5 `trigram` 能满足中文子串检索 | 待验证（技术项） | V-01 基准脚本 |
+| A-03 | PostgreSQL 16 `pg_trgm` + 短词 `ILIKE` 能满足中文子串检索 | 待验证（技术项） | V-01 基准脚本 |
 | A-04 | 本机 Docker 能达到性能指标 | 待验证（技术项） | 按 1000 人物规模验收 |
 | A-05 | 竞品中文界面/检索能力不足 | 待验证 | 人工试用；未验证前不得表述为缺陷 |
 
@@ -119,4 +120,4 @@
 | `requirements.md` | P2 | 需求基线（Approved）、功能 ID、验收、追踪表 |
 | `user-stories.md` | P2 | 用户故事与 Given/When/Then 验收场景 |
 | `glossary.md` | P2 | 术语定义与不应混淆的概念 |
-| `architecture.md` / `data-model.md` / `adr/` | 后续 | 架构与数据模型（当前 `TBD`，未开始） |
+| `architecture.md` / `tech-stack.md` / `data-model.md` / `api-contract.md` / `testing-strategy.md` / `deployment.md` / `adr/` | P4 | 架构、技术栈、数据模型、API、测试与部署（Approved 2026-11-07） |
