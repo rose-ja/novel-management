@@ -2,8 +2,8 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.0 |
-| 状态 | Approved（2026-11-07，项目发起人） |
+| 文档版本 | v1.1 |
+| 状态 | 修订（P5b，2026-11-07，待复审） |
 | 日期 | 2026-11-07 |
 | 选择依据 | 项目发起人的学习路线（Go/gin/gorm、Next.js、PostgreSQL、Redis）+ 产品约束（本地、零成本、无 AI） |
 | 配套 | [architecture.md](file:///d:/Project/novel-management/project/architecture.md)、[deployment.md](file:///d:/Project/novel-management/project/deployment.md) |
@@ -58,7 +58,7 @@
 | `github.com/jackc/pgx/v5` | PostgreSQL 驱动（由 gorm driver 使用） |
 | `github.com/pressly/goose/v3` | 迁移（embed SQL） |
 | `github.com/spf13/viper` | 配置加载（env + 默认值） |
-| `github.com/spf13/cobra` | CLI（restore/reindex/doctor） |
+| `github.com/spf13/cobra` | CLI（restore/restore-snapshot/migrate/reindex/doctor） |
 | `github.com/go-playground/validator/v10` | 请求字段校验 |
 | `github.com/oklog/ulid/v2` | 26 位可排序 ID |
 | `github.com/redis/go-redis/v9` | Redis 缓存 |
@@ -129,6 +129,7 @@
 | 其他 ORM | Prisma、Ent | gorm 已覆盖 |
 | 云服务 | 对象存储、云数据库、付费 API、大模型 | 零成本、本地私密 |
 | 站点框架 | Nginx/反向代理（本版） | Go 直接托管静态资源；公网阶段再加 |
+| 可访问性工具 | 不新增独立扫描框架/运行时依赖 | 复用 Playwright，axe 以测试脚本注入；不进入发布镜像（P5b RT-24） |
 
 ---
 
@@ -198,9 +199,11 @@
 | E2E | `npx playwright test` |
 | 全栈 | `docker compose up -d --build` |
 | 压测 | `k6 run tests/k6/search.js` |
-| CLI 恢复 | `go run ./cmd/cli restore ./data/exports/<zip>` |
-| CLI 重建检索 | `go run ./cmd/cli reindex --work <id>` |
-| CLI 自检 | `go run ./cmd/cli doctor` |
+| CLI 恢复 | `docker compose run --rm cli restore /data/exports/<zip>` |
+| CLI 快照恢复 | `docker compose run --rm cli restore-snapshot /data/snapshots/<dir>` |
+| CLI 迁移 | `docker compose stop app && docker compose run --rm cli migrate`（app 运行时退出 `APP_RUNNING`） |
+| CLI 重建检索 | `docker compose run --rm cli reindex --work <id>` |
+| CLI 自检 | `docker compose run --rm cli doctor` |
 
 ---
 
@@ -234,3 +237,17 @@
 | TS-Q4 | 集成测试数据库 | testcontainers-go | 固定 `TEST_DATABASE_URL` |
 | TS-Q5 | Redis 版本/替代 | Redis 7.2（BSD） | Valkey 8（BSD） |
 | TS-Q6 | OpenAPI 来源 | 契约优先：YAML → oapi-codegen/openapi-typescript | swag 注解生成 |
+| TS-Q7 | 详情页路由 | 静态导出 + 查询参数 `?id=<id>`，不使用动态段/`generateStaticParams`（P5b RT-01） | 动态段 + 构建期枚举 |
+| TS-Q8 | 容器监听地址 | `APP_HOST=0.0.0.0`、`APP_PORT=17860`；宿主仅经 compose `127.0.0.1:17860:17860` 回环可达（P5b RT-02） | 容器内监听 `127.0.0.1` |
+
+---
+
+## 10. 变更记录
+
+| 日期 | 版本 | Finding ID | 决策 | 原因/变更摘要 |
+|---|---|---|---|---|
+| 2026-11-07 | v1.1 | RT-01 | 详情页查询参数路由，不使用动态段 | 静态导出无法构建运行时 ID 页面 |
+| 2026-11-07 | v1.1 | RT-02 | `APP_HOST=0.0.0.0`、`APP_PORT=17860`；宿主回环发布 | 容器内 loopback 导致宿主不可达 |
+| 2026-11-07 | v1.1 | RT-18 | CLI 恢复/快照恢复统一经 `docker compose run --rm cli` | 消除本地 `go run` 与 compose 双路径 |
+| 2026-11-07 | v1.1 | RT-22 | CLI 新增 `migrate`，需先停止 app | 与 app 共用 advisory lock |
+| 2026-11-07 | v1.1 | RT-24 | 可访问性扫描复用 Playwright，不新增工具依赖 | 保持零成本与发布镜像精简 |

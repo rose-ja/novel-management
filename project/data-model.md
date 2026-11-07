@@ -2,8 +2,8 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.0 |
-| 状态 | Approved（2026-11-07，项目发起人） |
+| 文档版本 | v1.1 |
+| 状态 | 修订（P5b，2026-11-07，待复审） |
 | 日期 | 2026-11-07 |
 | 数据库 | PostgreSQL 16（UTF-8；`pg_trgm` 扩展；`timezone=UTC`） |
 | ORM / 迁移 | gorm v1.25+（postgres driver）+ goose v3（嵌入式 SQL 迁移） |
@@ -92,7 +92,9 @@ erDiagram
 | name_key | TEXT | No | — | 部分唯一 `(work_id, name_key)` | 规范化名称 |
 | description | TEXT | Yes | NULL | ≤20,000 | 简介；纯文本 |
 | faction_id | TEXT(26) | Yes | NULL | FK → factions.id `ON DELETE RESTRICT` | 所属势力/分支 0..1 |
-| review_status | TEXT | No | `reviewed` | `reviewed` / `pending` | 导入后为 pending |
+| review_status | TEXT | No | `reviewed` | `reviewed` / `pending`（API 映射 `confirmed`/`pending`） | 导入后为 pending |
+| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
+| reviewed_by | TEXT | Yes | NULL | 默认 `local-author` | 校对者；本版无用户表（P5b RT-04） |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 | version | INTEGER | No | 1 | ≥1 | 乐观锁 |
 | deleted_at / deleted_root_id / deleted_by_action | TIMESTAMPTZ / TEXT / TEXT | Yes | NULL | CHECK 同步 | 软删除 |
@@ -124,6 +126,8 @@ erDiagram
 | leader_character_id | TEXT(26) | Yes | NULL | FK → characters.id `ON DELETE RESTRICT`；同作品 | 首领 0..1 |
 | description | TEXT | Yes | NULL | ≤20,000 | 简介 |
 | review_status | TEXT | No | `reviewed` | 同上 | — |
+| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
+| reviewed_by | TEXT | Yes | NULL | 默认 `local-author` | 校对者（P5b RT-04） |
 | created_at / updated_at / version | — | — | — | 同人物 | — |
 | deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 软删除 |
 
@@ -139,6 +143,8 @@ erDiagram
 | type_text | TEXT | Yes | NULL | ≤200 | 自由文本类型（星域/星城/秘境…） |
 | description | TEXT | Yes | NULL | ≤20,000 | 简介 |
 | review_status | TEXT | No | `reviewed` | — | — |
+| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
+| reviewed_by | TEXT | Yes | NULL | 默认 `local-author` | 校对者（P5b RT-04） |
 | created_at / updated_at / version | — | — | — | — | — |
 | deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 软删除 |
 
@@ -152,6 +158,8 @@ erDiagram
 | name_key | TEXT | No | — | 部分唯一 `(work_id, name_key)` | — |
 | seat_count | INTEGER | No | 100 | CHECK `1..200` | 席位数 |
 | review_status | TEXT | No | `reviewed` | — | — |
+| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
+| reviewed_by | TEXT | Yes | NULL | 默认 `local-author` | 校对者（P5b RT-04） |
 | created_at / updated_at / version | — | — | — | — | — |
 | deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 软删除 |
 
@@ -201,6 +209,8 @@ erDiagram
 | era_start_text | TEXT | Yes | NULL | ≤100 | 仅 era 类别 |
 | era_end_text | TEXT | Yes | NULL | ≤100 | 仅 era 类别 |
 | review_status | TEXT | No | `reviewed` | — | — |
+| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
+| reviewed_by | TEXT | Yes | NULL | 默认 `local-author` | 校对者（P5b RT-04） |
 | created_at / updated_at / version | — | — | — | — | — |
 | deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 软删除 |
 
@@ -299,8 +309,9 @@ erDiagram
 
 - 检索索引：对 `name_text`、`alias_text`、`title_text`、`desc_text`、`relation_text` 各建 `GIN (… gin_trgm_ops)`，并加 `WHERE is_deleted = false` 的部分索引。
 - 查询：3 字符以上走 `ILIKE '%token%'`（可由 GIN trigram 索引加速）；1–2 字走同一 `ILIKE` 但预计走顺序扫描（1500 行量级可接受）。空格分词后逐词 AND。
-- 排序权重：`name_text` 命中 4 > `alias_text`/`title_text` 3 > `desc_text` 2 > `relation_text` 1；同权重 `updated_at DESC`（FR-30）。
-- 写事务内由 `search.Refresher` 重建受影响文档；被引用实体改名时刷新引用方文档；`cmd/cli reindex` 可全量重建。
+- 排序权重：`name_text` 命中 4 > `alias_text`/`title_text` 3 > `desc_text` 2 > `relation_text` 1；最终排序 `score DESC, updated_at DESC, id ASC`（FR-30、P5b RT-11）。
+- 写事务内由 `search.Refresher` 重建受影响文档；被引用实体**改名、删除、恢复**时，均在**同一事务**内重建所有引用方文档（不只改名场景），确保回收站数据不参与检索与关系跳转（P5b RT-10）。`cmd/cli reindex` 可全量重建。
+- 删除/恢复规模较大时按引用方集合分批（每批 200）重建，仍在原事务内完成。
 - 回收站记录置 `is_deleted=true` 且不参与查询；恢复时置 `false` 并刷新文本。
 - 大事记正文不进入 `desc_text`（FR-28）。
 
@@ -314,12 +325,14 @@ erDiagram
 | template_version | TEXT | Yes | NULL | 支持 `1.0` | 解析结果 |
 | work_id | TEXT(26) | Yes | NULL | FK → works.id | 成功后目标作品 |
 | snapshot_id | TEXT(26) | Yes | NULL | FK → snapshots.id | 提交前快照 |
-| counts_json | JSONB | Yes | NULL | — | 实体计数 |
+| counts_json | JSONB | Yes | NULL | — | 实体计数（含 `system_categories`） |
 | errors_json | JSONB | Yes | NULL | — | 错误清单（行/字段/码） |
 | warnings_json | JSONB | Yes | NULL | — | 警告 |
 | error_count | INTEGER | No | 0 | ≥0 | — |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 | finished_at | TIMESTAMPTZ | Yes | NULL | — | — |
+
+> 导入类别协议（P5b RT-08）：导入作品以 `auto_create_builtin=false` 创建（跳过新建作品自动生成境界）；模板必须定义类别；「境界」名称固定、`is_builtin=1`、每作品唯一；自定义类别含境界合计 ≤10；模板缺境界时创建空内置；节点按类别名归属；类别不参与 review。`counts_json` 与报告均记录 `system_categories`。
 
 ### 3.17 export_runs（导出任务）
 
@@ -340,7 +353,7 @@ erDiagram
 |---|---|---|---|---|---|
 | id | TEXT(26) | No | — | PK | — |
 | reason | TEXT | No | — | CHECK `restore` / `import` / `work_delete` / `trash_purge` / `manual` | 来源动作 |
-| dir_path | TEXT | No | — | 相对 `DATA_DIR` | 快照目录（含 `app.dump` + 图片清单） |
+| dir_path | TEXT | No | — | 相对 `DATA_DIR` | 快照目录：固定含 `app.dump`、`images/`、`snapshot.json`、`manifest.json`、`checksums.sha256` |
 | db_bytes | BIGINT | No | — | — | 数据库转储大小 |
 | image_count | INTEGER | No | 0 | ≥0 | 图片数量 |
 | created_at | TIMESTAMPTZ | No | `now()` | — | — |
@@ -355,7 +368,7 @@ erDiagram
 | value | JSONB | Yes | NULL | — | 文本/JSON |
 | updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 
-> 当前作品仅为界面偏好，不作为数据权限依据；所有查询必须显式传 `work_id`。
+> 当前作品仅为界面偏好，不作为数据权限依据；所有查询必须显式传 `work_id`。`last_restore_at` 亦存于此表（键 `last_restore_at`），由 CLI `restore`/`restore-snapshot` 成功后写入，供 `/api/v1/settings` 读取（P5b RT-06）。
 
 ---
 
@@ -468,7 +481,9 @@ name_key = NFKC(value).casefold().strip()
 - 关系表（`character_names`、`character_system_refs`、`character_locations`、`location_factions`、`ranking_seats`）不加删除列；可见性由父实体/作品的 `deleted_at` 统一过滤，恢复父实体后原样呈现。
 - 删除后：列表、检索、关系跳转、引用计数全部排除；`search_documents.is_deleted=true`。
 - 撤销：`POST /trash/undo` 使用一次性 token（8 秒内有效）；撤销前重新校验名称/父级/引用。
-- 恢复：整组恢复；校验名称冲突（`NAME_CONFLICT`）、父级已删（`PARENT_DELETED`）、引用缺失（`REFERENCE_MISSING`）。
+- 恢复：整组恢复、整组原子；根记录可用 `new_name` 改名，子实体冲突用 `renames[]`（`entity_type` + `entity_id` + `new_name`）逐项改名；任一冲突未解决返回 `422 RESTORE_CONFLICT` 并列出冲突项，不部分恢复（P5b RT-09）。
+- 恢复/删除被引用实体时，同一事务内重建所有引用方 `search_documents`（P5b RT-10）。
+- 恢复校验：名称冲突（`NAME_CONFLICT`/`RESTORE_CONFLICT`）、父级已删（`PARENT_DELETED`）、引用缺失（`REFERENCE_MISSING`）。
 - 永久删除：先快照（`trash_purge`），单事务物理删除；图片文件在事务提交后删除，失败保留文件与快照。
 - 保留策略：永久保留至手动清空；不做自动清理（FR-58）。导出默认包含回收站（FR-52/63）。
 
@@ -478,7 +493,7 @@ name_key = NFKC(value).casefold().strip()
 
 - **工具**：goose v3，SQL 迁移文件嵌入 Go 二进制（`internal/migrations`，`//go:embed`）。
 - **初始迁移** `00001_init.sql`：`CREATE EXTENSION IF NOT EXISTS pg_trgm;` + 本文全部表、索引、CHECK、FK。
-- **执行**：app 启动时获取 PostgreSQL advisory lock（`pg_try_advisory_lock`）后执行 `goose.Up`；失败则退出（非 0），不以旧 schema 启动。CLI `migrate` 子命令供离线执行。
+- **执行**：app 启动时获取 PostgreSQL advisory lock（`pg_try_advisory_lock`）后执行 `goose.Up`；失败则退出（非 0），不以旧 schema 启动。CLI `migrate` 获取**同一** advisory lock；锁不可用（app 正在运行）时退出并输出 `APP_RUNNING`，要求先 `docker compose stop app`（P5b RT-22）。
 - **事务性**：PostgreSQL DDL 事务化；每个 goose 迁移在单事务中执行，失败即回滚到迁移前。
 - **版本标识**：`goose_db_version` 记录当前版本；导出 `manifest.json` 写入 `schema_version`（goose version）与 `export_version`。
 - **降级**：不保证自动降级；回滚通过升级前快照/导出包恢复（§8）。破坏性迁移必须先在副本演练并记录 ADR。
@@ -494,12 +509,22 @@ name_key = NFKC(value).casefold().strip()
 |---|---|---|
 | 数据库 | `pg_dump -Fc --no-owner --no-acl` | 一致性自定义格式转储；写入 `app.dump` |
 | 图片 | 同 volume 内硬链接；不支持时复制 | 快照不复制 500×10MB 文件（失败时降级为复制） |
-| 快照 | `data/snapshots/{timestamp}-{reason}/` + `snapshot.json` | 保留 3 份 |
+| 快照 | `data/snapshots/{timestamp}-{reason}/`，固定含 `app.dump` + `images/` + `snapshot.json` + `manifest.json` + `checksums.sha256` | 保留 3 份 |
 | 导出（含回收站） | 直接 `pg_dump -Fc` | 所有软删除记录随库导出 |
 | 导出（不含回收站） | 临时库过滤后 `pg_dump -Fc` | 复制到临时库 → 删除软删除根及隐藏关系 → 转储 → 删除临时库 |
-| 恢复 | CLI：校验 → 快照 → `pg_restore --clean --if-exists --single-transaction` | 失败自动回滚，原数据不变（ADR-006） |
+| 恢复导出包 | CLI：校验 → 快照 → `pg_restore --clean --if-exists --single-transaction` | 失败自动回滚，原数据不变（ADR-006） |
+| 恢复快照 | CLI `restore-snapshot <dir>`：校验 manifest/checksums/版本 → 恢复 DB + images → 写 `last_restore_at` | 快照可恢复（FR-55、P5b RT-06） |
 
 - 快照不包含自身（避免递归）；导出不含 `snapshots/`。
+- 快照目录结构（固定，P5b RT-06）：
+  ```text
+  snapshots/{timestamp}-{reason}/
+  ├─ snapshot.json      # reason, created_at, schema_version, counts
+  ├─ manifest.json      # 数据库/图片清单与版本
+  ├─ checksums.sha256
+  ├─ app.dump           # pg_dump -Fc
+  └─ images/            # 图片（硬链接或复制）
+  ```
 - 导出包结构：
   ```text
   novel-settings-YYYYMMDD-HHmmss.zip
@@ -545,4 +570,20 @@ name_key = NFKC(value).casefold().strip()
 | FR-57~63 | 各表 `deleted_at` / `deleted_root_id` |
 | NFR 性能/安全 | 部分唯一索引、GIN 索引、`name_key`、相对路径、Redis 旁路 |
 
-> 已确认项：C-01~C-07 均已确认（2026-11-07）；D-02 检索方案已确认，V-01 待执行；本文件状态 Approved。
+---
+
+## 11. 变更记录
+
+| 日期 | 版本 | Finding ID | 决策 | 原因/变更摘要 |
+|---|---|---|---|---|
+| 2026-11-07 | v1.1 | RT-04 | 5 类可校对表增加 `reviewed_at`/`reviewed_by`（默认 `local-author`），不建审计表；API 枚举 `confirmed` 映射 DB `reviewed` | 校对记录与 FR-44 需要可审计时间与操作者 |
+| 2026-11-07 | v1.1 | RT-06 | 快照目录固定结构；`app_settings.last_restore_at` | 快照需可恢复，设置页需展示最近恢复时间 |
+| 2026-11-07 | v1.1 | RT-07 | 导入顺序与 ADR-005 一致（移图在事务前，失败逆序删除） | 消除顺序冲突，保证 0 残留 |
+| 2026-11-07 | v1.1 | RT-08 | 导入类别协议；`counts_json` 含 `system_categories` | 防止境界重复与节点挂错类别 |
+| 2026-11-07 | v1.1 | RT-09 | 恢复支持 `renames[]`、整组原子、`RESTORE_CONFLICT` | 子实体冲突无法用单个 `new_name` 解决 |
+| 2026-11-07 | v1.1 | RT-10 | 删除/恢复被引用实体同事务重建所有引用方 `search_documents` | 回收站实体名称仍会被检索命中 |
+| 2026-11-07 | v1.1 | RT-11 | 排序补充 `id ASC` 稳定键；权重与切片语义对齐检索契约 | 分页稳定性与命中解释 |
+| 2026-11-07 | v1.1 | RT-17 | 快照触发对齐 FR-55 | 修正“仅 CLI 全量恢复”字面 |
+| 2026-11-07 | v1.1 | RT-22 | CLI `migrate` 获取同一 advisory lock，锁不可用退出 `APP_RUNNING` | 避免迁移与在线写入并发 |
+
+> 已确认项：C-01~C-07 均已确认（2026-11-07）；D-02 检索方案已确认，V-01 待执行；P5b 修订项（RT-04/06/07/08/09/10/11/17/22）待复审。

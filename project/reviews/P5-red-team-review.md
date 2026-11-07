@@ -1,9 +1,11 @@
 # P5 Project Red-Team Review
 
 - Review date: 2026-11-07
+- Re-review date: 2026-11-07（P5b 修订后，独立复审 3 轮）
 - Reviewer: Independent Red Team (AI)
 - Reviewed baseline/version: requirements v1.1（Approved）、architecture/tech-stack/api-contract/data-model/deployment/testing-strategy v1.0（Approved）、design-system v1.0（Approved）、page-specs 14 份（Approved）、ADR-001~007
-- Conclusion: **BLOCKED**
+- Post-fix baseline: requirements/user-stories/mvp-scope v1.2、architecture/api-contract/data-model/tech-stack/deployment/testing-strategy v1.1、ADR-005/006 Rev.2、design-system v1.0 + 14 份 page specs 修订
+- Conclusion: **PASSED — S0=0；S1 12/12 已修复；无人工豁免**
 
 ## Scope and Documents Reviewed
 
@@ -50,16 +52,57 @@
 
 | Finding ID | Decision (ACCEPT/PARTIAL/REJECT/DEFER) | Changed Files | Rationale | Human Approval | Re-review Result |
 |---|---|---|---|---|---|
-| （待方案作者修订后填写） | — | — | — | — | — |
+| RT-01 | ACCEPT | architecture.md §5.3/§5.4；requirements.md §5.1；api-contract.md §2.7；user-flow.md；design-system.md §9；PG-00~PG-13 | 采纳人工决策：改为查询参数路由，保留 `output:'export'` | 人工决策 2026-11-07 | PASS（另 1 份复审：S0 2/2 PASS） |
+| RT-02 | ACCEPT | deployment.md §2.1/§3.1/§3.2/§5.4；architecture.md §1.1/§7.1/§7.2；requirements.md；tech-stack.md；product-brief.md；project-context.md；PROJECT-SETUP.md；adr/ADR-001 | 容器内绑定 `0.0.0.0`，宿主仅发布 `127.0.0.1:17860:17860`；白名单仍限回环 | 架构决策（修复） | PASS（S0 2/2 PASS） |
+| RT-03 | ACCEPT | architecture.md §7.1；testing-strategy.md E2E-13 | CSP 增加 `'unsafe-inline'`；本地单用户且无用户注入 HTML；补 CSP 生效下 E2E | 架构决策 | PASS |
+| RT-04 | ACCEPT | requirements.md FR-44；api-contract.md §1.2/§3.14；data-model.md §3.2；PG-03/05/07/09/10/11；user-stories.md | 新增单条/批量 review 端点与 `reviewed_at`/`reviewed_by`；不建审计表 | 人工确认（既有 FR-44 决策） | PASS |
+| RT-05 | ACCEPT | requirements.md §6.10/FR-07/12/15/37/EX-14/AC-14；api-contract.md DELETE；PG-02/03/04/05/06/07；user-flow.md；testing-strategy.md | 采纳人工决策「入向阻止」：人物仅首领/席位；势力下级/成员；地点下级/人物地点/地点-势力；出向随删 | 人工决策 2026-11-07（入向阻止） | PASS（终审 2/2） |
+| RT-06 | ACCEPT | requirements.md FR-55；architecture.md §6.6；api-contract.md；data-model.md；deployment.md §5.3；adr/ADR-006；PG-13；mvp-scope.md MVP-11 | 快照固定五件套 + `restore-snapshot <dir>`；写 `last_restore_at` | 架构决策 | PASS |
+| RT-07 | ACCEPT | architecture.md §6.5；adr/ADR-005 Rev.2；testing-strategy.md | 统一为「快照→解压校验→移图→单事务写 DB；TX 失败删本次移动图片」 | 架构决策 | PASS |
+| RT-08 | ACCEPT | requirements.md §6.6；api-contract.md §3.11；PG-11；adr/ADR-005；testing-strategy.md | 明确导入类别初始化协议、境界唯一、`system_categories` 计数与集成测试 | 产品/架构决策 | PASS |
+| RT-09 | ACCEPT | requirements.md FR-60；api-contract.md §3.10；data-model.md 恢复；PG-12 | 采纳人工决策「支持子项改名」：`renames[]`、整组原子、422 | 人工决策 2026-11-07 | PASS |
+| RT-10 | ACCEPT | data-model.md §3.15；architecture.md §6.4；testing-strategy.md | 删除/恢复被引用实体时同事务重建引用方 `search_documents`；回收站不参与检索 | 架构决策 | PASS |
+| RT-11 | ACCEPT | api-contract.md §2.7；architecture.md §6.3；PG-01 | 明确组 total 与当前页切片、`matched_fields`、稳定排序 | 架构决策 | PASS |
+| RT-12 | ACCEPT | deployment.md §2.1；api-contract.md §3.11；architecture.md §6.5；PG-11；adr/ADR-005；testing-strategy.md | 空间预检、120 分钟超时、`IMPORT_INSUFFICIENT_STORAGE`/`IMPORT_TIMEOUT`、阶段进度 | 部署决策 | PASS |
+| RT-13 | ACCEPT | PG-03 §6.3；PG-12；requirements.md EX-14；architecture.md C-07；user-flow.md；testing-strategy.md E2E-15 | 引用项标「回收站中」+ `/trash?type=&highlight=` 定位；补跨回收站 E2E | 前端/产品决策 | PASS（终审 2/2） |
+| RT-14 | ACCEPT | requirements.md FR-15/§6.10；api-contract.md DELETE /locations；PG-07；user-flow.md | 采纳人工决策「阻止删除」：下级/人物地点/地点-势力全部阻止，不级联；删除问号句 | 人工决策 2026-11-07（阻止删除） | PASS（终审 2/2） |
+| RT-15 | ACCEPT | requirements.md §5.2.5；api-contract.md ranking；PG-09 | 榜单详情默认 `page_size=50`，允许 50/100 | 技术决策 | PASS |
+| RT-16 | ACCEPT | requirements.md EX-07；api-contract.md §1.1；PG-03/05/07/09 | 统一 `version` + `If-Match`，移除 `updated_at` 乐观锁 | 技术决策 | PASS |
+| RT-17 | ACCEPT | requirements.md FR-55；architecture.md C-02/D-07；adr/ADR-006；PG-13 | 快照触发对齐 FR-55；回收站单项恢复不生成；手动快照仅 CLI | 架构决策 | PASS |
+| RT-18 | ACCEPT | PG-13；deployment.md §5.3；adr/ADR-006 | 唯一恢复入口 `docker compose run --rm cli restore/restore-snapshot` | 部署决策 | PASS |
+| RT-19 | ACCEPT | requirements.md §9.1；product-brief.md S5；project-context.md；PROJECT-SETUP.md MVP-10；PG-11；mvp-scope.md MVP-10 | 口径改为「可校对实体」；类别/大事记/图片不参与校对但预览校验 | 产品决策 | PASS |
+| RT-20 | ACCEPT | mvp-scope.md MVP-13；PROJECT-SETUP.md MVP-13 | MVP-13 优先级 P1→P0，与 requirements Must 对齐 | 产品决策 | PASS |
+| RT-21 | ACCEPT | page-specs/PG-00~PG-13；design-system.md §9 | 14 份页面规格统一引用 design-system v1.0 | 设计决策 | PASS |
+| RT-22 | ACCEPT | deployment.md §4；architecture.md §7.1；data-model.md §7；testing-strategy.md | CLI `migrate` 获取同一 advisory lock，app 运行时退出 `APP_RUNNING` | 部署/后端决策 | PASS |
+| RT-23 | ACCEPT | deployment.md §2.1；architecture.md §7.1/§7.2；api-contract.md §1.5 | Host 白名单由 `APP_PORT`/`ALLOWED_HOSTS` 派生 | 部署/后端决策 | PASS |
+| RT-24 | ACCEPT | testing-strategy.md E2E-14 | 14 页 axe + 键盘/焦点/对比度自动化，不新增工具依赖 | 前端/QA 决策 | PASS |
+| RT-25 | ACCEPT | PG-03 §4.3/§8；architecture.md C-03；api-contract.md meta | 大事记内容上限统一 2,000 字 | 产品/前端决策 | PASS |
+
+## Re-review Request and Result
+
+复审范围：RT-01~RT-14（S0×2、S1×12）。
+
+| 轮次 | 执行者 | 范围 | 结果 |
+|---|---|---|---|
+| 第 1 轮 | 独立 Reviewer（未参与修订） | RT-01~RT-07 | S0 2/2 PASS；S1 6/7 PASS（RT-05 FAIL：地点删除残留问号句、测试矩阵与 requirements 冲突） |
+| 第 1 轮 | 独立 Reviewer（未参与修订） | RT-08~RT-14 | S1 5/7 PASS（RT-13 FAIL：缺跨回收站 E2E；RT-14 FAIL：DELETE /locations 问号句未删） |
+| 第 2 轮 | 独立 Reviewer（未参与修订） | RT-05、RT-13、RT-14 | RT-13/RT-14 PASS；RT-05 FAIL（PG-02/PG-04 残留「导入校对记录」；地点错误码双写） |
+| 第 3 轮 | 独立 Reviewer（未参与修订） | RT-05、RT-14 + `reviewed_by` | 2/2 PASS；DTO 示例已补 `reviewed_by` |
+
+复审结论：S0=0；S1 12/12 修复通过；无人工豁免。
 
 ## Remaining Risks
 
 - V-01（`pg_trgm` + 1–2 字中文 P95 ≤150ms）尚未执行；若失败，核心“查得到”价值需备选方案与豁免决策。
 - P-03a（真实《正文》按固定模板整理的成本）尚未验证；若整理成本过高，“迁移完整”与“替代飞书日常使用”的成功标准需重新定义。
 - V-02/V-03（1000 人物导入、5GB 导出与恢复演练）尚未执行；RT-06/RT-07/RT-12 的修复需以这些实测为验收证据。
+- 非阻断残留：E2E-13/14/15 与 RT-22 的自动化用例尚为 planned，需在 P6 实现并作为发布门禁；不构成 P5 阻断。
 
 ## Final Gate Decision
 
-**BLOCKED — 不允许进入 P6。**
+**PASSED — 允许进入 P6（附条件）。**
 
-放行条件：RT-01、RT-02 两个 S0 必须修复并复验；12 个 S1 必须有修复提交或发起人书面豁免并记入 Resolution Log；S2 可排期但需在发布检查中确认。所有标注「权威源待确认」的冲突项（RT-05、RT-06、RT-07、RT-09、RT-13、RT-15、RT-16、RT-17、RT-18、RT-19、RT-20、RT-21、RT-25）须由对应 Decision Owner 标注权威源，本审查不自行裁决。
+- S0：2/2 已修复并由独立 Reviewer 复验（RT-01 查询参数路由；RT-02 容器 `0.0.0.0` + 宿主回环发布）。
+- S1：12/12 已修复并复验；无人工书面豁免。
+- S2：11/11 ACCEPT 并落文档；可在 P6 实现阶段按测试策略验证。
+- 附条件：V-01、P-03a、V-02/V-03 未执行前，不得宣称性能与迁移完整性已验收；E2E-13/14/15 与 CLI 锁测试须在 P6 落地。

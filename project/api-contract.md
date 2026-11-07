@@ -2,8 +2,8 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.0 |
-| 状态 | Approved（2026-11-07，项目发起人） |
+| 文档版本 | v1.1 |
+| 状态 | 修订（P5b，2026-11-07，待复审） |
 | 日期 | 2026-11-07 |
 | 实现技术栈 | Go 1.24 + gin + gorm；PostgreSQL 16；Redis 7（仅缓存） |
 | 基础路径 | `/api/v1` |
@@ -21,10 +21,10 @@
 
 | Header | 必填 | 说明 |
 |---|---|---|
-| `Host` | 是 | 必须为 `127.0.0.1:17860` / `localhost:17860`；否则 `403 HOST_NOT_ALLOWED` |
+| `Host` | 是 | 白名单由 `APP_PORT`/`ALLOWED_HOSTS` 派生，默认 `127.0.0.1:${APP_PORT}` / `localhost:${APP_PORT}`；否则 `403 HOST_NOT_ALLOWED`。容器内应用监听 `0.0.0.0`，白名单仍只允许回环主机名 |
 | `Origin` / `Referer` | 写请求 | 存在时必须同源；缺失（curl/CLI）允许；跨源 `403 FORBIDDEN_ORIGIN` |
 | `X-Requested-With` | 写请求 | 前端固定发送 `XMLHttpRequest`，作为本地 CSRF 的第二道检查 |
-| `If-Match` | 更新/删除 | 乐观锁版本，如 `If-Match: "3"`；缺失或过期返回 `409 VERSION_CONFLICT` |
+| `If-Match` | 更新/删除 | 乐观锁版本，如 `If-Match: "3"`；缺失或过期返回 `409 VERSION_CONFLICT`。**唯一乐观锁依据为实体 `version`，不使用 `updated_at`**（P5b RT-16） |
 | `Content-Type` | 是 | JSON 或 multipart；不支持的类型 `415 UNSUPPORTED_MEDIA_TYPE` |
 
 - 无 CORS 头；服务端不返回 `Access-Control-Allow-*`。
@@ -34,6 +34,7 @@
 
 - 成功：`2xx` + JSON；创建返回 `201` 与 `Location` 头；删除返回 `200`（软删除，带 `undo_token`）或 `204`（无 body 的永久操作）。
 - 所有实体响应包含：`id`、`created_at`、`updated_at`、`version`、`deleted_at`（未删为 `null`）。
+- 可校对实体（`character`/`faction`/`location`/`ranking`/`system_node`）额外包含 `review_status`（`pending`/`confirmed`）、`reviewed_at`（未校对为 `null`）与 `reviewed_by`（本版固定 `local-author`，未校对为 `null`）。数据库列沿用 `pending`/`reviewed`，API 的 `confirmed` 映射数据库 `reviewed`（P5b RT-04）。
 - 时间格式：ISO-8601 UTC，如 `2026-11-07T02:15:30Z`。
 - ID：26 位 ULID 字符串。
 - 列表响应：
@@ -109,7 +110,12 @@
 | `REFERENCE_MISSING` | 409 | 恢复时引用对象缺失 | 回收站恢复 |
 | `ALREADY_DELETED` | 409 | 重复删除/撤销已过期 | 二次删除、undo |
 | `UNDO_EXPIRED` | 409 | 撤销窗口已过 | 超过 8 秒 |
+| `REVIEW_NOT_FOUND` | 404 | 待校对实体不存在或已删除 | 单条/批量确认校对 |
+| `REVIEW_INVALID_STATE` | 409 | 实体状态不允许校对（非 pending） | 重复确认 |
+| `RESTORE_CONFLICT` | 422 | 恢复整组时存在无法用 `new_name`/`renames[]` 解决的名称冲突 | 回收站恢复 |
 | `SNAPSHOT_FAILED` | 503 | 快照生成失败，操作未执行 | 删除作品/清空回收站/导入/恢复 |
+| `IMPORT_INSUFFICIENT_STORAGE` | 507 | 导入前空间预检不足 | 上传 zip / 确认提交 |
+| `IMPORT_TIMEOUT` | 504 | 上传或解析超过 120 分钟 | 大包/慢盘 |
 | `IMPORT_INVALID` | 400 | 导入模板/字段/引用/图片错误 | 预览阶段 |
 | `IMPORT_STATE_CONFLICT` | 409 | 状态不允许该操作 | 重复 commit、未校验即提交 |
 | `IMPORT_TEMPLATE_VERSION` | 400 | 模板版本缺失或不支持 | 上传解析 |
@@ -126,7 +132,7 @@
 ### 1.5 认证与授权
 
 - 本版无认证、无角色、无权限判断；所有端点对本地调用者开放（requirements §2.3）。
-- 授权边界由网络层承担：仅 `127.0.0.1` 监听 + Host/Origin 校验 + 无 CORS + CSP。
+- 授权边界由网络层承担：宿主仅回环可达（compose 发布 `127.0.0.1:17860`，容器内监听 `0.0.0.0:17860`）+ Host/Origin 校验 + 无 CORS + CSP。
 - “权限不足”记为 `N/A`（EX-05）；未来公网部署需新增反代认证与访问控制，并新增 ADR。
 
 ### 1.6 幂等与并发
@@ -137,6 +143,8 @@
 - **导入提交**：`import_id` 状态机保证一个导入只成功提交一次；重复 commit 返回同一结果（200）。
 - **导出**：同一时间仅允许一个 `running` 导出；重复创建返回 `409 EXPORT_IN_PROGRESS`。
 - **删除**：重复 DELETE 返回 `409 ALREADY_DELETED`（根已被删除且仍在回收站）。
+- **校对**：单条 `POST /{resource}/{id}/review` 可选 `Idempotency-Key`；无 body；仅 `pending → confirmed`，已是 `confirmed` 返回同一实体（幂等）。批量端点整批原子，部分不可校对返回 `REVIEW_INVALID_STATE` 且不更新任何记录。
+- **恢复**：整组原子；`new_name`/`renames[]` 任一冲突导致整组失败并返回 `422 RESTORE_CONFLICT`，不部分恢复。
 
 ### 1.7 兼容策略
 
@@ -179,7 +187,9 @@
     { "location_id": "01H...", "name": "东海", "note": "常驻" }
   ],
   "image": { "asset_id": "01H...", "url": "/api/v1/media/01H...?variant=thumb", "width": 800, "height": 1200 },
-  "review_status": "reviewed",
+  "review_status": "confirmed",
+  "reviewed_at": "2026-11-07T02:15:30Z|null",
+  "reviewed_by": "local-author|null",
   "created_at": "…", "updated_at": "…", "version": 2, "deleted_at": null
 }
 ```
@@ -191,7 +201,7 @@
   "id": "01H...", "work_id": "01H...", "name": "山海妖族",
   "parent": { "id": "01H...", "name": "万族" },
   "leader": { "id": "01H...", "name": "司空摘天" },
-  "description": "…", "review_status": "reviewed",
+  "description": "…", "review_status": "confirmed", "reviewed_at": "…|null", "reviewed_by": "local-author|null",
   "children_count": 3, "member_count": 12,
   "created_at": "…", "updated_at": "…", "version": 1, "deleted_at": null
 }
@@ -205,7 +215,7 @@
 {
   "id": "01H...", "work_id": "01H...", "name": "封神榜",
   "seat_count": 100, "occupied_count": 23, "empty_count": 77,
-  "review_status": "reviewed",
+  "review_status": "confirmed", "reviewed_at": "…|null", "reviewed_by": "local-author|null",
   "created_at": "…", "updated_at": "…", "version": 1, "deleted_at": null
 }
 ```
@@ -221,7 +231,7 @@
 ```
 
 ```json
-{ "id": "01H...", "category_id": "01H...", "name": "帝境", "parent": null, "sort_order": 0, "era_start_text": null, "era_end_text": null, "reference_count": 120, "children": [ { "id": "01H...", "name": "五重天", "sort_order": 0 } ] }
+{ "id": "01H...", "category_id": "01H...", "name": "帝境", "parent": null, "sort_order": 0, "era_start_text": null, "era_end_text": null, "reference_count": 120, "review_status": "confirmed", "reviewed_at": "…|null", "reviewed_by": "local-author|null", "children": [ { "id": "01H...", "name": "五重天", "sort_order": 0 } ] }
 ```
 
 ### 2.6 Chronicle
@@ -242,11 +252,14 @@
         {
           "entity_id": "01H...", "entity_type": "character", "title": "司空摘天",
           "subtitle": "人物 · 山海妖族 · 帝境五重天",
-          "matched_fields": ["name"],
-          "snippet": "司空摘天（神逆）（山海帝君）",
+          "matched_fields": [
+            { "field": "name", "matched_text": "司空摘天" },
+            { "field": "relation", "matched_text": "山海妖族" }
+          ],
+          "snippet": "司空摘天（神逆）· 山海妖族",
           "score": 100,
           "updated_at": "…",
-          "url": "/characters/01H..."
+          "url": "/characters?id=01H..."
         }
       ]
     }
@@ -257,6 +270,11 @@
   "query": { "q": "山海 帝君", "tokens": ["山海", "帝君"], "filters": { "entity_types": ["character"] } }
 }
 ```
+
+- `groups[].total` 为该组**总命中数**；`groups[].items` 仅为**当前页切片**（跨组共享同一 `page/page_size`，分页以全局 `total` 计算）。
+- 顶层 `total/page/page_size` 为跨组汇总与分页信息；排序固定 `score DESC, updated_at DESC, id ASC`，保证翻页稳定（P5b RT-11）。
+- `matched_fields` 为命中字段列表：`field` 取值 `name|alias|title|desc|relation`，`matched_text` 为该字段中的命中原文；`snippet` 必含至少一个 `matched_text`，供前端高亮与解释命中原因。
+- 每条 `url` 使用查询参数详情路由（如 `/characters?id=01H...`），与静态导出兼容（P5b RT-01）。
 
 ---
 
@@ -278,7 +296,7 @@
 
 #### GET /api/v1/settings
 - Response：`{ "current_work_id": "01H...|null", "data_dir": "/data", "snapshot_keep": 3, "last_export_at": "…|null", "last_restore_at": "…|null", "app_version": "…" }`。
-- Note：`data_dir` 只返回逻辑路径，不回显宿主机绝对路径。
+- Note：`data_dir` 只返回逻辑路径，不回显宿主机绝对路径。`last_restore_at` 读取自 `app_settings` 键 `last_restore_at`，由 CLI `restore`/`restore-snapshot` 成功后写入（P5b RT-06）。
 
 #### PATCH /api/v1/settings
 - Request：`{"current_work_id": "01H..."}`。
@@ -318,7 +336,7 @@
 
 #### GET /api/v1/characters
 - Query：`work_id`（必填）、`q`、`faction_id`、`system_node_id`、`location_id`、`review_status`、`sort`、`page`、`page_size`。
-- Response：`CharacterSummary[]`：`id, name, faction:{id,name}, system_summary:string, image_thumb_url, review_status, updated_at`。
+- Response：`CharacterSummary[]`：`id, name, faction:{id,name}, system_summary:string, image_thumb_url, review_status, reviewed_at, updated_at`。
 - 仅未删除；`work_id` 缺失 `422`。
 
 #### POST /api/v1/characters
@@ -371,7 +389,7 @@
 ### 3.4 势力 Factions（FR-09~12）
 
 #### GET /api/v1/factions
-- Query：`work_id`、`q`、`parent_id`（`root` 表示顶层）、`flat=true|false`、`page`、`page_size`。
+- Query：`work_id`、`q`、`parent_id`（`root` 表示顶层）、`flat=true|false`、`review_status`、`page`、`page_size`。
 - Response：`FactionSummary[]`（含 `children_count`、`leader`、`member_count`）。
 
 #### POST /api/v1/factions
@@ -400,7 +418,7 @@
 ### 3.5 地点 Locations（FR-13~16）
 
 #### GET /api/v1/locations
-- Query：`work_id`、`q`、`parent_id`（`root`）、`type_text`、`flat`、`page`、`page_size`。
+- Query：`work_id`、`q`、`parent_id`（`root`）、`type_text`、`flat`、`review_status`、`page`、`page_size`。
 - Response：`LocationSummary[]`。
 
 #### POST /api/v1/locations
@@ -417,7 +435,7 @@
 - Errors：`NAME_CONFLICT`、`CYCLE_DETECTED`、`VERSION_CONFLICT`。
 
 #### DELETE /api/v1/locations/{id}
-- 校验：`HAS_CHILDREN` → `REFERENCE_CONFLICT`（人物/势力关联不阻止？按 FR-15 有下级或被引用时阻止；地点被引用需阻止）→ 软删除。
+- 校验：存在下级地点 → `HAS_CHILDREN`（结构约束）；存在人物地点关系或地点-势力关系 → `REFERENCE_CONFLICT` 并返回引用清单（RT-05/RT-14 人工决策：阻止删除，不级联）；无引用 → 软删除。
 - Response：`{ "deleted": true, "undo_token": "…" }`。
 
 #### GET /api/v1/locations/{id}/characters
@@ -436,7 +454,7 @@
 ### 3.6 榜单 Rankings（FR-17~20）
 
 #### GET /api/v1/rankings
-- Query：`work_id`、`page`、`page_size`。
+- Query：`work_id`、`review_status`、`page`、`page_size`。
 - Response：`RankingSummary[]`（含 `occupied_count`、`empty_count`）。
 
 #### POST /api/v1/rankings
@@ -445,7 +463,7 @@
 - Errors：`NAME_CONFLICT`、`VALIDATION_ERROR`（1–200）。
 
 #### GET /api/v1/rankings/{id}
-- Query：`page`、`page_size`（席位分页，默认 20，可 50/100）。
+- Query：`page`、`page_size`（席位分页，**默认 50，允许 50/100**；PG-09 固定传 50；P5b RT-15）。
 - Response：`Ranking` + `seats` 分页 + `summary`。
 - Errors：`NOT_FOUND`。
 
@@ -498,7 +516,7 @@
 - Errors：`REFERENCE_CONFLICT`、`CATEGORY_BUILTIN_IMMUTABLE`。
 
 #### GET /api/v1/system-categories/{id}/nodes
-- Query：`include_disabled`、`flat`。
+- Query：`include_disabled`、`flat`、`review_status`。
 - Response：`SystemNode[]`（树形，含 `children`、`reference_count`）。
 
 #### POST /api/v1/system-nodes
@@ -551,7 +569,7 @@
 - 语义：空格分词 AND；每个词需命中名称/别名/称号/简介/关联实体名；不搜大事记（FR-28）。
 - 实现：PostgreSQL `search_documents` + `pg_trgm` GIN 索引；3 字符以上走 `ILIKE '%token%'`，1–2 字走同一匹配（预计顺序扫描，数据量 1500 行内可接受）。V-01 未通过前不冻结该实现（ADR-003）。
 - Response：`SearchResult`（§2.7），按实体类型分组；`total` 为全部匹配数；响应头 `X-Cache`。
-- 排序：名称 > 别名/称号 > 简介 > 关联实体名；同权重 `updated_at DESC`（FR-30）。
+- 排序：`score DESC, updated_at DESC, id ASC`（score：名称 4 > 别名/称号 3 > 简介 2 > 关联实体名 1），稳定分页（FR-30、P5b RT-11）。
 - 缓存：key 由 `work_id` + 检索参数哈希构成，TTL 60s；作品任何写操作递增 epoch 使旧键失效；Redis 故障时旁路。
 - Errors：`VALIDATION_ERROR`（空查询/非法类型）。
 - 性能：P95 ≤150ms（V-01）。
@@ -567,10 +585,19 @@
 - 只返回根记录；不含已永久删除。
 
 #### POST /api/v1/trash/{root_type}/{root_id}/restore
-- Request：`{ "new_name": "…|null" }`（名称冲突时可改名）。
-- Behavior：整组恢复；校验父级、引用、名称。
+- Request：
+  ```json
+  {
+    "new_name": "…|null",
+    "renames": [
+      { "entity_type": "character|faction|location|ranking|system_node|system_category", "entity_id": "01H...", "new_name": "…" }
+    ]
+  }
+  ```
+  `new_name` 仅用于根记录改名；子实体名称冲突通过 `renames[]` 逐项指定（`entity_id` 必须在本次恢复组内）。`renames` 可省略。
+- Behavior：整组恢复，整组原子；校验父级、引用、名称。任一冲突且未提供对应改名时，整组失败并列出冲突项。
 - Response：恢复后的实体摘要 + `restored_count`。
-- Errors：`NAME_CONFLICT`、`PARENT_DELETED`、`REFERENCE_MISSING`、`NOT_FOUND`。
+- Errors：`NAME_CONFLICT`、`PARENT_DELETED`、`REFERENCE_MISSING`、`NOT_FOUND`、`422 RESTORE_CONFLICT`（`details.items` 列出 `entity_type/entity_id/name/field`）；`RESTORE_CONFLICT` 时不部分恢复。
 
 #### DELETE /api/v1/trash/{root_type}/{root_id}
 - Request：`{ "confirm": true }`；生成快照（`trash_purge`）→ 物理删除整组。
@@ -596,17 +623,18 @@
 - Response：示例 zip（含 Markdown + images），用于用户对照整理。
 
 #### POST /api/v1/imports
-- Request：multipart：`markdown`（文件，≤20MB）、`archive`（zip，≤6GB 可配）。
+- Request：multipart：`markdown`（文件，≤20MB）、`archive`（zip，≤6GB 可配，`MAX_UPLOAD_MB=6144`）。
+- 预检：上传前校验可用空间 ≥ `zip_size + 预计解压大小 + 1GB 快照余量`；上传/解析 HTTP 超时 120 分钟（`IMPORT_TIMEOUT_MIN`）。空间不足返回 `507 IMPORT_INSUFFICIENT_STORAGE`，超时返回 `504 IMPORT_TIMEOUT`。
 - Response `202`：`{ "import_id": "01H...", "status": "uploaded" }`。
 - 后台：`validating → validated|failed`。
-- Errors：`IMPORT_IN_PROGRESS`、`UNSUPPORTED_FILE_TYPE`、`FILE_TOO_LARGE`、`PATH_TRAVERSAL`、`IMPORT_TEMPLATE_VERSION`。
+- Errors：`IMPORT_IN_PROGRESS`、`UNSUPPORTED_FILE_TYPE`、`FILE_TOO_LARGE`、`PATH_TRAVERSAL`、`IMPORT_TEMPLATE_VERSION`、`IMPORT_INSUFFICIENT_STORAGE`、`IMPORT_TIMEOUT`。
 
 #### GET /api/v1/imports/{import_id}
 - Response：
   ```json
   {
     "import_id": "01H...", "status": "validated", "file_name": "…", "template_version": "1.0",
-    "counts": { "characters": 1000, "factions": 200, "locations": 200, "rankings": 5, "system_nodes": 150, "images": 480 },
+    "counts": { "characters": 1000, "factions": 200, "locations": 200, "rankings": 5, "system_categories": 3, "system_nodes": 150, "images": 480 },
     "errors": [{ "line": 42, "field": "人物/司空摘天/体系引用", "code": "IMPORT_INVALID", "message": "类别「圣体」未定义" }],
     "warnings": [], "error_count": 1, "work_id": null, "snapshot_id": null, "created_at": "…", "finished_at": "…"
   }
@@ -614,13 +642,14 @@
 
 #### POST /api/v1/imports/{import_id}/commit
 - Request：`{ "work_name": "山海（导入）" }`（可选；默认取模板作品名）。
-- Behavior：仅在 `status=validated` 且 `error_count=0` 时允许；快照 → 单事务写入 → `completed`。
+- Behavior：仅在 `status=validated` 且 `error_count=0` 时允许；快照（`reason=import`）→ 图片移动到 `images/{work_id}/{import_id}/` → 单事务写入 → `completed`（顺序以 ADR-005 为准；事务失败删除本次移动图片并清理临时目录）。
+- 类别初始化协议：导入作品以 `auto_create_builtin=false` 创建（跳过新建作品自动生成境界）；模板必须定义类别（`体系 → 类别`），类别名必填且同作品唯一；「境界」名称固定、`is_builtin=1`、每作品唯一；自定义类别含境界合计 ≤10；模板缺境界时创建空内置境界；节点按类别名归属（含内置境界）；类别不参与 review。
 - Response：`{ "status": "completed", "work_id": "01H...", "report": {...}, "review_url": "/characters?review_status=pending" }`。
-- Errors：`IMPORT_STATE_CONFLICT`、`IMPORT_INVALID`、`SNAPSHOT_FAILED`、`NAME_CONFLICT`（作品名）。
+- Errors：`IMPORT_STATE_CONFLICT`、`IMPORT_INVALID`、`SNAPSHOT_FAILED`、`NAME_CONFLICT`（作品名）、`IMPORT_INSUFFICIENT_STORAGE`。
 - 幂等：重复调用返回同一 `completed` 结果。
 
 #### GET /api/v1/imports/{import_id}/report
-- Response：导入报告（只读）：文件名、作品、计数、错误数、耗时、校对清单、快照 ID。
+- Response：导入报告（只读）：文件名、作品、计数（含 `system_categories`）、错误数、耗时、校对清单、快照 ID。
 
 ### 3.12 导出 Exports（FR-52~53）
 
@@ -649,6 +678,37 @@
 #### GET /api/v1/snapshots
 - Response：`[{ "id", "reason", "created_at", "db_bytes", "image_count", "path" }]`，按时间倒序；最多展示 10 条，保留 3 份。
 - 只读；不提供页内恢复（D-05）。
+- 快照目录固定包含：`app.dump`、`images/`、`snapshot.json`、`manifest.json`、`checksums.sha256`（P5b RT-06）。
+- 恢复入口为 CLI：`docker compose run --rm cli restore-snapshot /data/snapshots/{ts}-{reason}`；成功后写 `app_settings.last_restore_at`，设置页展示（P5b RT-06）。
+- 快照触发以 requirements FR-55 为准：CLI 全量恢复、导入、删除作品、永久删除、清空回收站；回收站单项恢复不生成；手动快照仅 CLI 可选，无页面入口（P5b RT-17）。
+
+### 3.14 校对 Reviews（FR-44）
+
+> 可校对实体为 `characters`、`factions`、`locations`、`rankings`、`system-nodes`；类别、大事记、图片不在校对范围。
+
+#### POST /api/v1/{resource}/{id}/review
+- `resource` ∈ `characters|factions|locations|rankings|system-nodes`。
+- Headers：`Idempotency-Key` 可选；无 body。
+- Response `200`：更新后的实体 DTO，`review_status="confirmed"`、`reviewed_at` 为本次时间、`reviewed_by="local-author"`。
+- Behavior：仅 `pending → confirmed`；已是 `confirmed` 直接返回实体（幂等）。`review_status` 对外枚举为 `pending|confirmed`（数据库列沿用 `pending|reviewed`，`confirmed` 映射 `reviewed`）。
+- Errors：`REVIEW_NOT_FOUND`（实体不存在/已删除）、`REVIEW_INVALID_STATE`（状态不允许）、`NOT_FOUND`。
+
+#### POST /api/v1/reviews/batch
+- Request：
+  ```json
+  {
+    "work_id": "01H...",
+    "entity_type": "character|faction|location|ranking|system_node",
+    "ids": ["01H...", "01H..."],
+    "filter": { "review_status": "pending" }
+  }
+  ```
+  `ids` 与 `filter` 二选一（或同时提供时取交集）；`filter` 仅支持 `review_status="pending"`。
+- Behavior：仅 `pending → confirmed`；单事务原子；任何 ID 不存在/状态不允许则整批失败，不部分更新。
+- Response `200`：`{ "updated": 12, "skipped": 3 }`（`skipped` 为已是 confirmed 被跳过的数量；不存在计入错误而非 skipped）。
+- Errors：`VALIDATION_ERROR`、`REVIEW_NOT_FOUND`、`REVIEW_INVALID_STATE`。
+
+> DTO 中 `reviewed_at` 为只读字段；校对更新 `review_status`/`reviewed_at` 时仍递增实体 `version`，前端后续编辑需使用新的 `If-Match`。
 
 ---
 
@@ -664,6 +724,7 @@
 | `/system-categories`、`/system-nodes` | FR-21~26 | PG-10 |
 | `/search` | FR-27~33 | PG-01 |
 | `/imports` | FR-39~46 | PG-11 |
+| `/reviews`、`/{resource}/{id}/review` | FR-44 | PG-11 |
 | `/trash` | FR-57~63 | PG-12 |
 | `/exports`、`/snapshots`、`/settings` | FR-52~56、FR-65 | PG-13 |
 
@@ -677,11 +738,35 @@
 | 编号 | 问题 | 当前契约 | 备选 |
 |---|---|---|---|
 | C-01 | 删除体系主节点含子节点 | `409 HAS_CHILDREN`（已确认 2026-11-07） | 整组软删除 + 返回 `affected_nodes` |
-| C-02 | 回收站单项恢复是否快照 | 不快照（已确认 2026-11-07） | 恢复前快照（响应增加 `snapshot_id`） |
+| C-02 | 回收站单项恢复是否快照 | 不快照；快照触发为 CLI 全量恢复、导入、删除作品、永久删除、清空回收站（已确认 2026-11-07；P5b 对齐 FR-55） | 恢复前快照（响应增加 `snapshot_id`） |
 | C-03 | 字段长度上限 | `/meta` 常量（已确认 2026-11-07） | 产品确认后调整 |
 | C-04 | 作品软上限 | `warnings[]` 不阻断（已确认 2026-11-07） | 硬限制 `409 WORK_LIMIT` |
 | D-02 | 中文检索实现 | `pg_trgm` + 短词 `ILIKE`（已确认 2026-11-07；V-01 待执行） | `pg_bigm` / `zhparser` / 外部搜索 |
 | D-08 | Redis 使用范围 | 仅缓存检索与摘要，故障旁路（已确认 2026-11-07） | 引入队列/会话（不采用） |
-| D-09 | 前端交付方式 | Next.js 静态导出，由 Go 托管（已确认 2026-11-07） | Node 运行时 + Nginx |
+| D-09 | 前端交付方式 | Next.js 静态导出，由 Go 托管；详情页查询参数路由 `?id=<id>`（已确认 2026-11-07；P5b RT-01） | Node 运行时 + Nginx |
 | C-07 | 引用检查是否包含回收站记录 | 包含（已确认 2026-11-07） | 仅未删除记录 |
+| RT-04 | 校对记录 | 单条 `/{resource}/{id}/review` + 批量 `/reviews/batch`；`reviewed_at`/`reviewed_by`；不建审计表（已确认 2026-11-07） | 独立校对记录表 |
+| RT-09 | 恢复整组子实体改名 | `renames[]` 整组原子；冲突 `422 RESTORE_CONFLICT`（已确认 2026-11-07） | 仅根记录改名 |
+| RT-11 | 检索分组语义 | `groups[].total` 组总命中、`items` 当前页切片、`matched_fields`（已确认 2026-11-07） | 未定义切片语义 |
 | — | 地点被人物/势力引用时删除是否阻止 | 阻止（FR-15 原文，已确认） | 允许级联解除关系 |
+
+---
+
+## 6. 变更记录
+
+| 日期 | 版本 | Finding ID | 决策 | 原因/变更摘要 |
+|---|---|---|---|---|
+| 2026-11-07 | v1.1 | RT-01 | 检索结果 `url` 与详情路由改 `/characters?id=<id>` 等查询参数 | 静态导出不支持动态段 |
+| 2026-11-07 | v1.1 | RT-02 | Host 白名单说明：容器内监听 `0.0.0.0`，白名单仍限回环主机 | 修正“容器内监听 loopback”误解 |
+| 2026-11-07 | v1.1 | RT-04 | 新增单条/批量校对端点；5 类 DTO 加 `review_status`/`reviewed_at`/`reviewed_by`；列表加过滤；错误码补 `REVIEW_*` | 校对清单无可用接口，FR-44/MVP-10 无法落地 |
+| 2026-11-07 | v1.1 | RT-06 | `last_restore_at` 来自 `app_settings`；快照目录结构；`restore-snapshot` | 快照无恢复入口，FR-55 不可验收 |
+| 2026-11-07 | v1.1 | RT-08 | 导入类别协议；`counts`/报告加 `system_categories` | 防止境界重复、类别未定义、节点挂错 |
+| 2026-11-07 | v1.1 | RT-09 | restore body 支持 `renames[]`；冲突 `422 RESTORE_CONFLICT`；整组原子 | 子实体冲突时 UI 无接口可调用 |
+| 2026-11-07 | v1.1 | RT-11 | 检索契约明确 total/切片/matched_fields/稳定排序 | 分页语义与命中解释缺失 |
+| 2026-11-07 | v1.1 | RT-12 | 导入预检空间、120 分钟超时、新增错误码 | 大包易磁盘写满且无明确错误 |
+| 2026-11-07 | v1.1 | RT-15 | 榜单详情 `page_size` 默认 50、允许 50/100 | 与 requirements 5.2.5 每页 50 席对齐 |
+| 2026-11-07 | v1.1 | RT-16 | 明确 `version` + `If-Match` 为唯一乐观锁，不使用 `updated_at` | 消除两套并发比较逻辑 |
+| 2026-11-07 | v1.1 | RT-17 | 快照触发对齐 FR-55 | 修正“仅 CLI 全量恢复”字面 |
+| 2026-11-07 | v1.1 | RT-23 | Host 白名单由 `APP_PORT`/`ALLOWED_HOSTS` 派生 | 改端口不再 403 |
+| 2026-11-07 | v1.1 | RT-05 | DELETE 人物/势力/地点按 §6.10 入向阻止矩阵统一；出向随删解除 | 四处删除规则不一致 |
+| 2026-11-07 | v1.1 | RT-14 | DELETE 地点：下级 `HAS_CHILDREN`、人物/势力关联 `REFERENCE_CONFLICT`，全部阻止不级联；删除问号句 | 原契约保留双规则与未决问号 |

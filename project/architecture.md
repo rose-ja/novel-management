@@ -2,8 +2,8 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.0 |
-| 状态 | Approved（2026-11-07，项目发起人） |
+| 文档版本 | v1.1 |
+| 状态 | 修订（P5b，2026-11-07，待复审） |
 | 日期 | 2026-11-07 |
 | 架构风格 | 模块化单体 + 三容器（Go 应用 / PostgreSQL / Redis 缓存） |
 | 推荐技术栈 | Go 1.24 + gin + gorm + Next.js 15 + PostgreSQL 16 + Redis 7（仅缓存） |
@@ -24,7 +24,7 @@
 | 编号 | 缺口 | 默认处理 | 状态 |
 |---|---|---|---|
 | C-01 | PG-10 未定义「删除含子节点的体系主节点」行为 | 默认阻止，返回 `HAS_CHILDREN`，要求先删除/移动子节点 | 已确认（2026-11-07） |
-| C-02 | FR-55“恢复”是否包含回收站单项恢复 | 仅 CLI 全量恢复生成快照；回收站单项恢复不生成快照 | 已确认（2026-11-07） |
+| C-02 | FR-55“恢复”是否包含回收站单项恢复 | 快照触发以 FR-55 为准：CLI 全量恢复、导入、删除作品、永久删除、清空回收站生成快照；回收站单项恢复不生成快照；手动快照仅 CLI 可选、无页面入口（P5b 修订） | 已确认（2026-11-07）；P5b 对齐 FR-55 |
 | C-03 | 字段最大长度未定义 | 名称/类型/时间标签 200、简介 20,000、大事记 2,000、关系备注 500、纪元起止 100 | 已确认（2026-11-07） |
 | C-04 | 作品 ≤10 是硬限制还是软上限 | 超过 10 本返回 `warnings[]`，不阻断创建 | 已确认（2026-11-07） |
 | C-05 | 删除势力/地点“有下级或被引用” | 结构约束返回 `HAS_CHILDREN`，引用约束返回 `REFERENCE_CONFLICT` | 已确认（2026-11-07） |
@@ -89,7 +89,7 @@ flowchart LR
   S -->|无外部依赖| X[不调用云服务/大模型/飞书]
 ```
 
-- 系统边界：本机回环地址；不监听局域网；无登录、无用户表。
+- 系统边界：宿主侧仅回环可达（compose 发布 `127.0.0.1:17860`），容器内应用监听 `0.0.0.0:17860`；不监听局域网；无登录、无用户表。
 - 外部依赖：无运行时外部 API；飞书只在迁移阶段作为人工整理来源，不进入运行时。
 
 ### 3.2 容器图
@@ -100,7 +100,7 @@ flowchart TB
   A -->|SQL| P[(postgres 容器<br/>PostgreSQL 16 + pg_trgm)]
   A -->|缓存 GET| R[(redis 容器<br/>Redis 7，仅缓存)]
   A -->|读写| V[(appdata volume<br/>images/exports/snapshots/tmp)]
-  C[cli 一次性容器<br/>restore/reindex/doctor] -->|pg_dump/pg_restore| P
+  C[cli 一次性容器<br/>restore/restore-snapshot/migrate/reindex/doctor] -->|pg_dump/pg_restore| P
   C -->|校验/替换| V
 ```
 
@@ -162,7 +162,7 @@ flowchart TB
 | `snapshots` | pg_dump 快照、图片硬链接、保留 3 份 | `SnapshotService` | 文件系统、pg_dump |
 | `jobs` | 进程内任务运行器 + 状态表 | `JobRunner` | repository |
 | `config` / `observability` | 配置、slog、request id、健康检查 | — | — |
-| `cmd/cli` | restore/reindex/doctor | CLI | service、snapshots |
+| `cmd/cli` | restore/restore-snapshot/migrate/reindex/doctor | CLI | service、snapshots |
 
 依赖方向（禁止反向）：
 
@@ -229,14 +229,10 @@ frontend/
 │  ├─ layout.tsx
 │  ├─ page.tsx            # 客户端重定向到 /search
 │  ├─ search/page.tsx
-│  ├─ characters/page.tsx
-│  ├─ characters/[id]/page.tsx
+│  ├─ characters/page.tsx # 列表 + 详情（详情以 ?id=<id> 选择）
 │  ├─ factions/page.tsx
-│  ├─ factions/[id]/page.tsx
 │  ├─ locations/page.tsx
-│  ├─ locations/[id]/page.tsx
 │  ├─ rankings/page.tsx
-│  ├─ rankings/[id]/page.tsx
 │  ├─ system/page.tsx
 │  ├─ import/page.tsx
 │  ├─ trash/page.tsx
@@ -260,16 +256,17 @@ scripts/
 |---|---|---|
 | `/` | 重定向 | 客户端 `router.replace('/search')` |
 | `/search` | PG-01 | 唯一检索入口 |
-| `/characters`、`/characters/[id]` | PG-02/03 | 列表与详情 |
-| `/factions`、`/factions/[id]` | PG-04/05 | 势力树与详情 |
-| `/locations`、`/locations/[id]` | PG-06/07 | 地点树与详情 |
-| `/rankings`、`/rankings/[id]` | PG-08/09 | 榜单与席位 |
+| `/characters` | PG-02/03 | 人物列表；详情以 `/characters?id=<id>` 查询参数选择 |
+| `/factions` | PG-04/05 | 势力树；详情以 `/factions?id=<id>` |
+| `/locations` | PG-06/07 | 地点树；详情以 `/locations?id=<id>` |
+| `/rankings` | PG-08/09 | 榜单列表；详情以 `/rankings?id=<id>` |
 | `/system` | PG-10 | 体系配置 |
 | `/import` | PG-11 | 导入向导 |
 | `/trash` | PG-12 | 回收站 |
 | `/settings` | PG-13 | 导出/快照/版本 |
 
 - Next.js 静态导出：`output: 'export'`，无 SSR/Server Actions；所有数据经 `/api/v1`。
+- **不使用动态段路由**：静态导出无法为运行时才存在的 ID 预生成页面，详情页统一采用查询参数 `?id=<id>`，不依赖 `generateStaticParams`；列表与详情共用同一 `page.tsx`，由客户端按 `id` 渲染。
 - 开发环境 Next dev server 将 `/api` 代理到 Go `127.0.0.1:17860`；生产由 Go 托管 `frontend/out`。
 
 ### 5.5 状态管理与设计系统落地
@@ -327,8 +324,9 @@ flowchart LR
 1. 规范化查询：NFKC、去首尾空白、连续空白折叠，按空格分词；空查询返回 `VALIDATION_ERROR`（前端显示 FR-31 提示）。
 2. 每个 token 在 `search_documents` 的 name/alias/title/desc/relation 列做 `ILIKE '%token%'`；AND 组合。
 3. `pg_trgm` GIN 索引加速 3 字以上；1–2 字由 1000 行级的顺序扫描承担（V-01 验证）。
-4. 排序：名称命中 4 > 别名/称号 3 > 简介 2 > 关联名 1；同分按 `updated_at DESC`。
-5. 按实体类型分组，每页 20（FR-30）；结果写 Redis 缓存。
+4. 排序：`score DESC, updated_at DESC, id ASC`（score 权重：名称命中 4 > 别名/称号 3 > 简介 2 > 关联名 1 命中 1）；稳定排序保证分页无重复/漏项（P5b RT-11）。
+5. 按实体类型分组，每组 `total` 为该组总命中，`items` 仅当前页切片；顶层返回 `total/page/page_size`；每条结果含 `matched_fields:[{field, matched_text}]` 与包含 `matched_text` 的 `snippet`（P5b RT-11）。
+6. 每页 20（FR-30）；结果写 Redis 缓存。
 
 ### 6.4 删除 / 撤销 / 恢复
 
@@ -353,25 +351,32 @@ sequenceDiagram
 - 分组根模型：作品/类别/人物/势力删除时，后代与大事记/图片标记同根；关系表与席位不单独标记，由父实体删除状态隐藏。
 - 撤销：一次性 token，8 秒有效；恢复前重新校验名称/父级/引用。
 - 回收站只列根记录；恢复整组；永久删除前快照。
+- 删除/恢复被引用实体（势力、地点、榜单、体系节点等）时，同一事务内重建**所有引用方**的 `search_documents`（不只改名场景），避免回收站实体名称继续命中或恢复后缺失（P5b RT-10）。
 
 ### 6.5 导入（原子）
 
 ```mermaid
 flowchart TB
-  U[上传 md + zip] --> T[临时目录 tmp/imports/{id}]
-  T --> V[安全解压 + 模板解析 + 校验]
+  U[上传 md + zip] --> U2[空间预检：zip + 预计解压 + 1GB 快照余量]
+  U2 -->|不足| E0[IMPORT_INSUFFICIENT_STORAGE，0 写入]
+  U2 --> T[临时目录 tmp/imports/{id}]
+  T --> V[安全解压 + 模板解析 + 校验（含类别协议）]
   V -->|错误| E[validated/failed + 错误清单，0 写入]
   V -->|0 错误| C[用户确认 commit]
-  C --> S[生成快照]
-  S --> TX[BEGIN 单事务写入作品/实体/关系/席位/检索文档]
-  TX -->|失败| RB[ROLLBACK + 清理临时图片]
-  TX -->|成功| M[图片移动到 data/images/{work_id}]
-  M --> D[completed + 报告 + 全部 pending]
+  C --> S[生成快照 reason=import]
+  S --> M[图片移动到 data/images/{work_id}/{import_id}/]
+  M -->|失败| RB0[删除本次已移动图片 + 清理临时目录 + failed]
+  M --> TX[BEGIN 单事务写入作品/类别/节点/实体/关系/席位/检索文档]
+  TX -->|失败| RB[ROLLBACK + 删除本次移动图片 + 清理临时目录]
+  TX -->|成功| D[completed + 报告 + 可校对实体全部 pending]
 ```
 
 - 后台 goroutine 执行，状态表 `import_runs`；重启把 `running → failed`。
+- **顺序以 ADR-005 为权威（P5b RT-07）**：快照 → 解压校验 → 图片移动到 `images/{work_id}/{import_id}/` → 单事务写 DB → 提交；事务失败删除本次移动的图片，成功清理临时目录。
 - 导入目标为新建空作品；不做增量 upsert；重复 commit 返回同一结果。
 - 临时目录 TTL 120 分钟；启动与每日清理。
+- **类别初始化协议（P5b RT-08）**：导入作品以 `auto_create_builtin=false` 创建，跳过“新建作品自动生成境界”；模板必须定义类别（`体系 → 类别`），类别名必填且同作品唯一；「境界」类别名称固定、`is_builtin=1`、全作品唯一；自定义类别含境界合计 ≤10；模板缺境界时创建空的内置境界；节点按模板中类别名归属到对应类别（含内置境界）；类别不参与 review；预览/提交 `counts` 与报告包含 `system_categories`。
+- **限制（P5b RT-12）**：`MAX_UPLOAD_MB=6144`；上传前预检可用空间 ≥ `zip_size + 预计解压大小 + 1GB 快照余量`；HTTP 上传/解析超时 120 分钟；超限返回 `IMPORT_INSUFFICIENT_STORAGE`，超时返回 `IMPORT_TIMEOUT`；错误码见 api-contract §1.4。
 
 ### 6.6 导出与 CLI 恢复
 
@@ -381,7 +386,9 @@ flowchart TB
   J --> D[pg_dump -Fc + manifest + checksums + images]
   D --> Z[data/exports/novel-settings-*.zip]
   R[CLI restore zip] --> V[校验 manifest/版本/checksum]
+  R2[CLI restore-snapshot dir] --> V2[校验 snapshot.json/manifest.json/checksums/版本]
   V --> S[恢复前快照]
+  V2 --> S
   S --> T[临时解压 + 图片/引用校验]
   T --> P[pg_restore --clean --if-exists --single-transaction]
   P --> I[替换 images/]
@@ -391,6 +398,9 @@ flowchart TB
 - `include_trash=true`：直接 `pg_dump -Fc`；`false`：复制到临时数据库、删除软删除根与隐藏关系后转储，再删除临时库（导出包真实不含回收站数据）。
 - 恢复期间停止 app，避免并发写入；`pg_restore --single-transaction` 失败自动回滚，原数据与快照保留。
 - 快照保留 3 份；导出默认包含回收站；两种导出包均可由同一 CLI 恢复（AC-12）。
+- **快照可恢复（P5b RT-06）**：快照目录固定包含 `app.dump`、`images/`、`snapshot.json`、`manifest.json`、`checksums.sha256`；CLI `restore-snapshot <dir>` 校验 manifest/checksums/版本后恢复 DB + images，并写入 `last_restore_at`。
+- **快照触发（P5b RT-17，以 requirements FR-55 为准）**：CLI 全量恢复、导入、删除作品、永久删除、清空回收站生成快照；回收站单项恢复不生成；手动快照仅 CLI 可选，无页面入口。
+- **恢复命令（P5b RT-18）**：唯一入口为 `docker compose run --rm cli restore <zip>`（快照为 `docker compose run --rm cli restore-snapshot <dir>`）；`scripts/restore.sh` 不作为权威路径。
 
 ### 6.7 后台任务
 
@@ -406,10 +416,10 @@ flowchart TB
 
 | 项 | 措施 |
 |---|---|
-| 网络 | 仅监听 `127.0.0.1:17860`；Postgres/Redis 不发布宿主端口 |
-| CSRF | 校验 `Host` 白名单、写请求 `Origin` 同源、`X-Requested-With` |
+| 网络 | 宿主仅回环可达（compose 发布 `127.0.0.1:17860`）；容器内应用必须监听 `0.0.0.0:17860`（Docker 端口转发目标为容器网络地址）；Postgres/Redis 不发布宿主端口 |
+| CSRF | 校验 `Host` 白名单（由 `APP_PORT`/`ALLOWED_HOSTS` 派生，默认 `127.0.0.1:${APP_PORT}`、`localhost:${APP_PORT}`）、写请求 `Origin` 同源、`X-Requested-With` |
 | CORS | 不返回 CORS 头；前后端同源 |
-| CSP | `default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'` |
+| CSP | `default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'`（本地单用户、无用户注入 HTML；P5b RT-03） |
 | XSS | 前端文本插值；不使用 `dangerouslySetInnerHTML`；简介按纯文本 |
 | 上传 | zip 拒绝 `..`/绝对路径/符号链接/超限；图片校验 MIME+魔数，≤10MB，重编码 |
 | 日志 | 不记录正文、完整路径、堆栈；只记录 request_id/实体 ID/错误码/耗时 |
@@ -420,14 +430,16 @@ flowchart TB
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `APP_HOST` | `127.0.0.1` | 绑定地址 |
-| `APP_PORT` | `17860` | 端口 |
+| `APP_HOST` | `0.0.0.0`（容器内） | 绑定地址；容器内必须监听 `0.0.0.0`，宿主仅经 compose 的 `127.0.0.1:17860:17860` 可达 |
+| `APP_PORT` | `17860` | 端口；Host/Origin 白名单由此派生 |
+| `ALLOWED_HOSTS` | `127.0.0.1:${APP_PORT},localhost:${APP_PORT}` | Host 白名单（逗号分隔）；改端口无需改白名单 |
 | `DATA_DIR` | `/data` | 图片/导出/快照/临时 |
 | `DATABASE_URL` | `postgres://app:***@db:5432/novel?sslmode=disable` | PG 连接 |
 | `REDIS_ADDR` | `cache:6379` | Redis 地址 |
 | `REDIS_PASSWORD` | 空（本地可设） | 内部网络密码 |
 | `CACHE_TTL_SEC` | `60` | 缓存 TTL |
 | `MAX_UPLOAD_MB` | `6144` | 导入 zip 上限 |
+| `IMPORT_TIMEOUT_MIN` | `120` | 导入上传/解析 HTTP 超时（分钟） |
 | `SNAPSHOT_KEEP` | `3` | 快照保留 |
 | `IMPORT_TTL_MIN` | `120` | 临时目录 TTL |
 | `LOG_LEVEL` | `INFO` | 日志级别 |
@@ -518,11 +530,11 @@ flowchart TB
 | D-02 | PostgreSQL `pg_trgm` + 短词 `ILIKE` 回退 | **已确认（2026-11-07）**；V-01 待执行 | 原 FTS5 方案随 SQLite 撤销；实现细节以 ADR-003 为准 |
 | D-03 | 软删除分组根模型（无回收站表） | **已确认（2026-11-07）** | ADR-004 |
 | D-04 | 导入临时目录 + 单事务 + 后台任务 | **已确认（2026-11-07）** | ADR-005 |
-| D-05 | CLI 全量恢复 | **已确认（2026-11-07）** | ADR-006 |
+| D-05 | CLI 全量恢复 | **已确认（2026-11-07）**；P5b 补充 `restore-snapshot` | ADR-006；恢复命令见 §6.6 |
 | D-06 | 删除含子节点的体系主节点：阻止 | **已确认（2026-11-07）** | C-01 |
-| D-07 | 仅 CLI 全量恢复生成快照 | **已确认（2026-11-07）** | C-02 |
+| D-07 | 快照触发：CLI 全量恢复、导入、删除作品、永久删除、清空回收站；回收站单项恢复不生成；手动快照仅 CLI | **已确认（2026-11-07）**；P5b 对齐 FR-55 | C-02 |
 | D-08 | Redis 仅做缓存，不做队列/关键依赖 | **已确认（2026-11-07）** | ADR-007 |
-| D-09 | Next.js 静态导出，由 Go 托管 | **已确认（2026-11-07）** | 见 TS-Q |
+| D-09 | Next.js 静态导出，由 Go 托管；详情页使用查询参数路由（`?id=<id>`），不使用动态段/`generateStaticParams` | **已确认（2026-11-07）**；P5b 修订路由 | 见 TS-Q；RT-01 |
 | C-07 | 引用检查包含回收站记录（保守） | **已确认（2026-11-07）** | 避免隐藏引用导致永久删除失败；见 data-model §5 |
 
 > 未确认项不得写成既定事实；实现阶段不得擅自改变已确认决策。
@@ -537,8 +549,25 @@ flowchart TB
 | [ADR-002](file:///d:/Project/novel-management/project/adr/ADR-002-stack-go-next-postgres.md) | Go + Next.js + PostgreSQL + Redis 技术栈 | Accepted |
 | [ADR-003](file:///d:/Project/novel-management/project/adr/ADR-003-chinese-search.md) | PostgreSQL 中文检索与回退 | Accepted（V-01 待执行） |
 | [ADR-004](file:///d:/Project/novel-management/project/adr/ADR-004-soft-delete-root.md) | 软删除分组根模型 | Accepted |
-| [ADR-005](file:///d:/Project/novel-management/project/adr/ADR-005-atomic-import.md) | 导入原子性与临时目录 | Accepted |
-| [ADR-006](file:///d:/Project/novel-management/project/adr/ADR-006-export-restore-cli.md) | 导出包与 CLI 恢复 | Accepted |
+| [ADR-005](file:///d:/Project/novel-management/project/adr/ADR-005-atomic-import.md) | 导入原子性与临时目录 | Rev.2（P5b，待复审） |
+| [ADR-006](file:///d:/Project/novel-management/project/adr/ADR-006-export-restore-cli.md) | 导出包与 CLI 恢复（含快照恢复） | Rev.2（P5b，待复审） |
 | [ADR-007](file:///d:/Project/novel-management/project/adr/ADR-007-redis-cache.md) | Redis 仅缓存与非关键路径 | Accepted |
 
 > ADR-002 原文件名 `stack-fastapi-react-sqlite.md` 已删除，避免与新栈混淆；如需旧链接兼容，请在版本控制中保留历史记录，不在仓库内维护旧文件。
+
+---
+
+## 14. 变更记录
+
+| 日期 | 版本 | Finding ID | 决策 | 原因/变更摘要 |
+|---|---|---|---|---|
+| 2026-11-07 | v1.1 | RT-01 | 详情页改查询参数路由 `/characters?id=<id>`、`/factions?id=<id>`、`/locations?id=<id>`、`/rankings?id=<id>`；保留 `output:'export'`，删除 `[id]` 动态段与 `generateStaticParams` 依赖 | 静态导出无法在构建期枚举运行时 ID，原动态段路由导致 `next build` 失败/详情 404 |
+| 2026-11-07 | v1.1 | RT-02 | 容器内 `APP_HOST=0.0.0.0`、`APP_PORT=17860`；宿主仅经 compose `127.0.0.1:17860:17860` 回环可达 | Docker 端口转发目标是容器网络地址，容器内监听 loopback 会导致宿主不可达 |
+| 2026-11-07 | v1.1 | RT-03 | CSP `script-src 'self' 'unsafe-inline'` | Next.js 静态导出含内联引导脚本；本地单用户、无用户 HTML，增加 E2E 覆盖 |
+| 2026-11-07 | v1.1 | RT-06 | 快照目录固定结构 + CLI `restore-snapshot <dir>` | 原快照无恢复入口，FR-55“可恢复”无法验收 |
+| 2026-11-07 | v1.1 | RT-07 | 导入顺序统一为 ADR-005：快照 → 解压校验 → 移图 → 单事务写 DB；TX 失败删除本次移动图片 | 消除 architecture 与 ADR-005 顺序冲突，避免 commit 后移图失败产生缺图 |
+| 2026-11-07 | v1.1 | RT-08 | 导入类别初始化协议：`auto_create_builtin=false`、模板定义类别、境界唯一/固定名/is_builtin=1、合计 ≤10、节点按类别名归属、类别不参与 review | 防止重复创建境界、类别未定义或节点挂错类别 |
+| 2026-11-07 | v1.1 | RT-10 | 删除/恢复被引用实体时同事务重建所有引用方 `search_documents` | 原规则仅覆盖改名，回收站实体名称仍可被检索命中 |
+| 2026-11-07 | v1.1 | RT-11 | 检索排序 `score DESC, updated_at DESC, id ASC`；分组 total 与当前页切片语义、`matched_fields` | 保证分页稳定与结果可解释 |
+| 2026-11-07 | v1.1 | RT-17 | 快照触发对齐 requirements FR-55；回收站单项恢复不生成；手动快照仅 CLI | 修正 D-07/C-02 字面“仅 CLI 全量恢复生成快照” |
+| 2026-11-07 | v1.1 | RT-22/23 | CLI migrate 获取同一 advisory lock；Host 白名单由 `APP_PORT`/`ALLOWED_HOSTS` 派生 | 避免迁移与在线写入并发；改端口不再 403 |

@@ -2,8 +2,8 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.0 |
-| 状态 | Approved（2026-11-07，项目发起人） |
+| 文档版本 | v1.1 |
+| 状态 | 修订（P5b，2026-11-07，待复审） |
 | 日期 | 2026-11-07 |
 | 目标环境 | Windows + Docker Desktop（单用户本地） |
 | 访问方式 | `http://127.0.0.1:17860`（仅本机回环） |
@@ -31,8 +31,9 @@
 
 | 变量 | 默认 | 说明 | 敏感 |
 |---|---|---|---|
-| `APP_HOST` | `127.0.0.1` | 绑定地址；禁止改为 `0.0.0.0`（除未来公网批准） | 否 |
-| `APP_PORT` | `17860` | 服务端口 | 否 |
+| `APP_HOST` | `0.0.0.0` | 容器内绑定地址；**容器内必须监听 `0.0.0.0`**，宿主仅通过 compose 的 `127.0.0.1:17860:17860` 回环可达，不监听局域网（P5b RT-02） | 否 |
+| `APP_PORT` | `17860` | 服务端口；Host/Origin 白名单由此派生 | 否 |
+| `ALLOWED_HOSTS` | `127.0.0.1:${APP_PORT},localhost:${APP_PORT}` | Host 白名单（逗号分隔）；改端口无需改白名单（P5b RT-23） | 否 |
 | `DATA_DIR` | `/data` | 图片/导出/快照/临时目录（volume） | 否 |
 | `DATABASE_URL` | `postgres://novel:${POSTGRES_PASSWORD}@db:5432/novel?sslmode=disable` | PostgreSQL 连接串（容器内） | 是（含口令） |
 | `REDIS_ADDR` | `cache:6379` | Redis 地址；空值表示禁用缓存 | 否 |
@@ -41,8 +42,12 @@
 | `MAX_UPLOAD_MB` | `6144` | 导入 zip 上限（6GB，可调） | 否 |
 | `SNAPSHOT_KEEP` | `3` | 快照保留份数 | 否 |
 | `IMPORT_TTL_MIN` | `120` | 导入临时目录过期 | 否 |
+| `IMPORT_TIMEOUT_MIN` | `120` | 导入上传/解析 HTTP 超时（分钟，P5b RT-12） | 否 |
 | `LOG_LEVEL` | `INFO` | `DEBUG`/`INFO`/`WARN`/`ERROR` | 否 |
 | `TZ` | `Asia/Shanghai` | 展示时区；DB 存 UTC | 否 |
+
+- 导入预检：上传前校验可用空间 ≥ `zip_size + 预计解压大小 + 1GB 快照余量`；不足返回 `IMPORT_INSUFFICIENT_STORAGE`，超时返回 `IMPORT_TIMEOUT`（P5b RT-12）。
+- `ALLOWED_HOSTS` 为空时由 `APP_PORT` 派生默认白名单；容器内 `0.0.0.0` 仅影响监听地址，不改变主机白名单（P5b RT-02/23）。
 
 ### 2.2 密钥
 
@@ -57,7 +62,7 @@
 ```text
 /appdata/                    # appdata named volume，挂载到 /data
 ├─ images/{work_id}/         # 人物主图与缩略图
-├─ snapshots/                # 自动快照（app.dump + images + snapshot.json，保留 3 份）
+├─ snapshots/                # 自动快照（app.dump + images + snapshot.json + manifest.json + checksums.sha256，保留 3 份）
 ├─ exports/                  # 导出 zip
 ├─ tmp/imports/{id}/         # 导入临时目录（TTL 清理）
 ├─ tmp/restore-{ts}/         # 恢复临时目录
@@ -102,7 +107,7 @@ WORKDIR /app
 COPY --from=build /out/server /out/cli ./
 COPY --from=web /web/out ./web
 COPY backend/templates ./templates
-ENV APP_HOST=127.0.0.1 APP_PORT=17860 DATA_DIR=/data
+ENV APP_HOST=0.0.0.0 APP_PORT=17860 DATA_DIR=/data
 EXPOSE 17860
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD curl -fsS http://127.0.0.1:17860/api/v1/health || exit 1
@@ -125,8 +130,9 @@ services:
     ports:
       - "127.0.0.1:17860:17860"
     environment:
-      APP_HOST: 127.0.0.1
+      APP_HOST: 0.0.0.0
       APP_PORT: 17860
+      ALLOWED_HOSTS: 127.0.0.1:${APP_PORT:-17860},localhost:${APP_PORT:-17860}
       DATA_DIR: /data
       DATABASE_URL: postgres://novel:${POSTGRES_PASSWORD:-nm_local_only}@db:5432/novel?sslmode=disable
       REDIS_ADDR: cache:6379
@@ -207,7 +213,7 @@ volumes:
 - 迁移失败：进程退出（非 0），日志输出失败版本与错误；不得以旧 schema 启动。
 - 破坏性迁移：必须先导出或快照；在副本数据上演练并记录。
 - 降级：不保证自动降级；回滚通过恢复升级前快照/导出包（§8）。
-- CLI 手动迁移：`docker compose run --rm cli migrate`。
+- CLI 手动迁移：先 `docker compose stop app`（释放 advisory lock），再 `docker compose run --rm cli migrate`；CLI 获取**同一** advisory lock，锁不可用（app 仍运行）时退出并输出 `APP_RUNNING`（P5b RT-22）。
 
 ---
 
@@ -257,6 +263,21 @@ CLI 行为：
 
 - 恢复期间 app 停止，health 返回 `OFFLINE` 属预期；失败时 `pg_restore` 事务回滚，原数据库不变；图片替换失败则用恢复前快照回退。
 - 恢复完成后在浏览器抽查：作品数、人物数、图片、榜单、回收站。
+- **恢复命令唯一入口**（P5b RT-18）：`docker compose run --rm cli restore <zip>`；`scripts/restore.sh` 不作为权威路径，删除或仅保留为薄封装（内部仍调用同一 CLI）。
+- 恢复成功后写入 `app_settings.last_restore_at`，设置页展示（P5b RT-06）。
+
+#### 快照恢复（P5b RT-06）
+
+```powershell
+docker compose stop app
+docker compose run --rm cli restore-snapshot /data/snapshots/20261107-101530-import
+docker compose up -d
+```
+
+- 快照目录固定含 `app.dump`、`images/`、`snapshot.json`、`manifest.json`、`checksums.sha256`。
+- CLI 校验 `manifest.json`、`checksums.sha256`、`schema_version`/`app_version` 兼容性后，恢复 DB + images；版本不兼容时拒绝并提示使用导出包跨版本恢复。
+- 快照恢复同样先做一次恢复前快照（若空间允许），失败可用上次快照回退。
+- 快照触发以 requirements FR-55 为准：CLI 全量恢复、导入、删除作品、永久删除、清空回收站；回收站单项恢复不生成；手动快照仅 CLI 可选，无页面入口（P5b RT-17）。
 
 ### 5.4 无 Docker 的开发启动（可选）
 
@@ -264,8 +285,9 @@ CLI 行为：
 # 基础设施
 docker compose up -d db cache
 
-# 后端
+# 后端（仅本机开发时绑定回环；容器内默认 0.0.0.0）
 cd backend
+$env:APP_HOST="127.0.0.1"
 $env:DATABASE_URL="postgres://novel:nm_local_only@127.0.0.1:5432/novel?sslmode=disable"
 $env:REDIS_ADDR="127.0.0.1:6379"
 go run ./cmd/server
@@ -321,13 +343,14 @@ npm run dev          # next dev，/api 代理到 127.0.0.1:17860
 
 | 类型 | 触发 | 位置 | 保留 |
 |---|---|---|---|
-| 自动快照 | CLI 恢复、导入、删除作品、清空回收站 | `appdata/snapshots/{ts}-{reason}/` | 最近 3 份 |
+| 自动快照 | CLI 全量恢复、导入、删除作品、永久删除、清空回收站（回收站单项恢复不生成；手动快照仅 CLI 可选） | `appdata/snapshots/{ts}-{reason}/` | 最近 3 份 |
 | 全量导出 | 用户手动（设置页） | `appdata/exports/novel-settings-YYYYMMDD-HHmmss.zip` | 用户自管 |
 | 用户外部备份 | 手动复制导出包 | 用户自选（移动硬盘/网盘） | 用户自管 |
 
-- 快照内容：`app.dump`（`pg_dump -Fc`）+ `images/`（同 volume 硬链接，失败降级为复制）+ `snapshot.json`；不含 `snapshots/` 自身。
+- 快照内容（固定）：`app.dump`（`pg_dump -Fc`）+ `images/`（同 volume 硬链接，失败降级为复制）+ `snapshot.json` + `manifest.json` + `checksums.sha256`；不含 `snapshots/` 自身。
+- 快照恢复：`docker compose run --rm cli restore-snapshot <dir>`；校验 manifest/checksums/版本后恢复 DB + images，并写 `last_restore_at`（P5b RT-06）。
 - 导出包：`manifest.json`、`checksums.sha256`、`data/app.dump`、`images/`；`includes_trash` 控制是否含回收站记录（不含时由临时库过滤后转储）。
-- 恢复前必须验证：`export_version`、`schema_version`、checksum、图片数量、引用完整、磁盘空间。
+- 恢复前必须验证：`export_version`、`schema_version`、checksum、图片数量、引用完整、磁盘空间（导出包与快照同一套校验逻辑）。
 - 迁移前、公网部署前必须执行一次空环境恢复演练并留存记录（FR-56）。
 - 文档提示：导出包与 `appdata` 包含私密内容，备份到外部时自行加密。
 - **禁止**直接复制 `pgdata` 目录作为备份（可能不一致）；必须使用 `pg_dump` 或导出包。
@@ -343,6 +366,7 @@ npm run dev          # next dev，/api 代理到 127.0.0.1:17860
 | 数据误操作 | 回收站恢复 → 若已永久删除，使用最近快照或导出包（CLI） |
 | 导入失败 | 不写入正式库；修正文件后重跑（原子性保证） |
 | 恢复失败 | `pg_restore` 单事务回滚，原数据不变；图片未替换；修复 zip 后重试；或用恢复前快照 |
+| 快照恢复失败 | 校验失败即中止、不触碰数据；DB 恢复失败回滚；可用更早快照重试（`restore-snapshot`，P5b RT-06/18） |
 | Redis 故障 | 无需回滚；应用自动旁路，恢复 Redis 后缓存自然重建 |
 
 - 禁止通过手工 `DELETE FROM` 或直接修改 `pgdata` 回滚；必须走快照/导出恢复。
@@ -358,6 +382,7 @@ npm run dev          # next dev，/api 代理到 127.0.0.1:17860
 - [ ] CI 质量门禁通过（testing-strategy §9）。
 - [ ] 性能基准 V-01~V-07 达标；结果附发布记录。
 - [ ] 空环境恢复演练通过（FR-56），含/不含回收站两种导出包。
+- [ ] 快照恢复演练通过（`restore-snapshot`，至少一次），记录耗时与结果。
 - [ ] Smoke Test 通过。
 - [ ] 迁移在副本数据上演练通过。
 - [ ] 版本 tag、镜像 digest、变更说明与回滚步骤已记录。
@@ -371,10 +396,25 @@ npm run dev          # next dev，/api 代理到 127.0.0.1:17860
 
 | 编号 | 问题 | 采用 | 备选 |
 |---|---|---|---|
-| D-05 | 恢复方式 | CLI 停止应用后全量恢复（已确认 2026-11-07） | 页内在线恢复 |
+| D-05 | 恢复方式 | CLI 停止应用后全量恢复；快照恢复为 `restore-snapshot <dir>`，唯一入口 `docker compose run --rm cli ...`（已确认 2026-11-07；P5b RT-06/18） | 页内在线恢复 |
 | D-08 | Redis 部署 | 独立容器、无持久化、不暴露端口（已确认 2026-11-07） | 与 app 同容器 / 不使用 Redis |
 | D-09 | 前端交付 | Next 静态导出，由 Go 托管（已确认 2026-11-07） | Node 运行时 + Nginx |
 | — | 数据卷类型 | named volume `pgdata`/`appdata` | Windows 绑定目录（不推荐） |
 | — | 端口 | `17860` | 用户自定义 |
 | — | 镜像分发 | 本地构建 | `docker save` 离线分发 |
 | — | 数据库口令默认值 | `.env` 本地占位 `nm_local_only` | 首次启动生成随机口令 |
+
+---
+
+## 12. 变更记录
+
+| 日期 | 版本 | Finding ID | 决策 | 原因/变更摘要 |
+|---|---|---|---|---|
+| 2026-11-07 | v1.1 | RT-02 | 容器内 `APP_HOST=0.0.0.0`、`APP_PORT=17860`；compose 发布 `127.0.0.1:17860:17860`；删除“禁止改为 0.0.0.0” | 容器内监听 loopback 会导致宿主端口转发不可达 |
+| 2026-11-07 | v1.1 | RT-06 | 快照目录固定结构；新增 `restore-snapshot`；`last_restore_at` | 快照原先不可恢复，FR-55 无法验收 |
+| 2026-11-07 | v1.1 | RT-09 | 恢复整组支持 `renames[]`（API 契约） | 子实体冲突需逐项改名 |
+| 2026-11-07 | v1.1 | RT-12 | `IMPORT_TIMEOUT_MIN=120`；空间预检与错误码 | 大包上传/解析易超时或写满磁盘 |
+| 2026-11-07 | v1.1 | RT-17 | 快照触发补“永久删除”，明确回收站单项恢复不生成、手动快照仅 CLI | 对齐 FR-55 |
+| 2026-11-07 | v1.1 | RT-18 | 恢复唯一入口 `docker compose run --rm cli restore/restore-snapshot`；`scripts/restore.sh` 非权威 | 消除两条恢复路径的歧义 |
+| 2026-11-07 | v1.1 | RT-22 | 手动迁移前 `stop app`；CLI 获取同一 advisory lock，锁占用退出 `APP_RUNNING` | 避免迁移与在线写并发 |
+| 2026-11-07 | v1.1 | RT-23 | 新增 `ALLOWED_HOSTS`，默认由 `APP_PORT` 派生 | 改端口不再触发 403 |

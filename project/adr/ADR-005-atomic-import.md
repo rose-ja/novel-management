@@ -1,8 +1,9 @@
 # ADR-005: 导入原子性、临时目录与后台任务
 
-- Status: Accepted（2026-11-07）
+- Status: 修订（P5b，2026-11-07，待复审）；Rev.2
 - Date: 2026-11-07
 - Decision owner: 项目发起人；技术方案：架构师
+- Supersedes: Rev.1（Accepted，2026-11-07）
 - Database: PostgreSQL 16
 
 ## Context
@@ -35,11 +36,11 @@
 
 1. **上传与预览分离**：`POST /imports` 保存 zip 到 `/data/tmp/imports/{import_id}/`，创建 `import_runs(status=uploaded)`，返回 `202`；`POST /imports/{id}/validate` 异步解析生成预览/错误；`POST /imports/{id}/commit` 在单事务内写入。
 2. **安全解压**：拒绝绝对路径、`..`、符号链接、超数量、超大小、压缩炸弹比率；解压目录按 `import_id` 隔离。
-3. **解析与校验**：`internal/imports/parser.go` 纯函数解析 Markdown 模板；`internal/domain` 校验名称、类别、节点、引用、席位、图片；错误含 `file/line/field/code`。
-4. **提交**：单 goroutine worker（全局串行，同一时间仅一个导入）；提交前生成快照（`reason=import`）；在 PostgreSQL 单事务内按固定顺序批量插入（`CreateInBatches`，每批 200）；图片在事务前移动到 `images/{work_id}/{import_id}/`，事务失败则删除本次移动的文件；事务提交后更新 `import_runs=completed` 并把 `review_status=pending`。
+3. **解析与校验**：`internal/imports/parser.go` 纯函数解析 Markdown 模板；`internal/domain` 校验名称、类别、节点、引用、席位、图片；错误含 `file/line/field/code`。**类别协议（P5b RT-08）**：导入作品以 `auto_create_builtin=false` 创建（跳过新建作品自动生成境界）；模板必须定义类别（`体系 → 类别`），类别名必填且同作品唯一；「境界」名称固定、`is_builtin=1`、每作品唯一；自定义类别含境界合计 ≤10；模板缺境界时创建空的内置境界；节点按模板类别名归属（含内置境界）；类别不参与 review；预览/提交 `counts` 与报告包含 `system_categories`。
+4. **提交（最终顺序，P5b RT-07）**：单 goroutine worker（全局串行，同一时间仅一个导入）；确认后依次执行：生成快照（`reason=import`）→ 解压校验 → 图片移动到 `images/{work_id}/{import_id}/` → PostgreSQL 单事务按固定顺序批量插入（`CreateInBatches`，每批 200）→ 提交；事务失败则删除本次移动的图片并清理临时目录，提交成功则清理临时目录；事务提交后更新 `import_runs=completed`，导入实体初始 `review_status=pending`（校对确认后 API 返回 `confirmed`，数据库写 `reviewed`）。
 5. **幂等**：`commit` 对同一 `import_id` 重复调用返回首次结果（`200` + 相同 counts/status）；`status` 非 `validated` 时返回 `409 IMPORT_STATE_CONFLICT`。
 6. **失败与重启**：任何错误 → 事务回滚 + 清理临时目录 + `status=failed` + 错误清单；进程启动扫描 `validating/running` → `failed`，临时目录按 TTL（120 分钟）清理。
-7. **限制**：同一时间仅一个导入；与导出互斥（`409 IMPORT_IN_PROGRESS` / `EXPORT_IN_PROGRESS`）；解析内存上限按文件大小分块读取，图片单张 ≤10MB。
+7. **限制（P5b RT-12）**：`MAX_UPLOAD_MB=6144`；上传前预检可用空间 ≥ `zip_size + 预计解压大小 + 1GB 快照余量`；HTTP 上传/解析超时 120 分钟；空间不足返回 `507 IMPORT_INSUFFICIENT_STORAGE`，超时返回 `504 IMPORT_TIMEOUT`；同一时间仅一个导入；与导出互斥（`409 IMPORT_IN_PROGRESS` / `EXPORT_IN_PROGRESS`）；解析内存上限按文件大小分块读取，图片单张 ≤10MB。
 
 ## Consequences
 
@@ -52,7 +53,8 @@
 | 风险 | 缓解 |
 |---|---|
 | 大事务内存/锁竞争 | 分块解析、批量插入、单事务仅写；V-02 测量；必要时缩短事务（先图片后 DB） |
-| 图片移动后事务失败 | 记录本次移动清单，失败逆序删除；集成测试覆盖 |
+| 图片移动后事务失败 | 记录本次移动清单，失败逆序删除；集成测试覆盖故障注入（移图失败/事务失败） |
+| 磁盘写满 | 上传前空间预检（zip + 预计解压 + 1GB 快照余量）；不足直接拒绝并 0 写入（P5b RT-12） |
 | 重复 commit 产生两套数据 | 幂等键 = `import_id` + 状态机 + 唯一导入锁 |
 | 恶意 zip | 路径/符号链接/大小/比率校验；独立安全测试 |
 | 进程重启 | 启动扫描 running→failed；临时目录 TTL；快照可回退 |
@@ -62,4 +64,14 @@
 
 - [x] 项目发起人确认 D-04（2026-11-07）。
 - [ ] V-02/V-06 验证性能与错误定位。
-- [ ] 集成测试覆盖失败回滚、图片移动回滚、重复 commit。
+- [ ] 集成测试覆盖失败回滚、图片移动回滚、重复 commit、故障注入（P5b RT-07）。
+- [ ] 集成测试覆盖类别协议：境界唯一、合计 ≤10、缺境界建空内置、节点类别归属（P5b RT-08）。
+
+## Decision / Change Log
+
+| 日期 | 版本 | Finding ID | 决策 | 变更摘要 |
+|---|---|---|---|---|
+| 2026-11-07 | Rev.1 | D-04 | 进程内单 worker + 单事务；图片在事务前移动，失败删除 | 初始批准 |
+| 2026-11-07 | Rev.2 | RT-07 | 明确最终顺序：快照 → 解压校验 → 移图 → 单事务写 DB → 提交；TX 失败删本次图片并清理临时目录，成功清理临时目录 | 消除与 architecture §6.5 的顺序冲突，避免缺图 |
+| 2026-11-07 | Rev.2 | RT-08 | 增加导入类别协议（`auto_create_builtin=false`、境界唯一/固定名、合计 ≤10、节点按类别名归属、类别不参与 review、`system_categories` 计数） | 防止境界重复与节点挂错类别 |
+| 2026-11-07 | Rev.2 | RT-12 | `MAX_UPLOAD_MB=6144`、空间预检、120 分钟超时、`IMPORT_INSUFFICIENT_STORAGE`/`IMPORT_TIMEOUT` | 大包易写满磁盘/超时且原无明确失败语义 |

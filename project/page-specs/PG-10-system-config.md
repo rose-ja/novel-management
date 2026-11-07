@@ -4,11 +4,11 @@
 |---|---|
 | Page ID | PG-10 |
 | 路由建议 | `/systems` |
-| 状态 | Approved（已确认，2026-11-07） |
+| 状态 | 修订（P5b，2026-11-07，待复审） |
 | 关联需求 | FR-05、FR-21~FR-26、FR-34~FR-38、FR-44、FR-47~FR-51、FR-66、FR-67；EX-14、EX-15、EX-16、EX-21 |
 | 关联 User Story | US-006、US-008、US-009、US-012 |
 | 关联验收 | AC-07、AC-09、AC-13、AC-14、AC-15、AC-17、AC-21 |
-| 设计语言 | `design-system.md` v0.1 |
+| 设计语言 | `design-system.md` v1.0 |
 | 原型 | `design-assets/prototype/index.html#system` |
 
 ---
@@ -69,8 +69,9 @@ SystemConfigPage
 │  └─ CategoryDetail
 │     ├─ CategoryHeader（名称、类型、状态、节点数、引用数、改名/更多）
 │     ├─ CategoryDescription
+│     ├─ PendingReviewCheckbox（仅看待校对节点）
 │     ├─ NodeTree
-│     │  ├─ NodeRow × N（展开、名称、引用数、上移/下移、菜单）
+│     │  ├─ NodeRow × N（展开、名称、待校对 Badge、引用数、上移/下移、菜单）
 │     │  └─ NodeEmpty / Skeleton / Error
 │     └─ AddPrimaryNodeButton
 ├─ CreateCategoryDialog / RenameCategoryDialog
@@ -117,7 +118,9 @@ SystemConfigPage
 | 引用数 | 引用该节点的人物数；删除前必须为 0 |
 | 纪元节点 | 类型为「纪元」时，可填起始/结束年份文本；只排序，不做日期计算、不校验年份 |
 | 普通节点 | 名称 + 可选说明？需求只要求名称；不擅自增加说明字段（PG10-Q2） |
-| 操作 | 新增主层级、新增子层级、改名、删除、上移/下移 |
+| 待校对 | 体系节点属于可校对实体；`review_status=pending` 时显示 Warning Badge，确认后刷新 `review_status`/`reviewed_at` |
+| 操作 | 新增主层级、新增子层级、改名、删除、上移/下移、确认已校对（待校对时） |
+| 筛选 | 「仅看待校对」请求参数 `review_status=pending`；节点 DTO 返回 `review_status`、`reviewed_at` |
 | 删除 | 被引用 → 阻止 + 列出人物；无引用 → 确认 → 软删除 |
 | 恢复 | 类别或父级缺失 → 阻止并提示先恢复（PG-12） |
 
@@ -139,6 +142,8 @@ SystemConfigPage
 | 停用/启用类别 | 次操作（更多菜单） | 停用前引用检查；启用直接生效 |
 | 删除类别/节点 | 危险操作（更多菜单） | 引用检查 → 确认 → 回收站 |
 | 上移/下移 | 次操作 | 保存同级顺序；不改变引用 |
+| 确认已校对 | 次操作（节点菜单，待校对时） | 调用校对接口；刷新 `review_status`/`reviewed_at`，Badge 消失 |
+| 仅看待校对 | 次操作（Checkbox） | 请求 `review_status=pending` 过滤节点树 |
 
 - 每屏最多 1 个实心主按钮：「新增类别」；右栏「新增主层级」用描边主按钮。
 - 内置类别不显示停用/删除；改名也不显示。
@@ -181,7 +186,7 @@ SystemConfigPage
 1. 新增主层级：Dialog 名称（+ 纪元起止文本，仅纪元类型）；保存后追加同级末尾。
 2. 新增子层级：节点行菜单 → 父级预填；最多两级，子节点不能再新增下级（选项禁用 + 说明）。
 3. 改名：Dialog；唯一性校验（同类别+同父级）；保存后同步。
-4. 删除：引用检查；有引用 → ReferenceDialog 列出人物；无引用 → ConfirmDialog「删除节点「X」？进入回收站，可撤销。」
+4. 删除：引用检查；有引用 → ReferenceDialog 列出人物；无引用 → ConfirmDialog「删除节点「X」？进入回收站，可撤销。」；保存/删除时实体 `version` 与请求头 `If-Match` 不一致 → ConflictDialog，页面只提示版本冲突，不展示内部字段。
 5. 上移/下移：即时保存；Toast「已调整顺序」；不改变引用。
 6. 纪元节点：起止年份文本可空；不做日期计算、不校验格式；排序只按手动顺序。
 
@@ -203,7 +208,7 @@ SystemConfigPage
 | Error（加载） | 页面错误 + 重试 |
 | Error（保存） | Dialog 字段级错误；保留输入 |
 | Disabled | 10/10 新增禁用；内置停用/删除隐藏；有引用删除禁用；停用类别新增节点禁用 |
-| Pending | 人物引用待校对不直接影响本页；节点本身无待校对（导入后人物待校对） |
+| Pending | 导入生成的体系节点 `review_status=pending` 时显示 Badge；可「仅看待校对」并确认已校对 |
 | Network | 顶部 Alert + 重试；保留输入 |
 
 ## 8. 校验与边界
@@ -217,6 +222,8 @@ SystemConfigPage
 - 恢复节点时类别/父级缺失阻止（EX-15）。
 - 内置「境界」不可停用/删除/改名；服务端兜底。
 - 停用类别后人物表单不显示；数据保留；不可引用。
+- 体系节点属于可校对实体；待校对筛选请求 `review_status=pending`，确认后刷新 `review_status`/`reviewed_at`。
+- 保存/删除并发冲突按 `version` + `If-Match` 判定；页面只提示版本冲突。
 - 字段长度上限由 P4 数据模型定义；UI 字段级错误。
 - 权限不足 N/A。
 
@@ -256,6 +263,7 @@ SystemConfigPage
 - [ ] 类别/节点改名后人物详情、列表、检索同步。
 - [ ] 停用/删除被引用类别被阻止并列出引用；删除类别整组进回收站并可整组恢复。
 - [ ] 删除被引用节点被阻止；无引用删除可撤销。
+- [ ] 体系节点支持「仅看待校对」筛选与确认，DTO 返回 `review_status`/`reviewed_at`。
 - [ ] 纪元节点可填起止文本，只排序不计算。
 - [ ] 加载/空/错误/10 类上限/停用状态完整；无英文堆栈。
 
@@ -272,6 +280,7 @@ SystemConfigPage
 
 ## 14. 变更记录
 
-| 日期 | 版本 | 变更 | 确认人 |
-|---|---|---|---|
-| 2026-11-07 | v0.1 | 首版体系配置规格 | 项目发起人（2026-11-07） |
+| 日期 | 版本 | Finding ID | 决策 | 原因/变更摘要 |
+|---|---|---|---|---|
+| 2026-11-07 | v0.1 | — | 首版确认 | 首版体系配置规格 |
+| 2026-11-07 | v0.2（P5b） | RT-04、RT-16、RT-19、RT-21 | 修订 | 体系节点纳入可校对实体，增加待校对筛选与 DTO 字段提示；并发冲突按 `version` + `If-Match`；设计语言引用升至 v1.0，状态转待复审 |

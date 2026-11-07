@@ -22,15 +22,15 @@
 
 - 多作品管理；人物、势力与地点、榜单、体系四类对象结构化。
 - 当前作品内检索（快速 + 条件）；关系双向跳转；一致性维护。
-- 飞书《正文》+现有配图迁移：产品内向导、固定 Markdown 模板 + 图片 zip、校验/预览/原子导入、全部实体待校对。
+- 飞书《正文》+现有配图迁移：产品内向导、固定 Markdown 模板 + 图片 zip、校验/预览/原子导入、可校对实体（人物/势力/地点/榜单/体系节点）待校对。
 - 全量导出 zip、CLI 还原、自动快照保留 3 份；回收站与撤销。
-- 本地 Docker 单用户运行；仅监听 `127.0.0.1`。
+- 本地 Docker 单用户运行；容器内监听 `0.0.0.0`，宿主发布端口仅绑定 `127.0.0.1`。
 - 明细见 `mvp-scope.md` 与 `requirements.md` 第 9 章。
 
 ## 当前技术栈
 
 - 已确认（P4，2026-11-07）：Go 1.24 + gin + gorm + Next.js 15 + PostgreSQL 16 + Redis 7（仅缓存）。
-- 部署：Docker Compose 三容器（app/db/cache），仅监听 `127.0.0.1:17860`。
+- 部署：Docker Compose 三容器（app/db/cache），宿主仅通过 `127.0.0.1:17860` 回环访问（容器内绑定 `0.0.0.0`）。
 - 约束：不调用云端大模型；不引入持续付费依赖；Redis 故障自动旁路。
 - 详见 `tech-stack.md`、`architecture.md`、`deployment.md` 与 `adr/ADR-001~007`。
 
@@ -121,3 +121,9 @@
 | `user-stories.md` | P2 | 用户故事与 Given/When/Then 验收场景 |
 | `glossary.md` | P2 | 术语定义与不应混淆的概念 |
 | `architecture.md` / `tech-stack.md` / `data-model.md` / `api-contract.md` / `testing-strategy.md` / `deployment.md` / `adr/` | P4 | 架构、技术栈、数据模型、API、测试与部署（Approved 2026-11-07） |
+
+## 变更记录
+
+| 日期 | 版本 | Finding ID | 决策 | 原因/变更摘要 |
+|---|---|---|---|---|
+| 2026-11-07 | P5b | RT-02、RT-19 | 同步 | 部署表述改为容器内 `0.0.0.0` + 宿主回环发布；校对范围改为可校对实体；与 `requirements.md` v1.2 对齐 |
