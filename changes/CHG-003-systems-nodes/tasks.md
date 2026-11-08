@@ -187,6 +187,8 @@
 
 ## T8 页面骨架、类别列表与详情
 
+- [x] 已完成：`/system` 路由、左栏 280/240px、内置置顶、10/10 禁用、详情与状态、导航入口；`test`/`lint`/`build` 通过
+
 **Files**
 - `frontend/app/system/page.tsx`（新增）
 - `frontend/components/system/system-page.tsx`（新增）
