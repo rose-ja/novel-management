@@ -40,15 +40,22 @@ export class NetworkError extends Error {
 
 const basePath = "";
 
-export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+export type ApiMethod = "GET" | "POST" | "PATCH" | "DELETE";
+
+export type ApiRequestOptions = {
+  method?: ApiMethod;
+  /** 自动 JSON 序列化；传 undefined 表示无请求体。 */
+  body?: unknown;
+  /** 乐观锁版本，写入 `If-Match: "<version>"`。 */
+  ifMatch?: string | number;
+  signal?: AbortSignal;
+};
+
+async function perform<T>(path: string, init: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${basePath}${path}`, {
       ...init,
-      headers: {
-        Accept: "application/json",
-        ...init?.headers,
-      },
       cache: "no-store",
     });
   } catch {
@@ -71,5 +78,58 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     });
   }
 
-  return (await response.json()) as T;
+  // 204/205 与空响应体没有 JSON 可解析，返回 undefined。
+  if (response.status === 204 || response.status === 205) {
+    return undefined as T;
+  }
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined as T;
+  }
+}
+
+function buildInit(options: ApiRequestOptions): RequestInit {
+  const method = options.method ?? "GET";
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+  if (method !== "GET") {
+    // 本机服务用 X-Requested-With 识别同源脚本请求，降低跨站表单提交风险。
+    headers["X-Requested-With"] = "XMLHttpRequest";
+  }
+  let body: string | undefined;
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify(options.body);
+  }
+  if (options.ifMatch !== undefined) {
+    headers["If-Match"] = `"${options.ifMatch}"`;
+  }
+  return { method, headers, body, signal: options.signal };
+}
+
+/** 保留简化签名：只读请求。 */
+export function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  return perform<T>(path, {
+    ...init,
+    headers: {
+      Accept: "application/json",
+      ...init?.headers,
+    },
+  });
+}
+
+/** 写请求统一入口：JSON、`X-Requested-With`、按需 `If-Match`。 */
+export function requestJson<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return perform<T>(path, buildInit(options));
+}
+
+/** 无响应体（204）的写请求。 */
+export async function requestVoid(path: string, options: ApiRequestOptions = {}): Promise<void> {
+  await perform<unknown>(path, buildInit(options));
 }

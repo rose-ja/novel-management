@@ -230,13 +230,13 @@
 | Lint | `golangci-lint run`；`npm run lint` | 通过（golangci-lint v2.15.0，0 issues；ESLint 无警告） |
 | Format check | `gofmt -l .` | 通过（无输出） |
 | Type check | `go vet ./...`；`npm run typecheck` | 通过 |
-| Unit test | `go test ./...`；`npm test` | 通过（后端 2 个包，前端 4 条）；`-race` 需 cgo，仅在 Linux/容器执行 |
-| Integration test | 尚未建立（P7 无集成测试） | NOT RUN |
-| E2E test | `cd frontend && npm run test:e2e`；更新视觉基线 `npm run test:e2e:update` | 通过（CHG-001：13 条用例覆盖 `/`、`/settings`、404 的壳层/axe/视觉基线；需先 `docker compose up -d` 并重建含最新静态导出的镜像）。浏览器默认用本机已安装 Chrome（`channel: "chrome"`），因本机无法从 Playwright CDN 下载 Chromium；可用 `set E2E_CHANNEL=chromium` + `npx playwright install chromium` 切换 |
+| Unit test | `go test ./...`；`npm test` | 通过（后端 3 个包，前端 4 个文件 / 19 条）；`-race` 需 cgo，仅在 Linux/容器执行 |
+| Integration test | `docker compose up -d --wait db`；`set TEST_DATABASE_URL=...`；`go test -tags=integration ./internal/integration/...` | 通过（CHG-002：在 PostgreSQL 上创建独立 scratch 库 `{db}_it`，每个用例在事务中运行并回滚；覆盖回收站/快照/迁移往返） |
+| E2E test | `cd frontend && npm run test:e2e`；更新视觉基线 `npm run test:e2e:update` | 通过（CHG-002：34 条用例覆盖壳层、无障碍、视觉基线（含 `/trash` 1280/1024）、错误态、键盘、作品生命周期、回收站与设置页快照；需先 `docker compose up -d` 并重建含最新静态导出的镜像）。浏览器默认用本机已安装 Chrome（`channel: "chrome"`），因本机无法从 Playwright CDN 下载 Chromium；可用 `set E2E_CHANNEL=chromium` + `npx playwright install chromium` 切换 |
 | Build | `npm run build`；`go build ./...`；`docker compose build` | 通过（静态导出 `frontend/out`，镜像 `novel-settings:dev`） |
-| Database migration | `docker compose run --rm cli migrate` | 通过（`goose_db_version` version 1，`pg_trgm` 已启用；迁移由 server 启动时自动执行） |
+| Database migration | `docker compose run --rm cli migrate` | 通过（`goose_db_version` version 2：0001 基座 + 0002 作品/回收站/快照；`pg_trgm` 已启用；迁移由 server 启动时自动执行） |
 | Smoke test | `powershell -File scripts/smoke.ps1` | 通过（`SMOKE OK: version=0.1.0 db=ok cache=ok`） |
-| 本地 CI | `powershell -File scripts/ci.ps1`（首次生成视觉基线加 `-UpdateE2E`） | 通过（gofmt、golangci-lint、go vet、govulncheck、go test、go build、npm ci/lint/typecheck/test/build、`docker compose build`、Playwright E2E + axe + 视觉基线；集成测试显式 SKIP） |
+| 本地 CI | `powershell -File scripts/ci.ps1`（首次生成视觉基线加 `-UpdateE2E`） | 通过（gofmt、golangci-lint、go vet、govulncheck、go test、go build、PostgreSQL 集成测试、npm ci/lint/typecheck/test/build、`docker compose build`、Playwright E2E + axe + 视觉基线） |
 
 ## 12. 风险与敏感操作
 

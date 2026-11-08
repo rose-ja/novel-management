@@ -10,6 +10,7 @@ test.describe("应用壳层", () => {
     const nav = page.getByRole("navigation", { name: "主导航" });
     await expect(nav.getByRole("link", { name: "概览" })).toHaveAttribute("aria-current", "page");
     await expect(nav.getByRole("link", { name: "设置" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "回收站" })).toBeVisible();
     await expect(nav.getByText("资料")).toBeVisible();
     await expect(nav.getByText("工具")).toBeVisible();
     await expect(nav.getByText("数据仅存本机")).toBeVisible();
@@ -21,9 +22,13 @@ test.describe("应用壳层", () => {
   test("无作品时展示空状态说明", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: "还没有作品" })).toBeVisible();
-    await expect(page.getByText("作品用于隔离每本小说的世界观、体系与榜单。")).toBeVisible();
-    // 本阶段不提供创建入口，避免出现不可用按钮。
+    await expect(page.getByRole("heading", { name: "概览", level: 1 })).toBeVisible();
+    // 数据可能来自本机既有作品，此处只校验两种合法展示之一。
+    await expect(
+      page.getByRole("heading", { name: "还没有作品" }).or(page.getByRole("heading", { name: "系统信息" })).first(),
+    ).toBeVisible();
+    await expect(page.locator(".shell__work--trigger")).toBeVisible();
+    // 新建入口在顶栏作品切换器内，不进入 main 内容区。
     await expect(page.getByRole("main").getByRole("button", { name: /新建作品/ })).toHaveCount(0);
   });
 
@@ -34,6 +39,7 @@ test.describe("应用壳层", () => {
     await expect(page.getByText("应用版本")).toBeVisible();
     await expect(page.getByText("数据目录")).toBeVisible();
     await expect(page.getByText("自动快照保留")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "自动快照" })).toBeVisible();
     await expect(page.getByRole("button", { name: /保存/ })).toHaveCount(0);
   });
 

@@ -8,23 +8,40 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"novel-management/backend/internal/config"
+	"novel-management/backend/internal/service"
 )
 
 type Options struct {
-	Config config.Config
-	Log    *slog.Logger
-	Health HealthDeps
+	Config    config.Config
+	Log       *slog.Logger
+	Health    HealthDeps
+	Works     *service.Works
+	Trash     *service.Trash
+	Snapshots *service.Snapshot
+	Settings  *service.Settings
 }
 
-// NewRouter 组装 API 路由与静态页面托管；业务路由随后续变更逐步加入。
+// NewRouter 组装 API 路由与静态页面托管；业务服务为 nil 时对应路由不注册（单元测试可用）。
 func NewRouter(opts Options) *gin.Engine {
 	r := gin.New()
-	r.Use(requestID(), accessLog(opts.Log), securityHeaders(), recovery(opts.Log), hostGuard(opts.Config.AllowedHosts))
+	r.Use(requestID(), accessLog(opts.Log), securityHeaders(), recovery(opts.Log), hostGuard(opts.Config.AllowedHosts), originGuard())
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler(opts.Health))
 	api.GET("/meta", metaHandler(opts.Config))
-	api.GET("/settings", settingsHandler(opts.Config))
+	api.GET("/settings", settingsHandler(opts.Config, opts.Settings))
+	if opts.Settings != nil {
+		api.PATCH("/settings", updateSettingsHandler(opts.Config, opts.Settings))
+	}
+	if opts.Works != nil {
+		registerWorks(api, opts.Works)
+	}
+	if opts.Trash != nil {
+		registerTrash(api, opts.Trash)
+	}
+	if opts.Snapshots != nil {
+		api.GET("/snapshots", listSnapshotsHandler(opts.Snapshots))
+	}
 
 	serveStatic := staticHandler(opts.Config.WebDir)
 	r.NoRoute(func(c *gin.Context) {

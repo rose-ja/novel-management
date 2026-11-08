@@ -45,23 +45,24 @@
 
 ## SPEC-BACKUP-003 快照触发、五件套、保留与恢复
 
-- 状态：`planned`
-- 来源：FR-55；US-010、US-011；PG-13 §4；API `GET/POST /api/v1/snapshots`、`POST /api/v1/snapshots/{id}/restore`；Data `snapshots`；AC-12
+- 状态：`implemented-partial`（CHG-002 交付自动快照基座与设置页只读列表；CLI `restore-snapshot` 见 CHG-010）
+- 来源：FR-55；US-010、US-011；PG-13 §4；API `GET /api/v1/snapshots`（本阶段无页面内恢复端点）；Data `snapshots`；AC-12
 - 行为：
   - 触发：删除作品/永久删除（含清空回收站）/导入/CLI 全量恢复四类破坏性操作前自动触发；失败阻止操作。回收站单项恢复不生成快照。
-  - 每次快照产出五件套（`db.sql`、`media/`、`checksums.txt`、`manifest.json`、`meta.json`）到 `/data/snapshots/`。
-  - 保留最近 3 份；新快照成功后清理更早的（文件 + 记录）。
-  - 支持 `restore-snapshot <id>` 从快照恢复；恢复前再生成当前快照，失败可回退。
-  - 设置页显示快照列表（时间、触发原因、大小、状态）。
+  - 每次快照产出五件套（`app.dump`（pg_dump custom 格式）、`images/`、`snapshot.json`、`manifest.json`、`checksums.sha256`）到 `{DATA_DIR}/snapshots/{YYYYMMDDTHHMMSSZ}-{reason}`；同一秒目录冲突时追加 ULID 后 6 位区分。
+  - 保留最近 3 份；新快照成功后清理更早的成功记录与文件（失败记录不参与裁剪）。
+  - 设置页显示最近快照列表（时间、触发原因、数据库大小、状态），只读；不提供页面手动创建/下载/恢复。
+  - `restore-snapshot <dir>` CLI 恢复属 CHG-010；恢复前再生成当前快照，失败可回退。
 - 边界：
   - 不做异地备份、不做定时快照、不做用户自定义保留数。
   - 不做快照差异备份。
+  - 本阶段页面内不提供恢复入口。
 - 验收场景：
   1. Given 删除作品前，When 快照失败，Then 删除被阻止且不产生数据变更（EX-23）。
   2. Given 第 4 次快照成功，When 查看目录，Then 只保留最近 3 份且记录一致（FR-55）。
   3. Given 快照存在，When 执行 `restore-snapshot`，Then 数据回到快照点，恢复前生成新快照（AC-12）。
   4. Given 快照损坏，When 恢复，Then 校验失败并保留当前数据（EX-23）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 实现快照基座（五件套命名、目录命名、保留 3 份、设置页只读列表），状态转 `implemented-partial`。
 
 ## SPEC-BACKUP-004 设置/备份页展示与空环境演练
 

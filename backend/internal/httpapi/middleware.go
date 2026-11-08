@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -58,6 +59,42 @@ func securityHeaders() gin.HandlerFunc {
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 		c.Next()
+	}
+}
+
+// originGuard 对写请求校验 Origin/Referer 同源；两者都缺失时允许（curl/CLI）。
+func originGuard() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if isSafeMethod(c.Request.Method) {
+			c.Next()
+			return
+		}
+
+		origin := strings.TrimSpace(c.GetHeader("Origin"))
+		referer := strings.TrimSpace(c.GetHeader("Referer"))
+		if origin == "" && referer == "" {
+			c.Next()
+			return
+		}
+		if origin == "" {
+			origin = referer
+		}
+
+		parsed, err := url.Parse(origin)
+		if err != nil || !strings.EqualFold(parsed.Host, c.Request.Host) {
+			abortError(c, http.StatusForbidden, "FORBIDDEN_ORIGIN", "请求来源与本站不一致")
+			return
+		}
+		c.Next()
+	}
+}
+
+func isSafeMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	default:
+		return false
 	}
 }
 

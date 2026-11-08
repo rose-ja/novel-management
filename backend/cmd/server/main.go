@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"novel-management/backend/internal/httpapi"
 	"novel-management/backend/internal/migrations"
 	"novel-management/backend/internal/observability"
+	"novel-management/backend/internal/service"
 )
 
 func main() {
@@ -63,6 +66,9 @@ func run() error {
 	cachePing, closeCache := newCachePinger(cfg, log)
 	defer closeCache()
 
+	logPgDumpVersion(log)
+
+	snapshotService := service.NewSnapshot(db.Gorm, cfg, log, service.PGDumper{})
 	router := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    log,
@@ -72,6 +78,10 @@ func run() error {
 			DataDirWritable: func() bool { return isWritable(cfg.DataDir) },
 			Version:         cfg.Version,
 		},
+		Works:     service.NewWorks(db.Gorm, snapshotService),
+		Trash:     service.NewTrash(db.Gorm, snapshotService),
+		Snapshots: snapshotService,
+		Settings:  service.NewSettings(db.Gorm),
 	})
 
 	srv := &http.Server{
@@ -122,6 +132,16 @@ func isWritable(dir string) bool {
 	_ = f.Close()
 	_ = os.Remove(name)
 	return true
+}
+
+// logPgDumpVersion 启动时记录快照依赖的客户端版本，便于排查主版本不匹配。
+func logPgDumpVersion(log *slog.Logger) {
+	out, err := exec.Command("pg_dump", "--version").Output()
+	if err != nil {
+		log.Warn("pg_dump 不可用，快照将失败", "error", err)
+		return
+	}
+	log.Info("pg_dump 可用", "version", strings.TrimSpace(string(out)))
 }
 
 func newCachePinger(cfg config.Config, log *slog.Logger) (func(context.Context) error, func()) {

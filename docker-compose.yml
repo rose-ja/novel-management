@@ -27,6 +27,9 @@ services:
 
   db:
     image: postgres:16-alpine
+    # 仅绑定回环地址，供本机集成测试（TEST_DATABASE_URL）访问。
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: novel
       POSTGRES_USER: novel

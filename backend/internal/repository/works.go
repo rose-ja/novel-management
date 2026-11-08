@@ -1,0 +1,236 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	"gorm.io/gorm"
+
+	"novel-management/backend/internal/model"
+)
+
+// Works 是作品与内置类别的数据访问层；事务场景通过 NewWorks(tx) 重建实例。
+type Works struct {
+	DB *gorm.DB
+}
+
+func NewWorks(db *gorm.DB) *Works { return &Works{DB: db} }
+
+// List 返回未删除作品与总数；q 为空表示不过滤。
+func (r *Works) List(ctx context.Context, q string, page, size int) ([]model.Work, int64, error) {
+	build := func() *gorm.DB {
+		tx := r.DB.WithContext(ctx).Model(&model.Work{}).Where("deleted_at IS NULL")
+		if pattern := likePattern(q); pattern != "" {
+			tx = tx.Where(`name_key LIKE ? ESCAPE '\'`, pattern)
+		}
+		return tx
+	}
+
+	var total int64
+	if err := build().Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var items []model.Work
+	if err := build().Order("created_at ASC, id ASC").Offset((page - 1) * size).Limit(size).Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// Get 返回未删除作品；不存在或已软删除统一 ErrNotFound。
+func (r *Works) Get(ctx context.Context, id string) (*model.Work, error) {
+	var work model.Work
+	err := r.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&work).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &work, nil
+}
+
+// GetDeleted 返回回收站中的作品根。
+func (r *Works) GetDeleted(ctx context.Context, id string) (*model.Work, error) {
+	var work model.Work
+	err := r.DB.WithContext(ctx).
+		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
+		First(&work).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &work, nil
+}
+
+// Insert 创建作品；名称冲突由调用方映射为 ErrNameConflict。
+func (r *Works) Insert(ctx context.Context, work *model.Work) error {
+	return r.DB.WithContext(ctx).Create(work).Error
+}
+
+// UpdateWithVersion 使用 version 做乐观锁；返回受影响行数（0 表示版本冲突或已删除）。
+func (r *Works) UpdateWithVersion(ctx context.Context, id, name, nameKey string, description *string, version int, now time.Time) (int64, error) {
+	res := r.DB.WithContext(ctx).Table("works").
+		Where("id = ? AND deleted_at IS NULL AND version = ?", id, version).
+		Updates(map[string]any{
+			"name":        name,
+			"name_key":    nameKey,
+			"description": description,
+			"version":     version + 1,
+			"updated_at":  now,
+		})
+	return res.RowsAffected, res.Error
+}
+
+// SoftDeleteGroup 在同一事务内软删除作品根与其类别。
+func (r *Works) SoftDeleteGroup(ctx context.Context, id, action string, now time.Time) error {
+	res := r.DB.WithContext(ctx).Table("works").
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(map[string]any{
+			"deleted_at":        now,
+			"deleted_root_id":   id,
+			"deleted_by_action": action,
+			"version":           gorm.Expr("version + 1"),
+			"updated_at":        now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return model.ErrNotFound
+	}
+
+	return r.DB.WithContext(ctx).Table("system_categories").
+		Where("work_id = ? AND deleted_at IS NULL", id).
+		Updates(map[string]any{
+			"deleted_at":        now,
+			"deleted_root_id":   id,
+			"deleted_by_action": action,
+			"updated_at":        now,
+		}).Error
+}
+
+// RestoreGroup 整组恢复（作品根 + 类别）；任一缺失返回 ErrNotFound。
+func (r *Works) RestoreGroup(ctx context.Context, id string, now time.Time) error {
+	res := r.DB.WithContext(ctx).Table("works").
+		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
+		Updates(map[string]any{
+			"deleted_at":        nil,
+			"deleted_root_id":   nil,
+			"deleted_by_action": nil,
+			"version":           gorm.Expr("version + 1"),
+			"updated_at":        now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return model.ErrNotFound
+	}
+
+	return r.DB.WithContext(ctx).Table("system_categories").
+		Where("work_id = ? AND deleted_root_id = ?", id, id).
+		Updates(map[string]any{
+			"deleted_at":        nil,
+			"deleted_root_id":   nil,
+			"deleted_by_action": nil,
+			"updated_at":        now,
+		}).Error
+}
+
+// RenameDeleted 在恢复前修正回收站中的作品名称。
+func (r *Works) RenameDeleted(ctx context.Context, id, name, nameKey string, now time.Time) error {
+	res := r.DB.WithContext(ctx).Table("works").
+		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
+		Updates(map[string]any{"name": name, "name_key": nameKey, "updated_at": now})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return model.ErrNotFound
+	}
+	return nil
+}
+
+// ListDeletedRoots 返回全部回收站作品根（按删除时间倒序）。
+func (r *Works) ListDeletedRoots(ctx context.Context) ([]model.Work, error) {
+	var items []model.Work
+	err := r.DB.WithContext(ctx).
+		Where("deleted_at IS NOT NULL AND deleted_root_id = id").
+		Order("deleted_at DESC, id DESC").
+		Find(&items).Error
+	return items, err
+}
+
+// CountDeletedChildren 返回该根下被软删除的类别数量（展示用影响条数）。
+func (r *Works) CountDeletedChildren(ctx context.Context, rootID string) (int64, error) {
+	var total int64
+	err := r.DB.WithContext(ctx).Model(&model.SystemCategory{}).
+		Where("deleted_root_id = ?", rootID).
+		Count(&total).Error
+	return total, err
+}
+
+// CountDeletedByRoot 一次性统计各回收站根下的类别数量，避免列表 N+1 查询。
+func (r *Works) CountDeletedByRoot(ctx context.Context) (map[string]int64, error) {
+	type row struct {
+		RootID string
+		Total  int64
+	}
+	var rows []row
+	err := r.DB.WithContext(ctx).Model(&model.SystemCategory{}).
+		Select("deleted_root_id AS root_id, count(*) AS total").
+		Where("deleted_root_id IS NOT NULL").
+		Group("deleted_root_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make(map[string]int64, len(rows))
+	for _, item := range rows {
+		counts[item.RootID] = item.Total
+	}
+	return counts, nil
+}
+
+// PurgeGroup 物理删除作品根；外键会级联删除类别。
+func (r *Works) PurgeGroup(ctx context.Context, id string) (int64, error) {
+	res := r.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NOT NULL", id).Delete(&model.Work{})
+	return res.RowsAffected, res.Error
+}
+
+// PurgeAllDeleted 物理删除全部回收站作品根。
+func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
+	res := r.DB.WithContext(ctx).Where("deleted_at IS NOT NULL").Delete(&model.Work{})
+	return res.RowsAffected, res.Error
+}
+
+// NameTaken 判断未删除作品中是否已有同名（用于恢复冲突预检）。
+func (r *Works) NameTaken(ctx context.Context, nameKey string) (bool, error) {
+	var total int64
+	err := r.DB.WithContext(ctx).Model(&model.Work{}).
+		Where("name_key = ? AND deleted_at IS NULL", nameKey).
+		Count(&total).Error
+	return total > 0, err
+}
+
+// InsertCategory 写入内置类别（创建作品事务内调用）。
+func (r *Works) InsertCategory(ctx context.Context, category *model.SystemCategory) error {
+	return r.DB.WithContext(ctx).Create(category).Error
+}
+
+// likePattern 转义 LIKE 通配符，空查询返回空串表示不过滤。
+func likePattern(q string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(q))
+	if trimmed == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return "%" + replacer.Replace(trimmed) + "%"
+}

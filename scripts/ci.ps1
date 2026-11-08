@@ -1,6 +1,6 @@
 # Local CI entry. No paid SaaS; same commands for developers and self-hosted runs.
-# Covers the gates listed in testing-strategy.md section 9; integration tests are
-# printed as explicit SKIP while they are not established yet.
+# Covers the gates listed in testing-strategy.md section 9, including PostgreSQL
+# integration tests and Playwright E2E against the container stack.
 # NOTE: keep this file ASCII-only. Windows PowerShell 5 reads BOM-less UTF-8 as
 # ANSI, so non-ASCII comments can swallow the following statements.
 param(
@@ -42,7 +42,6 @@ try {
     go test ./...
     if ($LASTEXITCODE -ne 0) { throw "go test failed" }
     Write-Host "SKIP: go test -race (no cgo toolchain on Windows; run CGO_ENABLED=1 go test -race ./... on Linux/container)" -ForegroundColor Yellow
-    Write-Host "SKIP: integration tests (not established yet, planned for F1)" -ForegroundColor Yellow
 
     $serverOut = Join-Path $root ".tmp/server-ci.exe"
     $cliOut = Join-Path $root ".tmp/cli-ci.exe"
@@ -51,6 +50,26 @@ try {
     go build -o $cliOut ./cmd/cli
     if ($LASTEXITCODE -ne 0) { throw "cli build failed" }
     Remove-Item $serverOut, $cliOut -ErrorAction SilentlyContinue
+} finally {
+    Pop-Location
+}
+
+Write-Host "== integration ==" -ForegroundColor Cyan
+Push-Location $root
+try {
+    docker compose up -d --wait db
+    if ($LASTEXITCODE -ne 0) { throw "db did not become ready" }
+
+    $dbPassword = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "nm_local_only" }
+    $env:TEST_DATABASE_URL = "postgres://novel:$dbPassword@127.0.0.1:5432/novel?sslmode=disable"
+
+    Push-Location (Join-Path $root "backend")
+    try {
+        go test -tags=integration ./internal/integration/...
+        if ($LASTEXITCODE -ne 0) { throw "integration tests failed" }
+    } finally {
+        Pop-Location
+    }
 } finally {
     Pop-Location
 }

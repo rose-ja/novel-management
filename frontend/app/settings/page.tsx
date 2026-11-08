@@ -1,12 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { useSettings } from "@/components/providers/settings-provider";
+import { SnapshotList } from "@/components/settings/snapshot-list";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NetworkError } from "@/lib/api/client";
+import { listWorks } from "@/lib/api/works";
 import { messages } from "@/lib/messages";
 
 function formatTime(value: string | null): string {
@@ -18,6 +22,27 @@ function formatTime(value: string | null): string {
 export default function SettingsPage() {
   const { settings, status, error, reload } = useSettings();
   const errorTitle = error instanceof NetworkError ? messages.networkError : messages.loadFailed;
+  const [workName, setWorkName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!settings.current_work_id) {
+      setWorkName(null);
+      return;
+    }
+    let active = true;
+    listWorks({ pageSize: 100 })
+      .then((page) => {
+        if (!active) return;
+        const found = page.items.find((work) => work.id === settings.current_work_id);
+        setWorkName(found?.name ?? null);
+      })
+      .catch(() => {
+        if (active) setWorkName(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [settings.current_work_id]);
 
   return (
     <div className="page">
@@ -58,7 +83,7 @@ export default function SettingsPage() {
             </div>
             <div className="info-list__row">
               <dt>当前作品</dt>
-              <dd>{settings.current_work_id ?? messages.noWorkBadge}</dd>
+              <dd>{settings.current_work_id ? `《${workName ?? settings.current_work_id}》` : messages.noWorkBadge}</dd>
             </div>
             <div className="info-list__row">
               <dt>最近导出</dt>
@@ -71,6 +96,8 @@ export default function SettingsPage() {
           </dl>
         </Card>
       ) : null}
+
+      <SnapshotList />
     </div>
   );
 }
