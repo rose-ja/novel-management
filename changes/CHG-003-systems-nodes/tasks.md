@@ -7,6 +7,8 @@
 
 ## T1 迁移 0003 与领域模型
 
+- [x] 已完成：迁移往返、模型单测通过（`TestMigrationRoundTrip`、`go test ./backend/internal/model/...`）
+
 **Files**
 - `backend/internal/migrations/0003_system_nodes.sql`（新增）
 - `backend/internal/migrations/migrations.go`（如迁移清单为显式列表则登记；`go:embed` 则不改）
@@ -32,6 +34,8 @@
 **Depends** 无
 
 ## T2 仓储层：类别、节点、引用计数
+
+- [x] 已完成：`TestSystemRepo` 7 个用例通过（唯一索引、停用/筛选、引用去重、排序、回收站组）
 
 **Files**
 - `backend/internal/repository/system.go`（新增）
