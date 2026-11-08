@@ -36,7 +36,7 @@
 
 采用 **A**，具体版本与依赖见 [tech-stack.md](file:///d:/Project/novel-management/project/tech-stack.md)。
 
-- 后端：Go 1.24、gin、gorm（postgres driver）、pgx v5、goose、viper、cobra、validator、slog、ULID、goldmark、`disintegration/imaging`、go-redis/v9。
+- 后端：Go 1.26（P7 由 1.24 上调：`govulncheck` 要求 `golang.org/x/net ≥ v0.60`，该版本要求 Go 1.26）、gin、gorm（postgres driver）、pgx v5、goose、viper、cobra、validator、slog、ULID、goldmark、`disintegration/imaging`、go-redis/v9。
 - 数据库：PostgreSQL 16 + `pg_trgm`。
 - 缓存：Redis 7，仅 cache-aside，非关键路径（ADR-007）。
 - 前端：Next.js 15 App Router（`output: 'export'`）、React 19、TypeScript 5、Tailwind CSS 4、TanStack Query 5、React Hook Form + Zod、Radix UI、lucide-react。

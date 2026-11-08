@@ -47,7 +47,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer db.SQL.Close()
+	defer func() { _ = db.SQL.Close() }()
 
 	unlock, err := db.TryAdvisoryLock(ctx, database.AdvisoryLockID)
 	if err != nil {

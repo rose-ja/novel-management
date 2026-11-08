@@ -6,7 +6,7 @@
 | 状态 | 已批准（P5b 复审通过；P6 同步 C-03） |
 | 日期 | 2026-11-07 |
 | 架构风格 | 模块化单体 + 三容器（Go 应用 / PostgreSQL / Redis 缓存） |
-| 推荐技术栈 | Go 1.24 + gin + gorm + Next.js 15 + PostgreSQL 16 + Redis 7（仅缓存） |
+| 推荐技术栈 | Go 1.26 + gin + gorm + Next.js 15 + PostgreSQL 16 + Redis 7（仅缓存） |
 | 上游基线 | [requirements.md](file:///d:/Project/novel-management/project/requirements.md) v1.1 Approved、[user-stories.md](file:///d:/Project/novel-management/project/user-stories.md)、[user-flow.md](file:///d:/Project/novel-management/project/user-flow.md) v1.0、[design-system.md](file:///d:/Project/novel-management/project/design-system.md) v1.0、PG-00~PG-13 |
 | 约束来源 | [PROJECT-SETUP.md](file:///d:/Project/novel-management/project/PROJECT-SETUP.md)、[constitution.md](file:///d:/Project/novel-management/project/constitution.md)、[sources.md](file:///d:/Project/novel-management/project/sources.md) |
 | 配套文档 | [tech-stack.md](file:///d:/Project/novel-management/project/tech-stack.md)、[data-model.md](file:///d:/Project/novel-management/project/data-model.md)、[api-contract.md](file:///d:/Project/novel-management/project/api-contract.md)、[testing-strategy.md](file:///d:/Project/novel-management/project/testing-strategy.md)、[deployment.md](file:///d:/Project/novel-management/project/deployment.md) |
@@ -37,7 +37,7 @@
 
 据此，原先基于 FastAPI + React + SQLite 的方案（v0.1）被替代：
 
-- 后端：Go 1.24 + gin + gorm（同步请求处理 + 进程内后台任务）。
+- 后端：Go 1.26 + gin + gorm（同步请求处理 + 进程内后台任务）。
 - 前端：Next.js 15（App Router，静态导出）+ React 19 + Tailwind CSS。
 - 数据库：PostgreSQL 16，中文检索使用 `pg_trgm`（V-01 待验证）。
 - 缓存：Redis 7，仅做缓存，不作为关键路径依赖。
@@ -96,7 +96,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  B[浏览器<br/>Next.js 静态资源 + SPA] -->|/api/v1| A[app 容器<br/>Go 1.24 + gin]
+  B[浏览器<br/>Next.js 静态资源 + SPA] -->|/api/v1| A[app 容器<br/>Go 1.26 + gin]
   A -->|SQL| P[(postgres 容器<br/>PostgreSQL 16 + pg_trgm)]
   A -->|缓存 GET| R[(redis 容器<br/>Redis 7，仅缓存)]
   A -->|读写| V[(appdata volume<br/>images/exports/snapshots/tmp)]

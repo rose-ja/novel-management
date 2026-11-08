@@ -5,7 +5,7 @@
 | 文档版本 | v1.1 |
 | 状态 | 修订（P5b，2026-11-07，待复审） |
 | 日期 | 2026-11-07 |
-| 实现技术栈 | Go 1.24 + gin + gorm；PostgreSQL 16；Redis 7（仅缓存） |
+| 实现技术栈 | Go 1.26 + gin + gorm；PostgreSQL 16；Redis 7（仅缓存） |
 | 基础路径 | `/api/v1` |
 | 协议 | HTTP/1.1，JSON（`application/json`）；上传 `multipart/form-data` |
 | 认证 | **无登录、无 Token、无 Cookie**；仅本地回环访问 |

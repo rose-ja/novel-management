@@ -38,7 +38,7 @@ func accessLog(log *slog.Logger) gin.HandlerFunc {
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,
 			"status", c.Writer.Status(),
-			"latency_ms", time.Since(start).Milliseconds(),
+			"duration_ms", time.Since(start).Milliseconds(),
 			"request_id", c.GetString(requestIDKey),
 		)
 	}

@@ -29,7 +29,7 @@
 
 ## 当前技术栈
 
-- 已确认（P4，2026-11-07）：Go 1.24 + gin + gorm + Next.js 15 + PostgreSQL 16 + Redis 7（仅缓存）。
+- 已确认（P4，2026-11-07）：Go 1.26 + gin + gorm + Next.js 15 + PostgreSQL 16 + Redis 7（仅缓存）。
 - 部署：Docker Compose 三容器（app/db/cache），宿主仅通过 `127.0.0.1:17860` 回环访问（容器内绑定 `0.0.0.0`）。
 - 约束：不调用云端大模型；不引入持续付费依赖；Redis 故障自动旁路。
 - 详见 `tech-stack.md`、`architecture.md`、`deployment.md` 与 `adr/ADR-001~007`。

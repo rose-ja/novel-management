@@ -209,7 +209,7 @@
 | 项目 | 约束 |
 |---|---|
 | 前端 | Next.js 15（App Router，静态导出）+ React 19 + TypeScript 5 + Tailwind CSS 4 + TanStack Query 5 + RHF/Zod + Radix UI + lucide-react |
-| 后端 | Go 1.24 + gin + gorm（postgres driver）+ pgx v5 + goose + viper + cobra + validator + slog |
+| 后端 | Go 1.26 + gin + gorm（postgres driver）+ pgx v5 + goose + viper + cobra + validator + slog |
 | 数据库 | PostgreSQL 16；迁移由 goose 嵌入式 SQL 管理；中文检索 `pg_trgm`（V-01 待执行） |
 | 缓存 | Redis 7，仅 cache-aside；无持久化、不暴露端口、故障自动旁路（ADR-007） |
 | AI / 模型服务 | 不调用大模型 API；只做关键词/条件检索；不生成内容 |
@@ -227,16 +227,16 @@
 | 安装依赖 | `cd backend && go mod download`；`cd frontend && npm ci` | 通过；npm 默认缓存不可写时加 `--cache "$env:USERPROFILE\.npm"` |
 | 启动开发环境 | `docker compose -f docker-compose.yml -f compose.dev.yml up -d db cache`；`go run ./cmd/server`；`npm run dev` | 通过（db/cache 仅开发映射宿主回环端口） |
 | 启动完整栈 | `docker compose build`；`docker compose up -d`；`docker compose ps` | 通过（app/db/cache 均 healthy） |
-| Lint | `golangci-lint run`；`npm run lint` | 前端通过；后端 `golangci-lint` 在本地 Go 1.27 工具链下未能完成（导出数据格式版本高于 lint 二进制支持范围，见 `bootstrap-verification.md`） |
+| Lint | `golangci-lint run`；`npm run lint` | 通过（golangci-lint v2.15.0，0 issues；ESLint 无警告） |
 | Format check | `gofmt -l .` | 通过（无输出） |
 | Type check | `go vet ./...`；`npm run typecheck` | 通过 |
-| Unit test | `go test ./...`；`npm test` | 通过（后端 2 个包，前端 4 条） |
+| Unit test | `go test ./...`；`npm test` | 通过（后端 2 个包，前端 4 条）；`-race` 需 cgo，仅在 Linux/容器执行 |
 | Integration test | 尚未建立（P7 无集成测试） | NOT RUN |
 | E2E test | 尚未引入 Playwright | NOT RUN |
 | Build | `npm run build`；`go build ./...`；`docker compose build` | 通过（静态导出 `frontend/out`，镜像 `novel-settings:dev`） |
 | Database migration | `docker compose run --rm cli migrate` | 通过（`goose_db_version` version 1，`pg_trgm` 已启用；迁移由 server 启动时自动执行） |
 | Smoke test | `powershell -File scripts/smoke.ps1` | 通过（`SMOKE OK: version=0.1.0 db=ok cache=ok`） |
-| 本地 CI | `powershell -File scripts/ci.ps1` | 通过 |
+| 本地 CI | `powershell -File scripts/ci.ps1` | 通过（gofmt、golangci-lint、go vet、govulncheck、go test、go build、npm ci/lint/typecheck/test/build、`docker compose build`；集成测试与 Playwright 未建立时显式 SKIP） |
 
 ## 12. 风险与敏感操作
 

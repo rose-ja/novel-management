@@ -91,7 +91,7 @@ COPY frontend/ ./
 RUN npm run build          # next build，output: 'export' → /web/out
 
 # stage 2: Go binaries
-FROM golang:1.24-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download

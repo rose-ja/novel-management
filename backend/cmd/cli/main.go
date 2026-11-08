@@ -50,7 +50,7 @@ func newMigrateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer db.SQL.Close()
+			defer func() { _ = db.SQL.Close() }()
 
 			unlock, err := db.TryAdvisoryLock(ctx, database.AdvisoryLockID)
 			if err != nil {
@@ -107,12 +107,12 @@ func newDoctorCmd() *cobra.Command {
 				report.DBOK = false
 			} else {
 				report.DBOK = true
-				db.SQL.Close()
+				_ = db.SQL.Close()
 			}
 
 			if cfg.IsCacheEnabled() {
 				client := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
-				defer client.Close()
+				defer func() { _ = client.Close() }()
 				report.CacheStatus = "ok"
 				probeCtx, probeCancel := context.WithTimeout(ctx, 2*time.Second)
 				defer probeCancel()

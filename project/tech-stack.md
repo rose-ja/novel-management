@@ -16,7 +16,7 @@
 
 | 层 | 选型 | 版本线 |
 |---|---|---|
-| 语言（后端） | Go | 1.24.x |
+| 语言（后端） | Go | 1.26.x |
 | Web 框架 | gin | v1.10.x |
 | ORM | gorm + gorm postgres driver（pgx v5） | v1.25+ / v1.5+ |
 | 数据库 | PostgreSQL | 16.x（`postgres:16-alpine`） |
@@ -231,7 +231,7 @@
 
 | 编号 | 决策 | 采用 | 备选（未采用） |
 |---|---|---|---|
-| TS-Q1 | Go 版本 | 1.24.x | 1.25.x |
+| TS-Q1 | Go 版本 | 1.26.x（P7 由 1.24 上调：`govulncheck` 要求 `golang.org/x/net ≥ v0.60`，该版本要求 Go 1.26） | 1.24.x / 1.25.x |
 | TS-Q2 | Next.js 交付 | 静态导出，Go 托管（D-09 已确认） | Node 运行时 + Nginx 反代 |
 | TS-Q3 | 中文检索扩展 | `pg_trgm` + 短词 `ILIKE`（D-02 已确认，V-01 待执行） | `pg_bigm` / `zhparser` |
 | TS-Q4 | 集成测试数据库 | testcontainers-go | 固定 `TEST_DATABASE_URL` |

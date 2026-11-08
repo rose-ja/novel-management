@@ -11,8 +11,8 @@ func unsetEnv(t *testing.T, keys ...string) {
 	t.Helper()
 	for _, key := range keys {
 		if old, ok := os.LookupEnv(key); ok {
-			os.Unsetenv(key)
-			t.Cleanup(func() { os.Setenv(key, old) })
+			_ = os.Unsetenv(key)
+			t.Cleanup(func() { _ = os.Setenv(key, old) })
 		}
 	}
 }
