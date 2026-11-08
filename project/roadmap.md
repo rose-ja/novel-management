@@ -103,7 +103,7 @@ graph TD
   - 后端骨架：`cmd/server`、`cmd/cli`、`internal/{httpapi,service,domain,repository,model,search,cache,jobs,config,observability}`；`/health`、`/meta`、`/settings`；统一错误 DTO `code/message/details/request_id`。
   - 基础设施：docker compose（app/db/cache/redis 不发布端口）、迁移基线、静态资源托管、CSP 基线。
   - 前端骨架：Next.js App Router 静态导出、`app` 布局、`components/ui` 基线组件、设计令牌 CSS 变量、1280/1024 布局、404、无作品空状态。
-  - 设计系统基线组件：Button、Input、FormField、Select、Dialog、Drawer、Toast、Badge、Skeleton、EmptyState、Table、Pagination、FilterBar、Tabs、Card、Progress。
+  - 设计系统基线组件：Button、IconButton、Input、FormField、Select、Dialog、Drawer、Toast、Badge、Skeleton、EmptyState、Table、Pagination、FilterBar、Card、Progress（F1 裁决：`design-system.md` 明确本版不使用 Tabs，改为 IconButton）。
 - **非目标**：任何业务实体 CRUD、作品创建、导入/导出、检索、登录/权限/暗色主题。
 - **模块/文件预期**：
   - `backend/cmd/server/main.go`、`backend/internal/httpapi/{router,health,meta,errors}.go`、`backend/internal/config`、`backend/migrations/0001_init.*`

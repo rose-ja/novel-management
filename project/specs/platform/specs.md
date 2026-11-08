@@ -72,7 +72,7 @@
 - 来源：FR-64、FR-66、FR-67、FR-68、FR-69；US-012；design-system v1.0；PG-00~PG-13；AC-27、AC-28
 - 行为：
   - 设计令牌（色彩/字体/间距/圆角/阴影/动效）统一实现，禁止页面硬编码品牌色；视觉方向为浅绿色渐变、简洁中文、桌面优先。
-  - 组件基线：Button、Input、FormField、Dialog、Toast、Badge、Table、Pagination、FilterBar、Tree、Tabs、Card、Skeleton、EmptyState、Progress。
+  - 组件基线：Button、IconButton、Input、FormField、Select、Dialog、Drawer、Toast、Badge、Skeleton、EmptyState、Table、Pagination、FilterBar、Tree、Card、Progress（`design-system.md` 本版不使用 Tabs；F1 裁决以 IconButton 替代。Tree 随 CHG-003 体系配置交付）。
   - 状态完备：default/hover/active/focus/disabled/loading/error/empty；键盘可达、焦点可见；不使用占位符、无意义假数据或空按钮。
   - 对比度 ≥4.5:1（正文）、≥3:1（大字号/图形）；图标有文本替代；动效尊重 `prefers-reduced-motion`。
   - 视觉回归基线覆盖主流程页面。

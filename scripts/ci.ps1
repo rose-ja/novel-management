@@ -1,8 +1,20 @@
 # Local CI entry. No paid SaaS; same commands for developers and self-hosted runs.
-# Covers the gates currently available in testing-strategy.md section 9;
-# integration/E2E are printed as explicit SKIP while not yet established.
+# Covers the gates listed in testing-strategy.md section 9; integration tests are
+# printed as explicit SKIP while they are not established yet.
+# NOTE: keep this file ASCII-only. Windows PowerShell 5 reads BOM-less UTF-8 as
+# ANSI, so non-ASCII comments can swallow the following statements.
+param(
+    # Regenerate Playwright visual baselines instead of comparing them.
+    [switch]$UpdateE2E
+)
+
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
+
+# Some machines point npm/golangci-lint caches at unwritable locations; keep
+# every tool cache inside the repo instead (.tmp is gitignored).
+$env:npm_config_cache = Join-Path $root ".tmp/npm-cache"
+$env:GOLANGCI_LINT_CACHE = Join-Path $root ".tmp/golangci-lint"
 
 function Require-Command($name, $installHint) {
     $cmd = Get-Command $name -ErrorAction SilentlyContinue
@@ -32,8 +44,8 @@ try {
     Write-Host "SKIP: go test -race (no cgo toolchain on Windows; run CGO_ENABLED=1 go test -race ./... on Linux/container)" -ForegroundColor Yellow
     Write-Host "SKIP: integration tests (not established yet, planned for F1)" -ForegroundColor Yellow
 
-    $serverOut = Join-Path $env:TEMP "novel-server-ci.exe"
-    $cliOut = Join-Path $env:TEMP "novel-cli-ci.exe"
+    $serverOut = Join-Path $root ".tmp/server-ci.exe"
+    $cliOut = Join-Path $root ".tmp/cli-ci.exe"
     go build -o $serverOut ./cmd/server
     if ($LASTEXITCODE -ne 0) { throw "server build failed" }
     go build -o $cliOut ./cmd/cli
@@ -60,7 +72,6 @@ try {
 
     npm run build
     if ($LASTEXITCODE -ne 0) { throw "build failed" }
-    Write-Host "SKIP: Playwright E2E (not established yet, planned for F6)" -ForegroundColor Yellow
 } finally {
     Pop-Location
 }
@@ -70,6 +81,36 @@ Push-Location $root
 try {
     docker compose build
     if ($LASTEXITCODE -ne 0) { throw "docker compose build failed" }
+} finally {
+    Pop-Location
+}
+
+Write-Host "== e2e ==" -ForegroundColor Cyan
+Push-Location $root
+try {
+    docker compose up -d
+    if ($LASTEXITCODE -ne 0) { throw "docker compose up failed" }
+
+    $baseUrl = "http://127.0.0.1:17860"
+    $deadline = (Get-Date).AddMinutes(3)
+    while ($true) {
+        try {
+            $response = Invoke-RestMethod -Uri "$baseUrl/api/v1/health" -TimeoutSec 3
+            if ($response.status -eq "ok") { break }
+        } catch {
+            if ((Get-Date) -gt $deadline) { throw "service did not become healthy at $baseUrl" }
+            Start-Sleep -Seconds 3
+        }
+    }
+
+    Push-Location (Join-Path $root "frontend")
+    try {
+        $script = if ($UpdateE2E) { "test:e2e:update" } else { "test:e2e" }
+        npm run $script
+        if ($LASTEXITCODE -ne 0) { throw "playwright e2e failed" }
+    } finally {
+        Pop-Location
+    }
 } finally {
     Pop-Location
 }

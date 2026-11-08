@@ -49,16 +49,28 @@ func staticHandler(root string) gin.HandlerFunc {
 			if statErr != nil || info.IsDir() {
 				continue
 			}
-			// 直接读取文件内容，避免 FileServer 对 /index.html 做 301 造成重定向循环。
-			file, openErr := os.Open(full)
-			if openErr != nil {
-				continue
-			}
-			http.ServeContent(c.Writer, c.Request, info.Name(), info.ModTime(), file)
-			_ = file.Close()
+			serveFile(c, full, info)
+			return
+		}
+
+		// 页面路由未命中时返回静态导出的 404 页，保证用户看到可返回的界面。
+		notFound := filepath.Join(absRoot, "404.html")
+		if data, readErr := os.ReadFile(notFound); readErr == nil {
+			c.Data(http.StatusNotFound, "text/html; charset=utf-8", data)
 			return
 		}
 
 		abortError(c, http.StatusNotFound, "NOT_FOUND", "页面不存在")
 	}
+}
+
+// serveFile 直接读取文件内容，避免 FileServer 对 /index.html 做 301 造成重定向循环。
+func serveFile(c *gin.Context, full string, info os.FileInfo) {
+	file, openErr := os.Open(full)
+	if openErr != nil {
+		abortError(c, http.StatusInternalServerError, "STATIC_READ_FAILED", "静态文件读取失败")
+		return
+	}
+	defer func() { _ = file.Close() }()
+	http.ServeContent(c.Writer, c.Request, info.Name(), info.ModTime(), file)
 }

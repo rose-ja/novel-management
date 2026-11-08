@@ -97,4 +97,45 @@ func TestMetaExposesContractLimits(t *testing.T) {
 	if body.APIVersion != "v1" || body.Limits["name"] != 200 || body.Limits["category_max"] != 10 {
 		t.Fatalf("/meta 常量不符：%+v", body)
 	}
+	want := map[string]int{
+		"name":            200,
+		"description":     20000,
+		"chronicle":       2000,
+		"relation_note":   500,
+		"era_text":        100,
+		"seat_max":        200,
+		"category_max":    10,
+		"upload_image_mb": 10,
+	}
+	for key, value := range want {
+		if body.Limits[key] != value {
+			t.Fatalf("/meta limits[%s] 期望 %d，实际 %d", key, value, body.Limits[key])
+		}
+	}
+}
+
+func TestSettingsExposesReadOnlyFields(t *testing.T) {
+	router := newTestRouter(HealthDeps{})
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:17860/api/v1/settings", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("期望 200，实际 %d", rec.Code)
+	}
+	var body struct {
+		CurrentWorkID *string `json:"current_work_id"`
+		DataDir       string  `json:"data_dir"`
+		SnapshotKeep  int     `json:"snapshot_keep"`
+		AppVersion    string  `json:"app_version"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("解析响应失败：%v", err)
+	}
+	if body.CurrentWorkID != nil {
+		t.Fatalf("CHG-002 之前 current_work_id 应为 null，实际 %v", *body.CurrentWorkID)
+	}
+	if body.AppVersion != "test" {
+		t.Fatalf("版本不符：%q", body.AppVersion)
+	}
 }

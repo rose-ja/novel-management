@@ -133,6 +133,23 @@
   --shadow-md: 0 8px 24px rgba(24, 48, 36, 0.1);
   --shadow-lg: 0 24px 64px rgba(17, 38, 29, 0.18);
 
+  /* 动效 */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 220ms;
+  --motion-toast: 300ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 层级 */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-header: 20;
+  --z-dropdown: 30;
+  --z-drawer: 40;
+  --z-dialog: 50;
+  --z-toast: 60;
+
   /* 布局 */
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
