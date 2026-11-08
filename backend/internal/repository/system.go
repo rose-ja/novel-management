@@ -589,6 +589,24 @@ func (r *System) AnyReferenceForNode(ctx context.Context, nodeID string) (bool, 
 	return total > 0, err
 }
 
+// ListReferencesByWork 返回作品下全部人物引用（去重由调用方处理）。
+func (r *System) ListReferencesByWork(ctx context.Context, workID string) ([]ReferenceRow, error) {
+	var rows []ReferenceRow
+	err := r.DB.WithContext(ctx).Table("character_system_refs AS ref").
+		Select("ref.character_id, ref.node_id, node.name AS node_name").
+		Joins("JOIN system_nodes node ON node.id = ref.node_id").
+		Where("ref.work_id = ?", workID).
+		Order("ref.character_id ASC, ref.node_id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	if rows == nil {
+		rows = []ReferenceRow{}
+	}
+	return rows, nil
+}
+
 // CategoryName 返回类别名称（含已删除），用于回收站父级展示。
 func (r *System) CategoryName(ctx context.Context, id string) (string, error) {
 	var item model.SystemCategory

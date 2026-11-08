@@ -614,6 +614,32 @@ func (s *System) assertNodeUnreferenced(ctx context.Context, repo *repository.Sy
 	}
 }
 
+// workReferenceConflict 汇总作品引用并按人物去重，供永久删除阻断。
+func workReferenceConflict(rows []repository.ReferenceRow, action string) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(rows))
+	items := make([]model.ReferenceItem, 0, len(rows))
+	for _, row := range rows {
+		if _, ok := seen[row.CharacterID]; ok {
+			continue
+		}
+		seen[row.CharacterID] = struct{}{}
+		items = append(items, model.ReferenceItem{
+			Type:     "character_system_ref",
+			EntityID: row.CharacterID,
+			Field:    "node",
+			Value:    row.NodeName,
+			InTrash:  false,
+		})
+	}
+	return &model.ReferenceConflictError{
+		Message: fmt.Sprintf("该作品仍有 %d 人引用，无法%s", len(items), action),
+		Items:   items,
+	}
+}
+
 // applyEraField 处理纪元文本的可选更新；普通类别出现非空值视为字段校验错误。
 // changed 表示本次是否应写入（false 时沿用当前值）。
 func applyEraField(category *model.SystemCategory, current *string, provided, clear bool, raw *string, field string) (*string, bool, error) {

@@ -179,9 +179,16 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 	if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
 		return err
 	}
+	rows, err := repository.NewSystem(s.db).ListReferencesByWork(ctx, rootID)
+	if err != nil {
+		return err
+	}
+	if err := workReferenceConflict(rows, "永久删除"); err != nil {
+		return err
+	}
 
 	now := s.now().UTC()
-	_, err := repository.NewWorks(s.db).PurgeGroup(ctx, rootID)
+	_, err = repository.NewWorks(s.db).PurgeGroup(ctx, rootID)
 	if err != nil {
 		return err
 	}
@@ -200,6 +207,19 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	}
 	if len(works) == 0 {
 		return &PurgeAllResult{Purged: 0}, nil
+	}
+
+	system := repository.NewSystem(s.db)
+	var references []repository.ReferenceRow
+	for _, work := range works {
+		rows, err := system.ListReferencesByWork(ctx, work.ID)
+		if err != nil {
+			return nil, err
+		}
+		references = append(references, rows...)
+	}
+	if err := workReferenceConflict(references, "清空回收站"); err != nil {
+		return nil, err
 	}
 
 	snapshot, err := s.snapshots.Create(ctx, model.SnapshotReasonPurgeAll)

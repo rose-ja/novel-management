@@ -112,6 +112,8 @@
 
 ## T5 引用检查接线
 
+- [x] 已完成：停用/删除/永久删除统一走引用检查；作品永久删除按人物去重阻断；`TestSystemRefs` 2 个用例通过
+
 **Files**
 - `backend/internal/repository/system.go`
 - `backend/internal/service/system.go`

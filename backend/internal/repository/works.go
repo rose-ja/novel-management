@@ -199,16 +199,49 @@ func (r *Works) CountDeletedByRoot(ctx context.Context) (map[string]int64, error
 	return counts, nil
 }
 
-// PurgeGroup 物理删除作品根；外键会级联删除类别。
+// PurgeGroup 物理删除作品根；先清引用与节点，再删类别与作品，避免 RESTRICT 拦截。
 func (r *Works) PurgeGroup(ctx context.Context, id string) (int64, error) {
-	res := r.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NOT NULL", id).Delete(&model.Work{})
-	return res.RowsAffected, res.Error
+	var affected int64
+	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := purgeWorkChildren(ctx, tx, id); err != nil {
+			return err
+		}
+		res := tx.Where("id = ? AND deleted_at IS NOT NULL", id).Delete(&model.Work{})
+		affected = res.RowsAffected
+		return res.Error
+	})
+	return affected, err
 }
 
-// PurgeAllDeleted 物理删除全部回收站作品根。
+// PurgeAllDeleted 物理删除全部回收站作品根，顺序同上。
 func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
-	res := r.DB.WithContext(ctx).Where("deleted_at IS NOT NULL").Delete(&model.Work{})
-	return res.RowsAffected, res.Error
+	var affected int64
+	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		scope := "work_id IN (SELECT id FROM works WHERE deleted_at IS NOT NULL)"
+		if err := tx.Exec("DELETE FROM character_system_refs WHERE "+scope).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM system_nodes WHERE "+scope).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM system_categories WHERE "+scope).Error; err != nil {
+			return err
+		}
+		res := tx.Where("deleted_at IS NOT NULL").Delete(&model.Work{})
+		affected = res.RowsAffected
+		return res.Error
+	})
+	return affected, err
+}
+
+func purgeWorkChildren(ctx context.Context, tx *gorm.DB, workID string) error {
+	if err := tx.WithContext(ctx).Exec("DELETE FROM character_system_refs WHERE work_id = ?", workID).Error; err != nil {
+		return err
+	}
+	if err := tx.WithContext(ctx).Exec("DELETE FROM system_nodes WHERE work_id = ?", workID).Error; err != nil {
+		return err
+	}
+	return tx.WithContext(ctx).Where("work_id = ?", workID).Delete(&model.SystemCategory{}).Error
 }
 
 // NameTaken 判断未删除作品中是否已有同名（用于恢复冲突预检）。
