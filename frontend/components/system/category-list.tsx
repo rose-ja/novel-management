@@ -16,6 +16,7 @@ export type CategoryListProps = {
   selectedID: string | null;
   loading?: boolean;
   onSelect: (id: string) => void;
+  onCreate: () => void;
 };
 
 function typeLabel(category: SystemCategory): string {
@@ -23,7 +24,7 @@ function typeLabel(category: SystemCategory): string {
 }
 
 /** 左栏类别列表：内置置顶、listbox 语义与上下键切换（PG-10 §4.1、§10）。 */
-export function CategoryList({ categories, selectedID, loading = false, onSelect }: CategoryListProps) {
+export function CategoryList({ categories, selectedID, loading = false, onSelect, onCreate }: CategoryListProps) {
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const atLimit = categories.length >= CATEGORY_LIMIT;
 
@@ -132,6 +133,7 @@ export function CategoryList({ categories, selectedID, loading = false, onSelect
           className="system-category-list__add"
           disabled={atLimit}
           title={atLimit ? messages.errorByCode.CATEGORY_LIMIT : undefined}
+          onClick={onCreate}
         >
           {messages.systemAddCategory}
         </Button>

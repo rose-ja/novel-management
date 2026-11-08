@@ -215,6 +215,8 @@
 
 ## T9 类别操作与引用弹窗
 
+- [x] 已完成：新增/改名/停用/启用/删除整组弹窗、引用阻断按节点名分组、撤销 Toast；`test`/`typecheck`/`lint`/`build` 通过
+
 **Files**
 - `frontend/components/system/system-dialogs.tsx`（新增）
 - `frontend/components/system/reference-dialog.tsx`（新增）

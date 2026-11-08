@@ -13,6 +13,10 @@ import { messages } from "@/lib/messages";
 export type CategoryDetailProps = {
   category: SystemCategory | null;
   loading?: boolean;
+  onRename: (category: SystemCategory) => void;
+  onDisable: (category: SystemCategory) => void;
+  onEnable: (category: SystemCategory) => void;
+  onDelete: (category: SystemCategory) => void;
 };
 
 function typeLabel(category: SystemCategory): string {
@@ -26,9 +30,9 @@ function staticDescription(category: SystemCategory): string {
 
 /**
  * 右栏类别详情：头部、静态说明、待校对筛选占位与节点区容器。
- * 类别写操作与节点树在后续步骤接入；内置类别不显示任何类别写操作入口。
+ * 内置类别不显示任何类别写操作入口；节点树在后续步骤接入。
  */
-export function CategoryDetail({ category, loading = false }: CategoryDetailProps) {
+export function CategoryDetail({ category, loading = false, onRename, onDisable, onEnable, onDelete }: CategoryDetailProps) {
   const [pendingOnly, setPendingOnly] = useState(false);
 
   if (loading) {
@@ -59,9 +63,30 @@ export function CategoryDetail({ category, loading = false }: CategoryDetailProp
     <section className="system-detail" aria-labelledby={headingID}>
       <header className="system-detail__header">
         <div className="system-detail__heading">
-          <h2 id={headingID} className="system-detail__title">
-            {category.name}
-          </h2>
+          <div className="system-detail__title-row">
+            <h2 id={headingID} className="system-detail__title">
+              {category.name}
+            </h2>
+            {!category.is_builtin ? (
+              <div className="system-detail__actions">
+                <Button variant="secondary" size="sm" onClick={() => onRename(category)}>
+                  {messages.systemRenameCategory}
+                </Button>
+                {category.is_enabled ? (
+                  <Button variant="secondary" size="sm" onClick={() => onDisable(category)}>
+                    {messages.systemDisableCategory}
+                  </Button>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={() => onEnable(category)}>
+                    {messages.systemEnableCategory}
+                  </Button>
+                )}
+                <Button variant="danger" size="sm" onClick={() => onDelete(category)}>
+                  {messages.systemDeleteCategory}
+                </Button>
+              </div>
+            ) : null}
+          </div>
           <div className="system-detail__badges">
             <Badge tone="brand">{typeLabel(category)}</Badge>
             {category.is_builtin ? (
