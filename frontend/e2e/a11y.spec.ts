@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 
 const pages = [
   { path: "/", name: "概览" },
+  { path: "/system", name: "体系" },
   { path: "/settings", name: "设置" },
   { path: "/trash", name: "回收站" },
   { path: "/no-such-page", name: "404" },

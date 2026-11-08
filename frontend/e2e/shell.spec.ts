@@ -9,6 +9,7 @@ test.describe("应用壳层", () => {
 
     const nav = page.getByRole("navigation", { name: "主导航" });
     await expect(nav.getByRole("link", { name: "概览" })).toHaveAttribute("aria-current", "page");
+    await expect(nav.getByRole("link", { name: "体系" })).toHaveAttribute("href", "/system");
     await expect(nav.getByRole("link", { name: "设置" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "回收站" })).toBeVisible();
     await expect(nav.getByText("资料")).toBeVisible();

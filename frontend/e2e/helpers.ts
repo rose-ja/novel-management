@@ -21,6 +21,34 @@ export type TrashItemJson = {
   affected_count: number;
 };
 
+export type SystemCategoryJson = {
+  id: string;
+  work_id: string;
+  name: string;
+  category_type: "normal" | "era";
+  is_builtin: boolean;
+  is_enabled: boolean;
+  sort_order: number;
+  node_count: number;
+  reference_count: number;
+  version: number;
+};
+
+export type SystemNodeJson = {
+  id: string;
+  work_id: string;
+  category_id: string;
+  parent_id: string | null;
+  name: string;
+  sort_order: number;
+  era_start_text: string | null;
+  era_end_text: string | null;
+  review_status: "confirmed" | "pending";
+  version: number;
+  reference_count: number;
+  children?: SystemNodeJson[];
+};
+
 export function uniqueName(label: string): string {
   return `${E2E_PREFIX}${label}-${Date.now().toString(36)}`;
 }
@@ -59,11 +87,120 @@ export async function listWorks(request: APIRequestContext): Promise<WorkJson[]>
   return body.items;
 }
 
-export async function listTrash(request: APIRequestContext): Promise<TrashItemJson[]> {
-  const res = await request.get("/api/v1/trash?page=1&page_size=100");
+export async function listTrash(
+  request: APIRequestContext,
+  rootType?: "work" | "system_category" | "system_node",
+): Promise<TrashItemJson[]> {
+  const search = new URLSearchParams({ page: "1", page_size: "100" });
+  if (rootType) search.set("root_type", rootType);
+  const res = await request.get(`/api/v1/trash?${search.toString()}`);
   await ensure(res, "读取回收站");
   const body = (await res.json()) as { items: TrashItemJson[] };
   return body.items;
+}
+
+export async function restoreTrashItem(
+  request: APIRequestContext,
+  rootType: TrashItemJson["root_type"],
+  rootID: string,
+  body: Record<string, unknown> = {},
+): Promise<{ name: string; restored_count: number }> {
+  const res = await request.post(`/api/v1/trash/${rootType}/${rootID}/restore`, {
+    data: body,
+    headers: JSON_HEADERS,
+  });
+  await ensure(res, `恢复${rootType}`);
+  return (await res.json()) as { name: string; restored_count: number };
+}
+
+export async function purgeTrashItem(
+  request: APIRequestContext,
+  rootType: TrashItemJson["root_type"],
+  rootID: string,
+): Promise<void> {
+  const res = await request.delete(`/api/v1/trash/${rootType}/${rootID}`, {
+    data: { confirm: true },
+    headers: JSON_HEADERS,
+  });
+  await ensure(res, `永久删除${rootType}`);
+}
+
+export async function listSystemCategories(
+  request: APIRequestContext,
+  workID: string,
+): Promise<SystemCategoryJson[]> {
+  const res = await request.get(`/api/v1/system-categories?work_id=${encodeURIComponent(workID)}`);
+  await ensure(res, "读取体系类别");
+  const body = (await res.json()) as { items: SystemCategoryJson[] };
+  return body.items;
+}
+
+export async function createSystemCategory(
+  request: APIRequestContext,
+  workID: string,
+  name: string,
+  categoryType: "normal" | "era" = "normal",
+): Promise<SystemCategoryJson> {
+  const res = await request.post("/api/v1/system-categories", {
+    data: { work_id: workID, name, category_type: categoryType },
+    headers: JSON_HEADERS,
+  });
+  await ensure(res, `创建体系类别「${name}」`);
+  return (await res.json()) as SystemCategoryJson;
+}
+
+export async function deleteSystemCategory(
+  request: APIRequestContext,
+  categoryID: string,
+  version: number,
+): Promise<void> {
+  const res = await request.delete(`/api/v1/system-categories/${categoryID}`, {
+    headers: { ...JSON_HEADERS, "If-Match": `"${version}"` },
+  });
+  await ensure(res, "删除体系类别");
+}
+
+export async function listSystemNodes(
+  request: APIRequestContext,
+  categoryID: string,
+): Promise<SystemNodeJson[]> {
+  const res = await request.get(`/api/v1/system-categories/${categoryID}/nodes`);
+  await ensure(res, "读取体系节点");
+  const body = (await res.json()) as { items: SystemNodeJson[] };
+  return body.items;
+}
+
+export async function createSystemNode(
+  request: APIRequestContext,
+  categoryID: string,
+  name: string,
+  parentID?: string,
+): Promise<SystemNodeJson> {
+  const data: Record<string, unknown> = { category_id: categoryID, name };
+  if (parentID) data.parent_id = parentID;
+  const res = await request.post("/api/v1/system-nodes", { data, headers: JSON_HEADERS });
+  await ensure(res, `创建体系节点「${name}」`);
+  return (await res.json()) as SystemNodeJson;
+}
+
+export async function deleteSystemNode(
+  request: APIRequestContext,
+  nodeID: string,
+  version: number,
+): Promise<{ undo_token: string }> {
+  const res = await request.delete(`/api/v1/system-nodes/${nodeID}`, {
+    headers: { ...JSON_HEADERS, "If-Match": `"${version}"` },
+  });
+  await ensure(res, "删除体系节点");
+  return (await res.json()) as { undo_token: string };
+}
+
+export async function undoTrash(request: APIRequestContext, undoToken: string): Promise<void> {
+  const res = await request.post("/api/v1/trash/undo", {
+    data: { undo_token: undoToken },
+    headers: JSON_HEADERS,
+  });
+  await ensure(res, "撤销删除");
 }
 
 /**
@@ -78,11 +215,7 @@ export async function cleanupE2E(request: APIRequestContext): Promise<void> {
 
   const trash = await listTrash(request);
   for (const item of trash.filter((entry) => entry.name.startsWith(E2E_PREFIX))) {
-    const res = await request.delete(`/api/v1/trash/${item.root_type}/${item.root_id}`, {
-      data: { confirm: true },
-      headers: JSON_HEADERS,
-    });
-    await ensure(res, `永久删除「${item.name}」`);
+    await purgeTrashItem(request, item.root_type, item.root_id);
   }
 }
 

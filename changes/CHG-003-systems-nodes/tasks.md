@@ -264,6 +264,8 @@
 
 ## T11 E2E、视觉基线、键盘与可访问性
 
+- [x] 已完成：`system.spec.ts` 11 个用例；全量 Playwright 50 passed；新增 system 1280/1024 基线；顺带修复空节点树返回 `null` 导致白屏的缺陷
+
 **Files**
 - `frontend/e2e/system.spec.ts`（新增）
 - `frontend/e2e/shell.spec.ts`（更新导航断言）

@@ -109,7 +109,7 @@ func AssembleNodeTree(nodes []SystemNode) ([]SystemNode, error) {
 	}
 
 	children := make(map[string][]SystemNode)
-	var roots []SystemNode
+	roots := make([]SystemNode, 0, len(nodes))
 	for _, node := range nodes {
 		if node.ParentID == nil {
 			roots = append(roots, node)
