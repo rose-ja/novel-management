@@ -29,10 +29,24 @@ func TestMigrationRoundTrip(t *testing.T) {
 		t.Fatalf("获取 sql.DB 失败：%v", err)
 	}
 
-	tables := []string{"works", "system_categories", "app_settings", "snapshots", "undo_tokens"}
+	tables := []string{"works", "system_categories", "system_nodes", "character_system_refs", "app_settings", "snapshots", "undo_tokens"}
 	for _, table := range tables {
 		if !tableExists(t, table) {
 			t.Fatalf("迁移 up 后缺少表 %s", table)
+		}
+	}
+
+	if err := migrations.Down(ctx, sqlDB); err != nil {
+		t.Fatalf("回滚 0003 失败：%v", err)
+	}
+	for _, table := range []string{"system_nodes", "character_system_refs"} {
+		if tableExists(t, table) {
+			t.Fatalf("回滚 0003 后表 %s 仍然存在", table)
+		}
+	}
+	for _, table := range []string{"works", "system_categories"} {
+		if !tableExists(t, table) {
+			t.Fatalf("回滚 0003 不应删除表 %s", table)
 		}
 	}
 
@@ -47,6 +61,9 @@ func TestMigrationRoundTrip(t *testing.T) {
 
 	if err := migrations.Up(ctx, sqlDB); err != nil {
 		t.Fatalf("重新迁移失败：%v", err)
+	}
+	if err := migrations.Up(ctx, sqlDB); err != nil {
+		t.Fatalf("重新迁移 0003 失败：%v", err)
 	}
 	for _, table := range tables {
 		if !tableExists(t, table) {

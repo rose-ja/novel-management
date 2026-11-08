@@ -12,6 +12,14 @@ var (
 	ErrAlreadyDeleted  = errors.New("已不在回收站")
 	ErrInvalidRootType = errors.New("不支持的回收站类型")
 	ErrForbidden       = errors.New("操作不被允许")
+
+	ErrCategoryLimit            = errors.New("类别数量已达上限")
+	ErrCategoryBuiltinImmutable = errors.New("内置类别不可修改")
+	ErrCategoryDisabled         = errors.New("类别已停用")
+	ErrNodeLevelLimit           = errors.New("体系节点最多两级")
+	ErrNodeParentMismatch       = errors.New("上级节点与类别不匹配")
+	ErrHasChildren              = errors.New("仍有下级节点")
+	ErrParentDeleted            = errors.New("上级或类别仍在回收站")
 )
 
 // ValidationError 携带字段名，handler 转成 details.field。
@@ -31,6 +39,25 @@ func (e *RestoreConflictError) Error() string { return "恢复目标与现有记
 
 // ConflictItem 是恢复冲突的单项描述。
 type ConflictItem struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	EntityType string `json:"entity_type,omitempty"`
 }
+
+// ReferenceItem 是一条引用阻断明细；0003 无人物表时 Name 为 null。
+type ReferenceItem struct {
+	Type     string  `json:"type"`
+	EntityID string  `json:"entity_id"`
+	Name     *string `json:"name"`
+	Field    string  `json:"field"`
+	Value    string  `json:"value"`
+	InTrash  bool    `json:"in_trash"`
+}
+
+// ReferenceConflictError 表示停用/删除被人物引用阻止，details 列出全部引用。
+type ReferenceConflictError struct {
+	Message string          `json:"message"`
+	Items   []ReferenceItem `json:"items"`
+}
+
+func (e *ReferenceConflictError) Error() string { return e.Message }

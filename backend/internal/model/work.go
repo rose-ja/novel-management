@@ -27,12 +27,15 @@ type SystemCategory struct {
 	CategoryType    string     `gorm:"column:category_type" json:"category_type"`
 	IsBuiltin       bool       `gorm:"column:is_builtin" json:"is_builtin"`
 	IsEnabled       bool       `gorm:"column:is_enabled" json:"is_enabled"`
+	SortOrder       int        `gorm:"column:sort_order" json:"sort_order"`
 	Version         int        `gorm:"column:version" json:"version"`
 	CreatedAt       time.Time  `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt       time.Time  `gorm:"column:updated_at" json:"updated_at"`
 	DeletedAt       *time.Time `gorm:"column:deleted_at" json:"deleted_at,omitempty"`
 	DeletedRootID   *string    `gorm:"column:deleted_root_id" json:"-"`
 	DeletedByAction *string    `gorm:"column:deleted_by_action" json:"-"`
+	NodeCount       int64      `gorm:"-" json:"node_count"`
+	ReferenceCount  int64      `gorm:"-" json:"reference_count"`
 }
 
 func (SystemCategory) TableName() string { return "system_categories" }
