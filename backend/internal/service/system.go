@@ -267,23 +267,7 @@ func (s *System) assertCategoryUnreferenced(ctx context.Context, repo *repositor
 	if err != nil {
 		return err
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	items := make([]model.ReferenceItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, model.ReferenceItem{
-			Type:     "character_system_ref",
-			EntityID: row.CharacterID,
-			Field:    "node",
-			Value:    row.NodeName,
-			InTrash:  false,
-		})
-	}
-	return &model.ReferenceConflictError{
-		Message: fmt.Sprintf("该类别仍有 %d 人引用，无法%s", len(items), action),
-		Items:   items,
-	}
+	return referenceConflict(rows, "类别", action)
 }
 
 type CreateNodeInput struct {
@@ -595,27 +579,11 @@ func (s *System) assertNodeUnreferenced(ctx context.Context, repo *repository.Sy
 	if err != nil {
 		return err
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	items := make([]model.ReferenceItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, model.ReferenceItem{
-			Type:     "character_system_ref",
-			EntityID: row.CharacterID,
-			Field:    "node",
-			Value:    node.Name,
-			InTrash:  false,
-		})
-	}
-	return &model.ReferenceConflictError{
-		Message: fmt.Sprintf("该节点仍有 %d 人引用，无法%s", len(items), action),
-		Items:   items,
-	}
+	return referenceConflict(rows, "节点", action)
 }
 
-// workReferenceConflict 汇总作品引用并按人物去重，供永久删除阻断。
-func workReferenceConflict(rows []repository.ReferenceRow, action string) error {
+// referenceConflict 汇总引用并按人物去重，供停用/删除/永久删除阻断。
+func referenceConflict(rows []repository.ReferenceRow, subject, action string) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -635,7 +603,7 @@ func workReferenceConflict(rows []repository.ReferenceRow, action string) error 
 		})
 	}
 	return &model.ReferenceConflictError{
-		Message: fmt.Sprintf("该作品仍有 %d 人引用，无法%s", len(items), action),
+		Message: fmt.Sprintf("该%s仍有 %d 人引用，无法%s", subject, len(items), action),
 		Items:   items,
 	}
 }

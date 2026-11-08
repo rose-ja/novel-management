@@ -424,12 +424,12 @@ func (r *System) InsertNode(ctx context.Context, item *model.SystemNode) error {
 }
 
 type NodeUpdate struct {
-	Name        string
-	NameKey     string
-	SortOrder   int
-	EraStart    *string
-	EraEnd      *string
-	Version     int
+	Name      string
+	NameKey   string
+	SortOrder int
+	EraStart  *string
+	EraEnd    *string
+	Version   int
 }
 
 func (r *System) UpdateNode(ctx context.Context, id string, update NodeUpdate, now time.Time) (int64, error) {
@@ -487,6 +487,20 @@ func (r *System) RenameDeletedNode(ctx context.Context, id, name, nameKey string
 	return nil
 }
 
+// RenameDeletedNodeInGroup 改名随类别整组删除的节点（deleted_root_id 为类别 ID）。
+func (r *System) RenameDeletedNodeInGroup(ctx context.Context, id, rootID, name, nameKey string, now time.Time) error {
+	res := r.DB.WithContext(ctx).Table("system_nodes").
+		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = ?", id, rootID).
+		Updates(map[string]any{"name": name, "name_key": nameKey, "updated_at": now})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return model.ErrNotFound
+	}
+	return nil
+}
+
 func (r *System) RestoreNode(ctx context.Context, id string, now time.Time) error {
 	res := r.DB.WithContext(ctx).Table("system_nodes").
 		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
@@ -511,6 +525,16 @@ func (r *System) ListDeletedNodeRoots(ctx context.Context) ([]model.SystemNode, 
 	err := r.DB.WithContext(ctx).
 		Where("deleted_at IS NOT NULL AND deleted_root_id = id").
 		Order("deleted_at DESC, id DESC").
+		Find(&items).Error
+	return items, err
+}
+
+// ListDeletedNodesByCategoryRoot 返回类别根下随组删除的节点（用于恢复前冲突预检）。
+func (r *System) ListDeletedNodesByCategoryRoot(ctx context.Context, categoryID string) ([]model.SystemNode, error) {
+	var items []model.SystemNode
+	err := r.DB.WithContext(ctx).
+		Where("deleted_root_id = ?", categoryID).
+		Order("sort_order ASC, id ASC").
 		Find(&items).Error
 	return items, err
 }

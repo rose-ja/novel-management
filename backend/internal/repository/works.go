@@ -87,60 +87,87 @@ func (r *Works) UpdateWithVersion(ctx context.Context, id, name, nameKey string,
 	return res.RowsAffected, res.Error
 }
 
-// SoftDeleteGroup 在同一事务内软删除作品根与其类别。
+// SoftDeleteGroup 在同一事务内软删除作品根、类别与节点。
 func (r *Works) SoftDeleteGroup(ctx context.Context, id, action string, now time.Time) error {
-	res := r.DB.WithContext(ctx).Table("works").
-		Where("id = ? AND deleted_at IS NULL", id).
-		Updates(map[string]any{
-			"deleted_at":        now,
-			"deleted_root_id":   id,
-			"deleted_by_action": action,
-			"version":           gorm.Expr("version + 1"),
-			"updated_at":        now,
-		})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return model.ErrNotFound
-	}
+	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Table("works").
+			Where("id = ? AND deleted_at IS NULL", id).
+			Updates(map[string]any{
+				"deleted_at":        now,
+				"deleted_root_id":   id,
+				"deleted_by_action": action,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return model.ErrNotFound
+		}
 
-	return r.DB.WithContext(ctx).Table("system_categories").
-		Where("work_id = ? AND deleted_at IS NULL", id).
-		Updates(map[string]any{
-			"deleted_at":        now,
-			"deleted_root_id":   id,
-			"deleted_by_action": action,
-			"updated_at":        now,
-		}).Error
+		if err := tx.Table("system_categories").
+			Where("work_id = ? AND deleted_at IS NULL", id).
+			Updates(map[string]any{
+				"deleted_at":        now,
+				"deleted_root_id":   id,
+				"deleted_by_action": action,
+				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
+
+		return tx.Table("system_nodes").
+			Where("work_id = ? AND deleted_at IS NULL", id).
+			Updates(map[string]any{
+				"deleted_at":        now,
+				"deleted_root_id":   id,
+				"deleted_by_action": action,
+				"updated_at":        now,
+			}).Error
+	})
 }
 
-// RestoreGroup 整组恢复（作品根 + 类别）；任一缺失返回 ErrNotFound。
+// RestoreGroup 整组恢复（作品根 + 类别 + 节点）；任一缺失返回 ErrNotFound。
 func (r *Works) RestoreGroup(ctx context.Context, id string, now time.Time) error {
-	res := r.DB.WithContext(ctx).Table("works").
-		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
-		Updates(map[string]any{
-			"deleted_at":        nil,
-			"deleted_root_id":   nil,
-			"deleted_by_action": nil,
-			"version":           gorm.Expr("version + 1"),
-			"updated_at":        now,
-		})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return model.ErrNotFound
-	}
+	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Table("works").
+			Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
+			Updates(map[string]any{
+				"deleted_at":        nil,
+				"deleted_root_id":   nil,
+				"deleted_by_action": nil,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return model.ErrNotFound
+		}
 
-	return r.DB.WithContext(ctx).Table("system_categories").
-		Where("work_id = ? AND deleted_root_id = ?", id, id).
-		Updates(map[string]any{
-			"deleted_at":        nil,
-			"deleted_root_id":   nil,
-			"deleted_by_action": nil,
-			"updated_at":        now,
-		}).Error
+		if err := tx.Table("system_categories").
+			Where("work_id = ? AND deleted_root_id = ?", id, id).
+			Updates(map[string]any{
+				"deleted_at":        nil,
+				"deleted_root_id":   nil,
+				"deleted_by_action": nil,
+				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
+
+		return tx.Table("system_nodes").
+			Where("work_id = ? AND deleted_root_id = ?", id, id).
+			Updates(map[string]any{
+				"deleted_at":        nil,
+				"deleted_root_id":   nil,
+				"deleted_by_action": nil,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
+			}).Error
+	})
 }
 
 // RenameDeleted 在恢复前修正回收站中的作品名称。
@@ -167,36 +194,60 @@ func (r *Works) ListDeletedRoots(ctx context.Context) ([]model.Work, error) {
 	return items, err
 }
 
-// CountDeletedChildren 返回该根下被软删除的类别数量（展示用影响条数）。
+// CountDeletedChildren 返回该作品根下被软删除的类别与节点数量。
 func (r *Works) CountDeletedChildren(ctx context.Context, rootID string) (int64, error) {
 	var total int64
-	err := r.DB.WithContext(ctx).Model(&model.SystemCategory{}).
+	if err := r.DB.WithContext(ctx).Model(&model.SystemCategory{}).
 		Where("deleted_root_id = ?", rootID).
-		Count(&total).Error
-	return total, err
+		Count(&total).Error; err != nil {
+		return 0, err
+	}
+	var nodes int64
+	if err := r.DB.WithContext(ctx).Model(&model.SystemNode{}).
+		Where("deleted_root_id = ?", rootID).
+		Count(&nodes).Error; err != nil {
+		return 0, err
+	}
+	return total + nodes, nil
 }
 
-// CountDeletedByRoot 一次性统计各回收站根下的类别数量，避免列表 N+1 查询。
+// CountDeletedByRoot 一次性统计各回收站作品根下的类别与节点数量，避免列表 N+1 查询。
 func (r *Works) CountDeletedByRoot(ctx context.Context) (map[string]int64, error) {
 	type row struct {
 		RootID string
 		Total  int64
 	}
-	var rows []row
-	err := r.DB.WithContext(ctx).Model(&model.SystemCategory{}).
-		Select("deleted_root_id AS root_id, count(*) AS total").
-		Where("deleted_root_id IS NOT NULL").
-		Group("deleted_root_id").
-		Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-
-	counts := make(map[string]int64, len(rows))
-	for _, item := range rows {
-		counts[item.RootID] = item.Total
+	counts := make(map[string]int64)
+	tables := []any{&model.SystemCategory{}, &model.SystemNode{}}
+	for _, target := range tables {
+		var rows []row
+		err := r.DB.WithContext(ctx).Model(target).
+			Select("deleted_root_id AS root_id, count(*) AS total").
+			Where("deleted_root_id IS NOT NULL").
+			Group("deleted_root_id").
+			Scan(&rows).Error
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range rows {
+			// 仅统计作品根（类别/节点的 deleted_root_id 指向作品 ID）。
+			counts[item.RootID] += item.Total
+		}
 	}
 	return counts, nil
+}
+
+// Name 返回作品名称（含回收站记录），用于类别回收站展示父级。
+func (r *Works) Name(ctx context.Context, id string) (string, error) {
+	var work model.Work
+	err := r.DB.WithContext(ctx).Select("id", "name").Where("id = ?", id).Take(&work).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", model.ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return work.Name, nil
 }
 
 // PurgeGroup 物理删除作品根；先清引用与节点，再删类别与作品，避免 RESTRICT 拦截。
