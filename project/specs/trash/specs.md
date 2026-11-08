@@ -7,7 +7,7 @@
 
 ## SPEC-TRASH-001 软删除范围、隐藏与回收站列表定位
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 仅交付「作品」根类型的列表与类型筛选、分页；人物/势力/地点/榜单/体系/导入批次类型、原作品/父级筛选与 `highlight` 引用定位见 CHG-003~CHG-012）
 - 来源：FR-57、FR-61、FR-62；US-011；PG-12 §2/§4；API `GET /api/v1/trash?type=&work_id=&page=`；Data 各表 `deleted_at/deleted_root_id`；AC-13
 - 行为：
   - 软删除实体：作品（整本）、人物、势力、地点、榜单、体系类别（整组含节点）、导入批次；大事记与关系随根隐藏。
@@ -22,11 +22,11 @@
   2. Given 引用对话框显示「回收站中」，When 点击定位，Then `/trash?type=...&highlight=...` 命中并高亮（RT-13）。
   3. Given 回收站有人物，When 打开人物列表/检索，Then 不出现；引用检查仍能发现（FR-62）。
   4. Given 整本作品删除，When 查看回收站，Then 只显示根作品，子项折叠计数（PG-12）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付作品根列表、类型筛选与分页，状态转 `implemented-partial`（其余实体类型、原作品/父级筛选与 `highlight` 定位见 CHG-003~CHG-012）。
 
 ## SPEC-TRASH-002 删除撤销
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 交付作品根 8 秒一次性撤销令牌（过期 409 `UNDO_EXPIRED`；重复提交按 409 `ALREADY_DELETED` 拒绝，与场景 2「幂等成功」表述不一致）；其他实体撤销随各域变更，检索文档重建见 CHG-009）
 - 来源：FR-59；US-011；PG-12 §6；API `POST /api/v1/trash/undo`；Data `undo_tokens`（TTL 8s）；AC-13、EX-04
 - 行为：
   - 删除成功后 Toast 提供「撤销」，令牌 8 秒有效；重复点击只生效一次。
@@ -41,11 +41,11 @@
   2. Given 同一撤销请求重放，When 第二次提交，Then 幂等成功，不产生重复实体（EX-04）。
   3. Given 删除后 8 秒已过，When 点击，Then Toast 已不可用，需去回收站恢复（FR-59）。
   4. Given 撤销时名称被他人占用，When 提交，Then 失败并引导到回收站解决冲突（EX-15）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付作品根 8 秒一次性撤销（`UNDO_EXPIRED`/`ALREADY_DELETED`），状态转 `implemented-partial`（其他实体撤销随各域变更、检索重建见 CHG-009）。
 
 ## SPEC-TRASH-003 恢复规则、renames 与整组原子
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 交付作品根原子恢复、`422 RESTORE_CONFLICT` + `details.items` 与单名 `new_name` 改名；`renames[]` 仅接收未生效，子实体冲突清单、父级校验与页面逐项改名见 CHG-003+，检索/关系重建见 CHG-009）
 - 来源：FR-60、FR-61；US-011；PG-12 §6；API `POST /api/v1/trash/{type}/{root_id}/restore`；Data `deleted_root_id`、名称约束；AC-13、AC-15
 - 行为：
   - 单实体恢复：校验同级名称冲突；冲突时要求新名称（`new_name`/`renames[]`），解决后原子恢复。
@@ -61,11 +61,11 @@
   2. Given 整组类别含 2 个冲突节点，When 只解决 1 个，Then 整组失败，无半恢复（AC-13）。
   3. Given 父级在回收站，When 恢复子节点，Then 阻止并提示先恢复父级（EX-15）。
   4. Given 恢复完成，When 检索原名称/新名称，Then 仅新名称命中，关系恢复（FR-60）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付作品根原子恢复与单名改名，状态转 `implemented-partial`（`renames[]` 子项改名与父级校验见 CHG-003+、检索/关系重建见 CHG-009）。
 
 ## SPEC-TRASH-004 永久删除、清空、快照与跨回收站引用
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 交付作品根永久删除、`confirm=PURGE_ALL` 清空与操作前快照；跨回收站引用阻断/定位见 CHG-012，图片引用计数清理见 CHG-005、检索文档清理见 CHG-009）
 - 来源：FR-58、FR-63；US-011；PG-12 §6；API `DELETE /api/v1/trash/{type}/{root_id}`、`DELETE /api/v1/trash`；Data 物理删除 + 快照；AC-13、AC-14、EX-14
 - 行为：
   - 永久删除单根 / 清空回收站前生成快照；快照失败阻止操作。
@@ -81,4 +81,4 @@
   2. Given 回收站作品无在线引用，When 永久删除，Then 快照生成、数据物理删除、图片清理（AC-13）。
   3. Given 快照失败，When 清空回收站，Then 阻止并提示（EX-23）。
   4. Given 同一根重复永久删除，When 第二次提交，Then 返回已删除，幂等且无错误堆栈（EX-04）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付作品根永久删除、清空与操作前快照，状态转 `implemented-partial`（跨回收站引用见 CHG-012、图片清理见 CHG-005、检索清理见 CHG-009）。

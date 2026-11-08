@@ -7,7 +7,7 @@
 
 ## SPEC-WORK-001 作品创建、内置境界与数据隔离
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 交付创建/列表、名称唯一（英文大小写不敏感、1–200 字符）、简介 ≤20,000 与同事务内置「境界」；创建后进入 `/system` 与一次性提示见 CHG-003，跨作品实体隔离验收见 CHG-004）
 - 来源：FR-01、FR-03、FR-65；US-001；PG-00 §4.2、PG-01 空状态、PG-10；API `POST /api/v1/works`、`GET /api/v1/works`、`GET /api/v1/meta`；Data `works`、`system_categories`；AC-01
 - 行为：
   - 创建时填写名称（必填、全局唯一、英文不区分大小写、1–200 字符）与简介（可选、≤20,000 字符）。
@@ -23,11 +23,11 @@
   2. Given 已存在作品「山海志异」，When 再次提交「山海志异」或 `shanhaizhiyi` 大小写变体，Then 返回 `NAME_CONFLICT`，表单字段级提示且不产生数据（AC-17）。
   3. Given 两本作品 A/B 均存在人物，When 在 A 的作品上下文中检索，Then 结果只包含 A 的人物，B 的实体不出现在列表、检索或关系链接中（AC-01）。
   4. Given 作品名称为空或仅空格，When 提交，Then 阻止创建并提示「请输入作品名称」（UF-01）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付作品创建/列表、名称唯一、内置境界与描述上限校验，状态转 `implemented-partial`（跨作品隔离见 CHG-004、`/system` 引导见 CHG-003）。
 
 ## SPEC-WORK-002 作品切换与编辑
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 交付切换器列出/高亮/切换持久化与作品名称/简介编辑（复用唯一性与版本校验）；未保存确认仅覆盖作品新建/编辑弹窗，切换、返回等跨页面守卫见 CHG-003+，导出清单同步见 CHG-010）
 - 来源：FR-02、FR-03、FR-48、FR-65；US-001；PG-00 §4.2/§6；API `GET/PATCH /api/v1/works/{work_id}`；Data `works`；AC-01、AC-17
 - 行为：
   - 顶栏作品切换器列出全部作品，当前作品高亮；选择后刷新当前页数据并仅加载目标作品。
@@ -39,11 +39,11 @@
   1. Given 两个作品均有数据，When 从 A 切换到 B，Then Toast 提示、列表/检索重新请求且只显示 B 数据，刷新页面后仍保持 B（E2E-01 / AC-01）。
   2. Given 人物编辑未保存，When 点击切换到另一作品，Then 出现放弃确认；选择继续编辑则停留当前页且输入不丢失（EX-08）。
   3. Given 作品列表请求失败，When 打开切换器，Then 菜单显示错误与重试，不显示不完整列表（EX-03）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付切换器与作品名称/简介编辑（含唯一性、`If-Match` 校验），状态转 `implemented-partial`（跨页面未保存守卫见 CHG-003+、导出清单同步见 CHG-010）。
 
 ## SPEC-WORK-003 删除整本作品
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 交付 `confirm_name` 删除、删除前快照（失败 503 `SNAPSHOT_FAILED` 阻止）、整本软删除与 8 秒一次性撤销；删除当前作品后仅清空 `current_work_id`，自动切换见 CHG-003；检索/关系隐藏随 CHG-004+/CHG-009）
 - 来源：FR-02、FR-55、FR-57、FR-60；US-001、US-011；PG-00 §6、PG-12；API `DELETE /api/v1/works/{work_id}`、`POST /api/v1/trash/undo`；Data `works` + 全部实体 `deleted_at/deleted_root_id`；AC-13
 - 行为：
   - 删除前生成快照（`reason=work_delete`）；快照失败则阻止删除并提示。
@@ -58,11 +58,11 @@
   2. Given 快照创建失败，When 确认删除，Then 不执行删除，提示「快照创建失败，未执行删除」并可重试（EX-23）。
   3. Given 输入名称不匹配，When 查看主按钮，Then「删除作品」禁用且提示「请输入完整作品名称」。
   4. Given 删除后 8 秒内点击撤销，When 请求 undo，Then 整本作品及全部子实体回到原状态并重新出现在列表中（FR-59）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付名称确认删除、删除前快照、整本软删除与 8 秒撤销，状态转 `implemented-partial`（删后自动切换作品见 CHG-003、检索/关系隐藏见 CHG-004+/CHG-009）。
 
 ## SPEC-WORK-004 整本作品恢复
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 交付作品根整组原子恢复、名称冲突 `422 RESTORE_CONFLICT` + `details.items` 与单名 `new_name` 改名；`renames[]` 子项改名与父级/子实体冲突校验见 CHG-003+，检索/关系重建见 CHG-009）
 - 来源：FR-02、FR-60、FR-61；US-001、US-011；PG-12 §6；API `POST /api/v1/trash/work/{root_id}/restore`（`new_name`、`renames[]`）；Data `works` + 子实体；AC-13
 - 行为：
   - 恢复必须以整本为单位原子执行；任一步失败则整组不恢复，不出现半恢复状态。
@@ -76,4 +76,4 @@
   1. Given 作品含 3 个与现存实体同名的人物，When 恢复时只解决其中 2 个改名，Then 整组恢复失败、无任何实体被写回，并返回冲突清单（AC-13）。
   2. Given 所有冲突均已提供新名，When 提交恢复，Then 作品与全部子实体原子恢复，父级关系与图片可用（E2E-01）。
   3. Given 子实体父级已永久删除，When 恢复，Then 阻止并提示先恢复父级或提供可解决路径（EX-15）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付作品根整组原子恢复、`RESTORE_CONFLICT` 与单名 `new_name` 改名，状态转 `implemented-partial`（`renames[]` 与子实体/父级冲突校验见 CHG-003+、检索/关系重建见 CHG-009）。

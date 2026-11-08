@@ -3,7 +3,10 @@
 - 分支：`feat/chg-002-works-lifecycle`
 - 关联：`proposal.md`（D-01/D-02/D-03）、`design.md`、`tasks.md`、`checklist.md`
 - 验证日期：2026-11-08
-- 提交：待提交（F5 提交后补 SHA）
+- 提交：`07c78f6`（`feat/chg-002-works-lifecycle`）
+- 验收：ACCEPT（`acceptance.md`）
+- 发布状态：未发布（本地合并到 `main`，无远程发布记录）
+- 归档：`changes/archive/CHG-002-works-lifecycle/`
 
 ## 1. 环境
 

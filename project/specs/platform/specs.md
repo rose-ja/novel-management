@@ -23,7 +23,7 @@
   2. Given 无作品，When 进入应用，Then 显示创建作品引导，不出现空白页（PG-00）。
   3. Given 1024 宽，When 打开详情，Then 导航可折叠、内容不横向溢出（AC-28）。
   4. Given 访问未知路由，When 加载，Then 显示 404 与返回首页（PG-00）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付壳层（顶栏/侧栏/内容区）、404 页与空/加载/错误态，导航按阶段仅暴露已实现路由；作品切换器与其余路由待 CHG-002 起补齐，状态仍为 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付壳层（顶栏/侧栏/内容区）、404 页与空/加载/错误态，导航按阶段仅暴露已实现路由；作品切换器与其余路由待 CHG-002 起补齐；2026-11-08 — CHG-002 交付作品切换器（键盘可达、空/加载/错误态）、`/trash` 路由与删除当前作品后显示「未选择作品」，状态仍为 `planned`。
 
 ## SPEC-PLAT-002 全局异常状态与反馈
 
@@ -44,11 +44,11 @@
   2. Given 保存失败，When 提交表单，Then 输入保留、错误定位字段、可再次提交（EX-02）。
   3. Given 筛选无结果，When 应用筛选，Then 显示「无匹配结果」与清除条件（EX-01）。
   4. Given 长导入进行中，When 离开页面，Then 提示任务继续并可回到进度页（EX-10）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付统一文案常量、Skeleton/Alert/Toast 组件与 `ApiError` 映射（网络异常/500 重试已有 E2E）；表单字段级错误与长任务提示待后续变更，状态仍为 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付统一文案常量、Skeleton/Alert/Toast 组件与 `ApiError` 映射（网络异常/500 重试已有 E2E）；表单字段级错误与长任务提示待后续变更；2026-11-08 — CHG-002 落地作品/回收站/快照相关的 409/422/503 错误码与中文提示、Toast 重试与 `details.field` 返回，状态仍为 `planned`。
 
 ## SPEC-PLAT-003 并发控制与未保存保护
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-002 交付作品 `version`/`If-Match` 乐观锁与 409 `VERSION_CONFLICT`；缺失或错误 `If-Match` 统一返回 409（与「缺失 428/400」表述不同），未保存守卫仅覆盖作品新建/编辑弹窗，其余实体并发控制与跨页面守卫见 CHG-003+）
 - 来源：EX-07、EX-08、EX-28；US-012；PG-00 §6、PG-03 §6；API `version` + `If-Match`；AC-16
 - 行为：
   - 所有可变实体返回 `version`；更新/删除携带 `If-Match`；缺失返回 428/400，版本不符返回 409 `VERSION_CONFLICT`。
@@ -64,7 +64,7 @@
   2. Given 未保存表单，When 切换作品，Then 弹出放弃确认，取消则保留输入（EX-08）。
   3. Given 删除请求重放，When 第二次提交，Then 幂等，不重复删除/不报错堆栈（EX-04）。
   4. Given 保存中重复点击，When 第一次完成，Then 只产生一次更新（EX-04）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 落地作品版本号与 `If-Match`（409 `VERSION_CONFLICT`）及作品弹窗未保存确认，状态转 `implemented-partial`（跨页面守卫与其余实体并发控制见 CHG-003+）。
 
 ## SPEC-PLAT-004 设计系统、视觉与可访问性基线
 
@@ -84,7 +84,7 @@
   2. Given 键盘操作，When Tab 遍历表单/对话框，Then 焦点顺序正确、Esc 关闭、焦点返回触发元素（AC-28）。
   3. Given 文本与背景，When 检查对比度，Then 正文 ≥4.5:1（AC-27）。
   4. Given loading/error/empty，When 页面切换状态，Then 均有明确视觉与文案，不出现裸白屏（AC-28）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付设计令牌、18 个基线组件（Tree 除外）、`prefers-reduced-motion` 与 axe/视觉基线门禁（3 页无 serious/critical）；Tree 与其余页面基线随 CHG-003 起补齐，状态仍为 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付设计令牌、18 个基线组件（Tree 除外）、`prefers-reduced-motion` 与 axe/视觉基线门禁（3 页无 serious/critical）；Tree 与其余页面基线随 CHG-003 起补齐；2026-11-08 — CHG-002 交付作品切换器/作品弹窗/回收站表格/快照卡片并纳入 axe（4 页）与视觉基线（5 张），状态仍为 `planned`。
 
 ## SPEC-PLAT-005 本地部署、安全边界与性能基线
 
@@ -105,4 +105,4 @@
   2. Given 1000 人物基线，When 首次打开人物页，Then 可交互 ≤2s，缩略图不阻塞（AC-32 / AC-33）。
   3. Given 恶意 zip 路径或伪造图片，When 上传，Then 拒绝且不写出数据目录（AC-30）。
   4. Given 1000 人物，When 列表与检索压测，Then P95 分别 ≤500ms / ≤150ms（AC-23/24）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 复验安全边界：Host 白名单 403、路径穿越 404、CSP/`X-Frame-Options` 等响应头齐备；性能指标尚无数据支撑，状态仍为 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 复验安全边界：Host 白名单 403、路径穿越 404、CSP/`X-Frame-Options` 等响应头齐备；性能指标尚无数据支撑；2026-11-08 — CHG-002 落地作品名称服务端唯一性（英文大小写不敏感）与同源写校验（`X-Requested-With` + `FORBIDDEN_ORIGIN`），状态仍为 `planned`。
