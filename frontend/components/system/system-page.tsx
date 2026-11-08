@@ -257,6 +257,9 @@ export function SystemPage() {
                 onDisable={(category) => setDialog({ mode: "disable", category })}
                 onEnable={(category) => void handleEnable(category)}
                 onDelete={(category) => setDialog({ mode: "delete", category })}
+                onCategoryChanged={async () => {
+                  await refreshCategories();
+                }}
               />
             </div>
           ) : null}

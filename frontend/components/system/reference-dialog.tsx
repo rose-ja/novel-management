@@ -19,10 +19,14 @@ export type ReferenceItem = {
 
 export type ReferenceAction = "disable" | "delete";
 
+/** 引用目标：类别或单个节点，仅影响标题文案。 */
+export type ReferenceSubject = "category" | "node";
+
 export type ReferenceDialogProps = {
   action: ReferenceAction;
   categoryName: string;
   items: ReferenceItem[];
+  subject?: ReferenceSubject;
   onClose: () => void;
 };
 
@@ -70,12 +74,20 @@ function groupByNode(items: ReferenceItem[]): ReferenceGroup[] {
 }
 
 /** 引用阻断弹窗：按节点名分组列出引用人物，不展示后端英文堆栈。 */
-export function ReferenceDialog({ action, categoryName, items, onClose }: ReferenceDialogProps) {
+export function ReferenceDialog({
+  action,
+  categoryName,
+  items,
+  subject = "category",
+  onClose,
+}: ReferenceDialogProps) {
   const groups = groupByNode(items);
   const title =
     action === "disable"
       ? messages.systemReferenceDisableTitle(categoryName, items.length)
-      : messages.systemReferenceDeleteTitle(categoryName, items.length);
+      : subject === "node"
+        ? messages.systemReferenceNodeDeleteTitle(categoryName, items.length)
+        : messages.systemReferenceDeleteTitle(categoryName, items.length);
 
   return (
     <Dialog

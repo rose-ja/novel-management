@@ -238,6 +238,8 @@
 
 ## T10 节点树与节点操作
 
+- [x] 已完成：tree/treeitem + 键盘、排序持久与回滚、两级新增、纪元输入、停用只读、待校对筛选、撤销；`test`/`typecheck`/`lint`/`build` 通过
+
 **Files**
 - `frontend/components/system/node-tree.tsx`（新增）
 - `frontend/components/system/system-dialogs.tsx`
