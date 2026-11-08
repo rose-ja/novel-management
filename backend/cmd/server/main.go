@@ -82,6 +82,7 @@ func run() error {
 		Trash:     service.NewTrash(db.Gorm, snapshotService),
 		Snapshots: snapshotService,
 		Settings:  service.NewSettings(db.Gorm),
+		System:    service.NewSystem(db.Gorm),
 	})
 
 	srv := &http.Server{

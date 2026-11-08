@@ -19,6 +19,7 @@ type Options struct {
 	Trash     *service.Trash
 	Snapshots *service.Snapshot
 	Settings  *service.Settings
+	System    *service.System
 }
 
 // NewRouter 组装 API 路由与静态页面托管；业务服务为 nil 时对应路由不注册（单元测试可用）。
@@ -41,6 +42,9 @@ func NewRouter(opts Options) *gin.Engine {
 	}
 	if opts.Snapshots != nil {
 		api.GET("/snapshots", listSnapshotsHandler(opts.Snapshots))
+	}
+	if opts.System != nil {
+		registerSystem(api, opts.System)
 	}
 
 	serveStatic := staticHandler(opts.Config.WebDir)

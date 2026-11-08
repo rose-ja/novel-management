@@ -125,11 +125,11 @@ func TestSystemRepoCategories(t *testing.T) {
 		t.Fatalf("作品隔离失败：数量 %d err=%v", len(items), err)
 	}
 
-	rows, err := repo.UpdateCategoryEnabled(ctx, custom.ID, false, custom.Version, time.Now())
+	rows, err := repo.UpdateCategory(ctx, custom.ID, custom.Name, custom.NameKey, false, custom.Version, time.Now())
 	if err != nil || rows != 1 {
 		t.Fatalf("停用类别应更新 1 行，实际 %d err=%v", rows, err)
 	}
-	rows, err = repo.UpdateCategoryEnabled(ctx, custom.ID, false, custom.Version, time.Now())
+	rows, err = repo.UpdateCategory(ctx, custom.ID, custom.Name, custom.NameKey, false, custom.Version, time.Now())
 	if err != nil || rows != 0 {
 		t.Fatalf("过期版本应更新 0 行，实际 %d err=%v", rows, err)
 	}
@@ -151,7 +151,7 @@ func TestSystemRepoCategories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("规范化失败：%v", err)
 	}
-	rows, err = repo.UpdateCategoryName(ctx, custom.ID, display, key, 2, time.Now())
+	rows, err = repo.UpdateCategory(ctx, custom.ID, display, key, false, 2, time.Now())
 	if err != nil || rows != 1 {
 		t.Fatalf("改名应更新 1 行，实际 %d err=%v", rows, err)
 	}
@@ -281,7 +281,7 @@ func TestSystemRepoNodeListReviewAndDisabled(t *testing.T) {
 	seedNode(t, h, repo, work.ID, category.ID, &root.ID, "待校对", model.ReviewStatusPending)
 	seedNode(t, h, repo, work.ID, category.ID, nil, "根待校对", model.ReviewStatusPending)
 
-	if rows, err := repo.UpdateCategoryEnabled(ctx, category.ID, false, category.Version, time.Now()); err != nil || rows != 1 {
+	if rows, err := repo.UpdateCategory(ctx, category.ID, category.Name, category.NameKey, false, category.Version, time.Now()); err != nil || rows != 1 {
 		t.Fatalf("停用类别失败：%d err=%v", rows, err)
 	}
 

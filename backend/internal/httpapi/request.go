@@ -52,6 +52,12 @@ func abortServiceError(c *gin.Context, err error) {
 		return
 	}
 
+	var reference *model.ReferenceConflictError
+	if errors.As(err, &reference) {
+		abortErrorWithDetails(c, http.StatusConflict, "REFERENCE_CONFLICT", reference.Message, reference.Items)
+		return
+	}
+
 	switch {
 	case errors.Is(err, model.ErrNotFound):
 		abortError(c, http.StatusNotFound, "NOT_FOUND", "资源不存在")
@@ -69,6 +75,24 @@ func abortServiceError(c *gin.Context, err error) {
 		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "不支持的回收站类型", gin.H{
 			"field": "root_type",
 		})
+	case errors.Is(err, model.ErrCategoryLimit):
+		abortError(c, http.StatusConflict, "CATEGORY_LIMIT", "类别数量已达上限")
+	case errors.Is(err, model.ErrCategoryBuiltinImmutable):
+		abortError(c, http.StatusConflict, "CATEGORY_BUILTIN_IMMUTABLE", "内置类别不可修改")
+	case errors.Is(err, model.ErrCategoryDisabled):
+		abortError(c, http.StatusConflict, "CATEGORY_DISABLED", "该类别已停用")
+	case errors.Is(err, model.ErrNodeLevelLimit):
+		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "NODE_LEVEL_LIMIT", "体系节点最多两级", gin.H{
+			"field": "parent_id",
+		})
+	case errors.Is(err, model.ErrNodeParentMismatch):
+		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "NODE_PARENT_MISMATCH", "上级节点与类别不匹配", gin.H{
+			"field": "parent_id",
+		})
+	case errors.Is(err, model.ErrHasChildren):
+		abortError(c, http.StatusConflict, "HAS_CHILDREN", "仍有下级节点，无法删除")
+	case errors.Is(err, model.ErrParentDeleted):
+		abortError(c, http.StatusConflict, "PARENT_DELETED", "上级或类别仍在回收站")
 	default:
 		abortError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "服务内部错误")
 	}

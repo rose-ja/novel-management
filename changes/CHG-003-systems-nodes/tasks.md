@@ -60,6 +60,8 @@
 
 ## T3 类别服务与 HTTP 接口
 
+- [x] 已完成：类别 CRUD、内置保护、10 类上限、引用阻断；`TestSystemCategories` 6 个用例通过
+
 **Files**
 - `backend/internal/service/system.go`（新增：类别部分）
 - `backend/internal/httpapi/system.go`（新增：类别 handler + DTO）

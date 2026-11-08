@@ -132,6 +132,7 @@ type harness struct {
 	works     *service.Works
 	trash     *service.Trash
 	settings  *service.Settings
+	system    *service.System
 }
 
 func newHarness(t *testing.T) *harness {
@@ -167,6 +168,7 @@ func newHarness(t *testing.T) *harness {
 	works := service.NewWorks(tx, snapshots)
 	trash := service.NewTrash(tx, snapshots)
 	settings := service.NewSettings(tx)
+	system := service.NewSystem(tx)
 	engine := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    discardLogger(),
@@ -179,6 +181,7 @@ func newHarness(t *testing.T) *harness {
 		Trash:     trash,
 		Snapshots: snapshots,
 		Settings:  settings,
+		System:    system,
 	})
 
 	return &harness{
@@ -191,6 +194,7 @@ func newHarness(t *testing.T) *harness {
 		works:     works,
 		trash:     trash,
 		settings:  settings,
+		system:    system,
 	}
 }
 

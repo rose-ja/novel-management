@@ -158,24 +158,13 @@ func (r *System) InsertCategory(ctx context.Context, item *model.SystemCategory)
 	return r.DB.WithContext(ctx).Create(item).Error
 }
 
-// UpdateCategoryName 使用 version 做乐观锁。
-func (r *System) UpdateCategoryName(ctx context.Context, id, name, nameKey string, version int, now time.Time) (int64, error) {
+// UpdateCategory 一次写入名称与启用状态，使用 version 做乐观锁。
+func (r *System) UpdateCategory(ctx context.Context, id, name, nameKey string, enabled bool, version int, now time.Time) (int64, error) {
 	res := r.DB.WithContext(ctx).Table("system_categories").
 		Where("id = ? AND deleted_at IS NULL AND version = ?", id, version).
 		Updates(map[string]any{
 			"name":       name,
 			"name_key":   nameKey,
-			"version":    version + 1,
-			"updated_at": now,
-		})
-	return res.RowsAffected, res.Error
-}
-
-// UpdateCategoryEnabled 使用 version 做乐观锁。
-func (r *System) UpdateCategoryEnabled(ctx context.Context, id string, enabled bool, version int, now time.Time) (int64, error) {
-	res := r.DB.WithContext(ctx).Table("system_categories").
-		Where("id = ? AND deleted_at IS NULL AND version = ?", id, version).
-		Updates(map[string]any{
 			"is_enabled": enabled,
 			"version":    version + 1,
 			"updated_at": now,
