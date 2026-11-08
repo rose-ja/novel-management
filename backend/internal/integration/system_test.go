@@ -317,3 +317,32 @@ func TestSystemCategoriesReferenceConflict(t *testing.T) {
 		t.Fatalf("清理引用后停用应成功（status=%d）：%s", rec.Code, rec.Body.String())
 	}
 }
+
+func errorField(t *testing.T, envelope errorEnvelope) string {
+	t.Helper()
+	var details struct {
+		Field string `json:"field"`
+	}
+	if err := json.Unmarshal(envelope.Error.Details, &details); err != nil {
+		t.Fatalf("解析错误字段失败：%v，body=%s", err, envelope.Error.Details)
+	}
+	return details.Field
+}
+
+type referenceItemPayload struct {
+	Type     string  `json:"type"`
+	EntityID string  `json:"entity_id"`
+	Name     *string `json:"name"`
+	Field    string  `json:"field"`
+	Value    string  `json:"value"`
+	InTrash  bool    `json:"in_trash"`
+}
+
+func decodeReferenceItems(t *testing.T, envelope errorEnvelope) []referenceItemPayload {
+	t.Helper()
+	var items []referenceItemPayload
+	if err := json.Unmarshal(envelope.Error.Details, &items); err != nil {
+		t.Fatalf("解析引用明细失败：%v，body=%s", err, envelope.Error.Details)
+	}
+	return items
+}

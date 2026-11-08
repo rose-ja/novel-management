@@ -86,6 +86,8 @@
 
 ## T4 节点服务与 HTTP 接口
 
+- [x] 已完成：树/平铺、两级、同级唯一、纪元、排序、停用只读、review 映射；`TestSystemNodes` 6 个用例通过
+
 **Files**
 - `backend/internal/service/system.go`（节点部分）
 - `backend/internal/httpapi/system.go`（节点 handler + DTO）

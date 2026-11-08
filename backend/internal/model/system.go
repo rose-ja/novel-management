@@ -35,7 +35,7 @@ type SystemNode struct {
 	SortOrder       int          `gorm:"column:sort_order" json:"sort_order"`
 	EraStartText    *string      `gorm:"column:era_start_text" json:"era_start_text"`
 	EraEndText      *string      `gorm:"column:era_end_text" json:"era_end_text"`
-	ReviewStatus    string       `gorm:"column:review_status" json:"-"`
+	ReviewStatus    string       `gorm:"column:review_status" json:"review_status"`
 	ReviewedAt      *time.Time   `gorm:"column:reviewed_at" json:"reviewed_at"`
 	ReviewedBy      *string      `gorm:"column:reviewed_by" json:"reviewed_by"`
 	Version         int          `gorm:"column:version" json:"version"`
