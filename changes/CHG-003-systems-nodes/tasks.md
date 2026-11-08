@@ -136,6 +136,8 @@
 
 ## T6 回收站扩展与作品级联收口
 
+- [x] 已完成：三类根列表/恢复/撤销/永久删除/清空与作品级联；`TestSystemTrash` 7 个用例与 `TestTrash` 回归通过
+
 **Files**
 - `backend/internal/service/trash.go`
 - `backend/internal/httpapi/trash.go`（如需放宽 root_type 校验）
@@ -161,6 +163,8 @@
 **Depends** T5
 
 ## T7 前端 API 层与文案
+
+- [x] 已完成：`lib/api/system.ts` 9 个函数 + 11 个单测；`npm run test`/`typecheck`/`lint` 通过
 
 **Files**
 - `frontend/lib/api/system.ts`（新增）
