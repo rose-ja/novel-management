@@ -1,10 +1,13 @@
 # Verification Report
 
 - Change ID: CHG-003-systems-nodes
-- Commit: 分支 `feat/chg-003-systems-nodes`（T1`feat：CHG-003 体系迁移与领域模型` → T11`test：CHG-003 体系 E2E、视觉基线与无障碍用例`，共 11 次提交）
-- Environment: Windows + PowerShell 5.1；Go 1.26；Node.js 22；PostgreSQL 16（容器 `novel-management-db-1`）；应用容器 `novel-settings:dev` @ `http://127.0.0.1:17860`；未在本机执行 `-race`（无 cgo）
-- Tester: Agent（F3 自动验证）
+- Commit: 功能分支 `feat/chg-003-systems-nodes`（实现 T1～T12 + F5/F6 文档，16 个提交）；F9 快进合并至 `main` @ `cfb7d17`
+- Environment: Windows + PowerShell 5.1；Go 1.26；Node.js 22；PostgreSQL 16（容器 `novel-management-db-1`）；应用容器 `novel-management-app-1` @ `http://127.0.0.1:17860`；未在本机执行 `-race`（无 cgo）
+- Tester: Agent（F3 自动验证；F5 修复；F6 QA）
 - Date: 2026-11-09
+- 验收：ACCEPT（`acceptance.md`，2026-11-09）
+- 发布状态：未发布（本地合并到 `main`，无远程发布记录）
+- 归档：`changes/archive/CHG-003-systems-nodes/`
 
 ## 1. Static Checks
 

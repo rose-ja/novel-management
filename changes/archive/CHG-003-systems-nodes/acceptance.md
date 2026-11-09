@@ -1,6 +1,6 @@
 # Acceptance — CHG-003 体系类别与节点
 
-- 变更目录：`changes/CHG-003-systems-nodes/`
+- 变更目录：`changes/archive/CHG-003-systems-nodes/`
 - 分支：`feat/chg-003-systems-nodes`
 - 验收人：用户（本机验收）
 - 验收日期：2026-11-09

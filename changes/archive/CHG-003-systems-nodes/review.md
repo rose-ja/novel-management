@@ -22,7 +22,7 @@ git diff 3c2c10a^..HEAD -- frontend/lib frontend/components/system frontend/app/
 
 ### 1.2 基线文档
 
-- `changes/CHG-003-systems-nodes/proposal.md`、`design.md`、`tasks.md`、`checklist.md`、`verification.md`
+- `changes/archive/CHG-003-systems-nodes/proposal.md`、`design.md`、`tasks.md`、`checklist.md`、`verification.md`
 - `project/specs/systems/specs.md`（SPEC-SYS-001～005）
 - `project/page-specs/PG-10-system-config.md`
 - `project/architecture/api.md`、`project/architecture/data-model.md`（体系章节）

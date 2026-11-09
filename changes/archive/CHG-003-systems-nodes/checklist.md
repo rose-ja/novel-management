@@ -79,7 +79,7 @@
 | RG-01 | CHG-002 既有 E2E（34 条）与回收站/设置/作品切换全部仍通过 | `npx playwright test` → 50 passed / 0 failed | ✅ |
 | RG-02 | 迁移 0003 Up/Down 往返成功；容器内三表存在、内置境界唯一 | `TestMigrationRoundTrip`；容器 psql `goose_db_version=3`、三表存在、唯一性 0 异常 | ✅ |
 | RG-03 | 全量 `scripts/ci.ps1` 通过（Go 单测/集成、前端单测、构建、E2E、视觉） | 各步骤逐条执行全部通过；本机 gofmt 步骤因 `core.autocrlf=true` 环境性中止（LF 副本复核无输出），详见 `verification.md` §1/§5 | ✅ |
-| DOC-01 | `verification.md` 记录真实命令、结果与差异 | `changes/CHG-003-systems-nodes/verification.md` | ✅ |
+| DOC-01 | `verification.md` 记录真实命令、结果与差异 | `changes/archive/CHG-003-systems-nodes/verification.md` | ✅ |
 | DOC-02 | `PROJECT-SETUP.md`、`PG-10` 实施差异已同步 | `project/PROJECT-SETUP.md`、`project/page-specs/PG-10-system-config.md` §14 | ✅ |
 
 ## 7. 本轮不验收（延后）

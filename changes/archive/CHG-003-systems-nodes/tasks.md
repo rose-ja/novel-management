@@ -3,7 +3,7 @@
 - 分支: `feat/chg-003-systems-nodes`
 - 执行原则: 按 T1 → T12 顺序；每个任务完成即跑该任务 Tests；F2 结束跑全量 `scripts/ci.ps1`。
 - 所有文档、注释、提交信息使用中文；`scripts/ci.ps1` 保持纯 ASCII 英文。
-- 参考: `changes/CHG-003-systems-nodes/proposal.md`、`design.md`。
+- 参考: `changes/archive/CHG-003-systems-nodes/proposal.md`、`design.md`。
 
 ## T1 迁移 0003 与领域模型
 
@@ -292,7 +292,7 @@
 - [x] 已完成：gofmt（LF 副本复核）、golangci-lint 0 issues、go vet、govulncheck、Go 单测/集成、前端 lint/typecheck/test/build、Playwright 50 passed；容器内 0003/三表/内置唯一核对通过；`verification.md` 与 `PROJECT-SETUP.md`/`PG-10` 实施差异已同步
 
 **Files**
-- `changes/CHG-003-systems-nodes/verification.md`（F3 输出，F2 结束时建骨架）
+- `changes/archive/CHG-003-systems-nodes/verification.md`（F3 输出，F2 结束时建骨架）
 - `project/PROJECT-SETUP.md`（§11 迁移与测试）
 - `project/page-specs/PG-10-system-config.md`（实施差异）
 - `project/specs/systems/specs.md`（F10 再改状态）

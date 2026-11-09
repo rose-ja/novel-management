@@ -15,7 +15,7 @@
 - Spec：SPEC-SYS-001～005（`project/specs/systems/specs.md`）
 - Page Spec：PG-10 体系配置（`project/page-specs/PG-10-system-config.md`）
 - 契约：`project/api-contract.md`、`project/architecture/data-model.md`
-- 变更文档：`changes/CHG-003-systems-nodes/`（proposal、design、tasks、checklist、review、verification、acceptance）
+- 变更文档：`changes/archive/CHG-003-systems-nodes/`（proposal、design、tasks、checklist、review、verification、acceptance）
 
 ## 3. 范围与非目标
 

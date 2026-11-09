@@ -1,13 +1,13 @@
 # systems — 体系类别与节点
 
-- 域状态：`planned`（P6，2026-11-07）
+- 域状态：`implemented-partial`（2026-11-09，CHG-003 交付类别生命周期、两级节点、回收站与引用阻断骨架；人物动态表单/改名同步见 CHG-004）
 - 目标行为：作品级可配置体系；类别 + 两级节点，节点被人物引用；删除整组可回收。
 - 关联页面：PG-10；关联验收：AC-07、AC-13、AC-14。
-- 说明：本文件中的 Spec 均为待实现目标，不代表当前系统能力。
+- 说明：Spec 状态以各条目为准；未实现/未验证的行为仍标记 `planned`。
 
 ## SPEC-SYS-001 内置境界与类别生命周期
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-003 交付内置境界保护、类别新增/改名/停用/启用/删除、类型展示与内联维护、启用状态与引用计数；人物表单字段联动与改名同步见 CHG-004，节点校对队列见 CHG-011）
 - 来源：FR-01、FR-21、FR-26；US-006；PG-10 §2/§6；API `GET/POST /api/v1/system-categories`、`PATCH /api/v1/system-categories/{id}`；Data `system_categories.is_builtin`；AC-07
 - 行为：
   - 每作品创建时自动生成唯一内置「境界」类别（`is_builtin=1`），不可删除、不可停用、名称不可改。
@@ -23,11 +23,11 @@
   2. Given 自定义类别「职阶」，When 改名为「品阶」，Then 节点与人物引用不变、表单标签更新（FR-25）。
   3. Given 类别已停用，When 新建人物，Then 该类别字段不出现（FR-22）。
   4. Given 内置境界，When 尝试改名/删除，Then 服务端返回不可操作，前端不提供入口（AC-07）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-09 — CHG-003 交付内置境界保护与类别生命周期、类型展示、内联维护、启用状态/引用计数，状态转 `implemented-partial`（人物表单联动与改名同步见 CHG-004、节点校对队列见 CHG-011）。
 
 ## SPEC-SYS-002 类别上限、类型与停用语义
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-003 交付 10 类上限（含内置）、类型创建后不可变、名称唯一、必开不可停用与引用阻断；停用后人物表单隐藏与已选值恢复见 CHG-004）
 - 来源：FR-21、FR-22；US-006；PG-10 §6；API `POST /api/v1/system-categories`；Data `system_categories.kind`；AC-07、EX-16
 - 行为：
   - 每作品最多 10 类（含内置境界）；第 11 类阻止创建并提示上限。
@@ -43,11 +43,11 @@
   2. Given 类别类型为「纪元」，When 编辑类别，Then 类型字段只读，节点表单显示可选起止年份文本（FR-21）。
   3. Given 类别节点被人物引用，When 停用类别，Then 阻止并列出引用数量与位置（EX-16 / FR-21）。
   4. Given 类别无引用，When 停用后新建人物，Then 该字段不出现；重新启用后已选值恢复显示（FR-22）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-09 — CHG-003 交付类别上限、类型不可变、名称唯一、必开不可停用与引用阻断，状态转 `implemented-partial`（停用后人物表单隐藏与已选值恢复见 CHG-004）。
 
 ## SPEC-SYS-003 节点两级结构、排序与纪元
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-003 交付两级节点、同级唯一、排序持久、纪元起止文本与父节点删除阻断；三级及以上/跨类移动属边界外）
 - 来源：FR-22；US-006；PG-10 §3；API `POST/PATCH /api/v1/system-nodes`、`POST /api/v1/system-nodes/reorder`；Data `system_nodes.parent_id/sort_order/era_start_text/era_end_text`；AC-07
 - 行为：
   - 每类别最多两级节点（主层级 → 子层级）；节点可挂根或挂在根节点下。
@@ -63,7 +63,7 @@
   2. Given 同级两个节点，When 调整排序，Then 刷新后顺序保持（FR-22）。
   3. Given 父节点有子节点，When 删除父节点，Then 阻止并列出子节点（FR-22）。
   4. Given 同级已有「炼气」，When 新建「炼气」或大小写变体，Then 阻止（AC-17）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-09 — CHG-003 交付两级节点、同级唯一、排序持久、纪元起止文本与父节点删除阻断，状态转 `implemented`。
 
 ## SPEC-SYS-004 人物动态引用、动态表单与改名同步
 
@@ -82,11 +82,11 @@
   2. Given 节点改名「金丹 → 结丹」，When 查看人物详情，Then 展示新名且引用未断（FR-25）。
   3. Given 人物引用节点，When 删除节点，Then 阻止并列出人物引用（AC-14）。
   4. Given 类别停用且无人物引用，When 新建人物，Then 该字段不出现；重新启用后已选节点恢复显示（FR-22）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-09 — CHG-003 建立 `character_system_refs` 骨架并交付节点删除的入向引用阻断（引用数据由测试种子写入）；人物动态表单、改名同步与人物侧引用写入仍 `planned`，见 CHG-004。
 
 ## SPEC-SYS-005 停用/删除引用阻断与整组回收站
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-003 交付停用/删除/永久删除的引用阻断（引用表骨架）、整组回收站与 `renames[]` 原子恢复；人物侧引用写入与恢复展示见 CHG-004，检索/关系重建见 CHG-009）
 - 来源：FR-21、FR-25、FR-37；US-006、US-011；PG-10、PG-12；API `DELETE /api/v1/system-categories/{id}`、`POST /api/v1/trash/system-category/{root_id}/restore`；Data 引用列；AC-13、AC-14
 - 行为：
   - 停用类别前检查引用：若类别下任一节点被人物引用，阻止停用并列出引用数量与位置。
@@ -102,4 +102,4 @@
   2. Given 类别无引用，When 删除，Then 整组进回收站，类别与节点同时隐藏（AC-13）。
   3. Given 回收站内整组，When 恢复且名称冲突未解决，Then `422 RESTORE_CONFLICT`，不产生半恢复（AC-13）。
   4. Given 恢复成功，When 打开人物表单，Then 类别/节点与引用恢复（FR-25）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-09 — CHG-003 交付停用/删除/永久删除引用阻断（引用表骨架）、整组回收站与 `renames[]` 原子恢复，状态转 `implemented-partial`（人物侧引用写入与恢复展示见 CHG-004、检索/关系重建见 CHG-009）。
