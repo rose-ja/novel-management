@@ -16,6 +16,7 @@ func registerCharacters(api *gin.RouterGroup, svc *service.Characters) {
 	group.POST("", createCharacterHandler(svc))
 	group.GET("/:id", getCharacterHandler(svc))
 	group.PATCH("/:id", updateCharacterHandler(svc))
+	group.DELETE("/:id", deleteCharacterHandler(svc))
 }
 
 func listCharactersHandler(svc *service.Characters) gin.HandlerFunc {
@@ -83,6 +84,17 @@ func getCharacterHandler(svc *service.Characters) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, detail)
+	}
+}
+
+func deleteCharacterHandler(svc *service.Characters) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		result, err := svc.Delete(c.Request.Context(), c.Param("id"), c.GetHeader("If-Match"))
+		if err != nil {
+			abortServiceError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, result)
 	}
 }
 

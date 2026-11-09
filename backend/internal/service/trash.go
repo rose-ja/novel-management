@@ -68,11 +68,11 @@ type PurgeAllResult struct {
 	SnapshotID string `json:"snapshot_id"`
 }
 
-// List 汇总三类回收站根，按删除时间倒序后在内存分页。
+// List 汇总四类回收站根，按删除时间倒序后在内存分页。
 func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (*TrashPage, error) {
 	page, pageSize = normalizePage(page, pageSize)
 	switch rootType {
-	case "", RootTypeWork, RootTypeSystemCategory, RootTypeSystemNode:
+	case "", RootTypeWork, RootTypeSystemCategory, RootTypeSystemNode, RootTypeCharacter:
 	default:
 		return nil, model.ErrInvalidRootType
 	}
@@ -83,6 +83,7 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 	works := []model.Work{}
 	categories := []model.SystemCategory{}
 	nodes := []model.SystemNode{}
+	characters := []model.Character{}
 	var err error
 	if rootType == "" || rootType == RootTypeWork {
 		if works, err = worksRepo.ListDeletedRoots(ctx); err != nil {
@@ -99,6 +100,11 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 			return nil, err
 		}
 	}
+	if rootType == "" || rootType == RootTypeCharacter {
+		if characters, err = repository.NewCharacters(s.db).ListDeletedRoots(ctx); err != nil {
+			return nil, err
+		}
+	}
 
 	workCounts, err := worksRepo.CountDeletedByRoot(ctx)
 	if err != nil {
@@ -109,7 +115,7 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 		return nil, err
 	}
 
-	items := make([]TrashItem, 0, len(works)+len(categories)+len(nodes))
+	items := make([]TrashItem, 0, len(works)+len(categories)+len(nodes)+len(characters))
 	for _, work := range works {
 		items = append(items, TrashItem{
 			RootType:      RootTypeWork,
@@ -144,6 +150,20 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 			Name:       node.Name,
 			ParentName: parent,
 			DeletedAt:  node.DeletedAt,
+		})
+	}
+	for _, character := range characters {
+		var parent *string
+		if name, err := worksRepo.Name(ctx, character.WorkID); err == nil {
+			parent = &name
+		}
+		items = append(items, TrashItem{
+			RootType:      RootTypeCharacter,
+			RootID:        character.ID,
+			Name:          character.Name,
+			ParentName:    parent,
+			DeletedAt:     character.DeletedAt,
+			AffectedCount: 1,
 		})
 	}
 
@@ -188,6 +208,12 @@ func (s *Trash) Restore(ctx context.Context, rootType, rootID string, in Restore
 		run = func(tx *gorm.DB) error {
 			var err error
 			result, err = s.restoreNode(ctx, tx, rootID, in, now)
+			return err
+		}
+	case RootTypeCharacter:
+		run = func(tx *gorm.DB) error {
+			var err error
+			result, err = s.restoreCharacter(ctx, tx, rootID, in, now)
 			return err
 		}
 	default:
@@ -457,6 +483,56 @@ func (s *Trash) restoreNode(ctx context.Context, tx *gorm.DB, rootID string, in 
 	}, nil
 }
 
+// restoreCharacter 恢复人物根；作品仍在回收站时阻断，同名时支持 new_name。
+func (s *Trash) restoreCharacter(ctx context.Context, tx *gorm.DB, rootID string, in RestoreInput, now time.Time) (*RestoreResult, error) {
+	repo := repository.NewCharacters(tx)
+	item, err := repo.GetDeleted(ctx, rootID)
+	if err != nil {
+		return nil, alreadyDeleted(err)
+	}
+	if _, err := repository.NewWorks(tx).Get(ctx, item.WorkID); err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, model.ErrParentDeleted
+		}
+		return nil, err
+	}
+
+	name, nameKey := item.Name, item.NameKey
+	if in.NewName != nil {
+		name, nameKey, err = model.NormalizeCharacterName(*in.NewName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	taken, err := repo.NameTaken(ctx, item.WorkID, nameKey, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	if taken {
+		return nil, &model.RestoreConflictError{Items: []model.ConflictItem{{
+			ID:         item.ID,
+			Name:       name,
+			EntityType: RootTypeCharacter,
+		}}}
+	}
+
+	if name != item.Name || nameKey != item.NameKey {
+		if err := repo.RenameDeleted(ctx, item.ID, name, nameKey, now); err != nil {
+			return nil, alreadyDeleted(err)
+		}
+	}
+	if err := repo.Restore(ctx, item.ID, now); err != nil {
+		return nil, alreadyDeleted(err)
+	}
+	return &RestoreResult{
+		RootType:      RootTypeCharacter,
+		RootID:        item.ID,
+		Name:          name,
+		RestoredCount: 1,
+	}, nil
+}
+
 // Purge 永久删除单个根；先落 trash_purge 快照，失败即阻止；
 // 引用检查与物理删除共用同一事务，避免 TOCTOU。
 func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
@@ -528,6 +604,23 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			_, err = repo.PurgeNode(ctx, rootID)
 			return err
 		})
+	case RootTypeCharacter:
+		if _, err := repository.NewCharacters(s.db).GetDeleted(ctx, rootID); err != nil {
+			return alreadyDeleted(err)
+		}
+		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
+			return err
+		}
+		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			rows, err := repository.NewCharacters(tx).Purge(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if rows == 0 {
+				return model.ErrAlreadyDeleted
+			}
+			return nil
+		})
 	default:
 		return model.ErrInvalidRootType
 	}
@@ -552,10 +645,15 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	if err != nil {
 		return nil, err
 	}
-	if len(works)+len(categories)+len(nodes) == 0 {
+	characters, err := repository.NewCharacters(s.db).ListDeletedRoots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(works)+len(categories)+len(nodes)+len(characters) == 0 {
 		return &PurgeAllResult{Purged: 0}, nil
 	}
 	nodes = orderNodeRootsForPurge(nodes)
+	total := int64(len(works) + len(categories) + len(nodes) + len(characters))
 
 	// 先检查后快照：引用命中即中止，不落快照。
 	references, err := s.collectReferences(ctx, system, works, categories, nodes)
@@ -597,13 +695,20 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 				return err
 			}
 		}
+		// 作品组删除已清理随作品删除的人物；此处只处理独立人物根。
+		txCharacters := repository.NewCharacters(tx)
+		for _, character := range characters {
+			if _, err := txCharacters.Purge(ctx, character.ID); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &PurgeAllResult{
-		Purged:     int64(len(works) + len(categories) + len(nodes)),
+		Purged:     total,
 		SnapshotID: snapshot.ID,
 	}, nil
 }
@@ -758,6 +863,33 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 				}}}
 			}
 			if err := system.RestoreNode(ctx, record.RootID, now); err != nil {
+				return alreadyDeleted(err)
+			}
+			return nil
+		case RootTypeCharacter:
+			repo := repository.NewCharacters(tx)
+			character, err := repo.GetDeleted(ctx, record.RootID)
+			if err != nil {
+				return alreadyDeleted(err)
+			}
+			if _, err := repository.NewWorks(tx).Get(ctx, character.WorkID); err != nil {
+				if errors.Is(err, model.ErrNotFound) {
+					return model.ErrParentDeleted
+				}
+				return err
+			}
+			taken, err := repo.NameTaken(ctx, character.WorkID, character.NameKey, character.ID)
+			if err != nil {
+				return err
+			}
+			if taken {
+				return &model.RestoreConflictError{Items: []model.ConflictItem{{
+					ID:         character.ID,
+					Name:       character.Name,
+					EntityType: RootTypeCharacter,
+				}}}
+			}
+			if err := repo.Restore(ctx, record.RootID, now); err != nil {
 				return alreadyDeleted(err)
 			}
 			return nil

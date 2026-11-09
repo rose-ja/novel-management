@@ -13,10 +13,23 @@ import (
 	"novel-management/backend/internal/repository"
 )
 
-// Characters 负责人物档案的创建、查询与内联更新。
+// Characters 负责人物档案的创建、查询、内联更新与删除。
 type Characters struct {
 	db  *gorm.DB
 	now func() time.Time
+}
+
+const (
+	RootTypeCharacter     = "character"
+	CharacterActionDelete = "character_delete"
+)
+
+// DeleteCharacterResult 是 DELETE /characters/{id} 的响应。
+type DeleteCharacterResult struct {
+	ID        string    `json:"id"`
+	DeletedAt time.Time `json:"deleted_at"`
+	UndoToken string    `json:"undo_token"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 func NewCharacters(db *gorm.DB) *Characters {
@@ -427,6 +440,62 @@ func (s *Characters) Update(ctx context.Context, id string, in UpdateCharacterIn
 		return nil, err
 	}
 	return s.Get(ctx, id)
+}
+
+// Delete 软删除人物并发放 8 秒撤销令牌；入向引用命中时整单阻断。
+func (s *Characters) Delete(ctx context.Context, id, ifMatch string) (*DeleteCharacterResult, error) {
+	version, ok := ParseIfMatch(ifMatch)
+	if !ok {
+		return nil, model.ErrPreconditionRequired
+	}
+	now := s.now().UTC()
+	expires := now.Add(model.UndoWindowSeconds * time.Second)
+	token := newUndoToken()
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := repository.NewCharacters(tx)
+		item, err := repo.GetForUpdate(ctx, id)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return model.ErrAlreadyDeleted
+			}
+			return err
+		}
+		if version != item.Version {
+			return model.ErrVersionConflict
+		}
+		refs, err := characterInboundReferences(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if len(refs) > 0 {
+			return &model.ReferenceConflictError{Message: "人物仍被其他数据引用，无法删除", Items: refs}
+		}
+		rows, err := repo.SoftDelete(ctx, id, CharacterActionDelete, version, now)
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return model.ErrAlreadyDeleted
+		}
+		return repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
+			Token:     token,
+			RootType:  RootTypeCharacter,
+			RootID:    id,
+			CreatedAt: now,
+			ExpiresAt: expires,
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &DeleteCharacterResult{ID: id, DeletedAt: now, UndoToken: token, ExpiresAt: expires}, nil
+}
+
+// characterInboundReferences 是入向引用检查框架：势力首领与榜单席位表尚未创建，
+// CHG-006 / CHG-008 接入后在此返回阻断明细。
+func characterInboundReferences(_ context.Context, _ *gorm.DB, _ string) ([]model.ReferenceItem, error) {
+	return nil, nil
 }
 
 // replaceSystemRefs 校验类别/节点归属与启用状态后整组替换引用。

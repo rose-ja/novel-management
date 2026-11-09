@@ -310,6 +310,24 @@ func (r *Characters) SoftDelete(ctx context.Context, id, action string, version 
 	return res.RowsAffected, res.Error
 }
 
+// RenameDeleted 在回收站内改名，供恢复冲突时用 new_name 规避。
+func (r *Characters) RenameDeleted(ctx context.Context, id, name, nameKey string, now time.Time) error {
+	res := r.DB.WithContext(ctx).Table("characters").
+		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
+		Updates(map[string]any{
+			"name":       name,
+			"name_key":   nameKey,
+			"updated_at": now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return model.ErrNotFound
+	}
+	return nil
+}
+
 // Restore 恢复人物根并递增版本；体系引用与别名未删除，无需重建。
 func (r *Characters) Restore(ctx context.Context, id string, now time.Time) error {
 	res := r.DB.WithContext(ctx).Table("characters").

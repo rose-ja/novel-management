@@ -250,6 +250,7 @@ type trashPage struct {
 		RootType      string  `json:"root_type"`
 		RootID        string  `json:"root_id"`
 		Name          string  `json:"name"`
+		ParentName    *string `json:"parent_name"`
 		AffectedCount int64   `json:"affected_count"`
 		DeletedAt     *string `json:"deleted_at"`
 	} `json:"items"`
