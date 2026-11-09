@@ -169,6 +169,7 @@ func newHarness(t *testing.T) *harness {
 	trash := service.NewTrash(tx, snapshots)
 	settings := service.NewSettings(tx)
 	system := service.NewSystem(tx)
+	characters := service.NewCharacters(tx)
 	engine := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    discardLogger(),
@@ -177,11 +178,12 @@ func newHarness(t *testing.T) *harness {
 			DataDirWritable: func() bool { return true },
 			Version:         cfg.Version,
 		},
-		Works:     works,
-		Trash:     trash,
-		Snapshots: snapshots,
-		Settings:  settings,
-		System:    system,
+		Works:      works,
+		Trash:      trash,
+		Snapshots:  snapshots,
+		Settings:   settings,
+		System:     system,
+		Characters: characters,
 	})
 
 	return &harness{

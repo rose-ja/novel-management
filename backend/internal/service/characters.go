@@ -297,7 +297,7 @@ func (s *Characters) Create(ctx context.Context, in CreateCharacterInput) (*mode
 		repo := repository.NewCharacters(tx)
 		if _, err := repository.NewWorks(tx).Get(ctx, workID); err != nil {
 			if errors.Is(err, model.ErrNotFound) {
-				return model.ErrParentDeleted
+				return model.ErrCharacterWorkUnavailable
 			}
 			return err
 		}

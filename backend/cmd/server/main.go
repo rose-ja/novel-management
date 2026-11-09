@@ -78,11 +78,12 @@ func run() error {
 			DataDirWritable: func() bool { return isWritable(cfg.DataDir) },
 			Version:         cfg.Version,
 		},
-		Works:     service.NewWorks(db.Gorm, snapshotService),
-		Trash:     service.NewTrash(db.Gorm, snapshotService),
-		Snapshots: snapshotService,
-		Settings:  service.NewSettings(db.Gorm),
-		System:    service.NewSystem(db.Gorm),
+		Works:      service.NewWorks(db.Gorm, snapshotService),
+		Trash:      service.NewTrash(db.Gorm, snapshotService),
+		Snapshots:  snapshotService,
+		Settings:   service.NewSettings(db.Gorm),
+		System:     service.NewSystem(db.Gorm),
+		Characters: service.NewCharacters(db.Gorm),
 	})
 
 	srv := &http.Server{

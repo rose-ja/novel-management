@@ -21,6 +21,7 @@ var (
 	ErrHasChildren              = errors.New("仍有下级节点")
 	ErrParentDeleted            = errors.New("上级或类别仍在回收站")
 	ErrPreconditionRequired     = errors.New("缺少 If-Match 请求头")
+	ErrCharacterWorkUnavailable = errors.New("作品不存在或已删除")
 )
 
 // NameConflictError 表示同名冲突，details.items 列出冲突记录。

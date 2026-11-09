@@ -44,6 +44,30 @@ func abortServiceError(c *gin.Context, err error) {
 		return
 	}
 
+	var nameConflict *model.NameConflictError
+	if errors.As(err, &nameConflict) {
+		abortErrorWithDetails(c, http.StatusConflict, "NAME_CONFLICT", "名称已存在", gin.H{
+			"items": nameConflict.Items,
+		})
+		return
+	}
+
+	var categoryDisabled *model.CategoryDisabledError
+	if errors.As(err, &categoryDisabled) {
+		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "CATEGORY_DISABLED", "该类别已停用", gin.H{
+			"category_name": categoryDisabled.CategoryName,
+		})
+		return
+	}
+
+	var crossWork *model.CrossWorkReferenceError
+	if errors.As(err, &crossWork) {
+		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "CROSS_WORK_REFERENCE", crossWork.Message, gin.H{
+			"field": crossWork.Field,
+		})
+		return
+	}
+
 	var conflict *model.RestoreConflictError
 	if errors.As(err, &conflict) {
 		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "RESTORE_CONFLICT", "恢复目标与现有记录重名", gin.H{
@@ -101,6 +125,10 @@ func abortServiceError(c *gin.Context, err error) {
 		abortError(c, http.StatusConflict, "HAS_CHILDREN", "仍有下级节点，无法删除")
 	case errors.Is(err, model.ErrParentDeleted):
 		abortError(c, http.StatusConflict, "PARENT_DELETED", "上级或类别仍在回收站")
+	case errors.Is(err, model.ErrPreconditionRequired):
+		abortError(c, http.StatusPreconditionRequired, "PRECONDITION_REQUIRED", "缺少 If-Match 请求头")
+	case errors.Is(err, model.ErrCharacterWorkUnavailable):
+		abortError(c, http.StatusUnprocessableEntity, "PARENT_DELETED", "作品不存在或已删除")
 	default:
 		abortError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "服务内部错误")
 	}

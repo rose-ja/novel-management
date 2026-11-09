@@ -12,14 +12,15 @@ import (
 )
 
 type Options struct {
-	Config    config.Config
-	Log       *slog.Logger
-	Health    HealthDeps
-	Works     *service.Works
-	Trash     *service.Trash
-	Snapshots *service.Snapshot
-	Settings  *service.Settings
-	System    *service.System
+	Config     config.Config
+	Log        *slog.Logger
+	Health     HealthDeps
+	Works      *service.Works
+	Trash      *service.Trash
+	Snapshots  *service.Snapshot
+	Settings   *service.Settings
+	System     *service.System
+	Characters *service.Characters
 }
 
 // NewRouter 组装 API 路由与静态页面托管；业务服务为 nil 时对应路由不注册（单元测试可用）。
@@ -45,6 +46,9 @@ func NewRouter(opts Options) *gin.Engine {
 	}
 	if opts.System != nil {
 		registerSystem(api, opts.System)
+	}
+	if opts.Characters != nil {
+		registerCharacters(api, opts.Characters)
 	}
 
 	serveStatic := staticHandler(opts.Config.WebDir)
