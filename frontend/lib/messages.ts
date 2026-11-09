@@ -54,6 +54,8 @@ export const messages = {
     CATEGORY_DISABLED: "该类别已停用",
     NODE_LEVEL_LIMIT: "体系节点最多两级",
     NODE_PARENT_MISMATCH: "上级节点与类别不匹配",
+    CROSS_WORK_REFERENCE: "只能引用同一作品下的体系节点",
+    PRECONDITION_REQUIRED: "请求缺少版本信息，请刷新后重试",
     HAS_CHILDREN: "仍有下级节点，无法删除",
     PARENT_DELETED: "上级或类别仍在回收站",
     REFERENCE_CONFLICT: "仍被其他记录引用，无法删除",
@@ -411,6 +413,44 @@ export const messages = {
   characterSystemPlaceholder: "未选择",
   characterCreateSubmit: "创建人物",
   characterCreated: (name: string) => `已创建人物「${name}」`,
+
+  characterDetailDescription: "查看并维护人物基本信息与体系引用。",
+  characterNotFoundTitle: "人物不存在或已删除",
+  characterNotFoundDescription: "该人物可能已被删除，或不属于当前作品。",
+  characterBackToList: "返回人物列表",
+  characterEditTitle: "编辑人物",
+  characterSaveSubmit: "保存修改",
+  characterUpdated: (name: string) => `已保存人物「${name}」`,
+  characterVersionConflict: (version: number | null) =>
+    version === null
+      ? "内容已被修改，请刷新最新内容后重试"
+      : `内容已被修改（最新版本 ${version}），请刷新最新内容后重试`,
+  characterRefresh: "刷新最新内容",
+  characterDelete: "删除人物",
+  characterDeleteTitle: (name: string) => `删除人物「${name}」？`,
+  characterDeleteDescription:
+    "人物将移入回收站，8 秒内可撤销；永久删除前仍可恢复。",
+  characterDeleteSubmit: "删除人物",
+  characterDeleteReferenceTitle: "人物仍被引用，无法删除",
+  characterMovedToTrash: (name: string) => `人物「${name}」已移入回收站，8 秒内可撤销`,
+  characterUndone: (name: string) => `已撤销删除人物「${name}」`,
+  characterDeletedTitle: "人物已移入回收站",
+  characterDeletedDescription: "可在 8 秒内撤销，或稍后前往回收站恢复。",
+  characterGoTrash: "前往回收站",
+  characterRelationsTitle: "关系",
+  characterSystemRefsTitle: "体系引用",
+  characterSystemRefsEmpty: "暂无体系引用",
+  characterFactionTitle: "势力",
+  characterFactionEmpty: "暂无势力关联",
+  characterLocationTitle: "地点",
+  characterLocationEmpty: "暂无地点关联",
+  characterRankingTitle: "榜单",
+  characterRankingEmpty: "暂无榜单记录",
+  characterArchiveTitle: "档案",
+  characterDescriptionEmpty: "暂无简介",
+  characterCreatedAt: "创建时间",
+  characterUpdatedAt: "更新时间",
+  characterImagePlaceholder: "暂无主图",
 } as const;
 
 export type MessageCode = keyof typeof messages;

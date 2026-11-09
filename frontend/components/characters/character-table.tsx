@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 
+import { CharacterNameChips } from "@/components/characters/character-name-chips";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, type TableColumn } from "@/components/ui/table";
 import type { CharacterSummary } from "@/lib/api/characters";
 import { messages } from "@/lib/messages";
-
-const MAX_VISIBLE_NAMES = 3;
 
 const columns: TableColumn[] = [
   { key: "name", label: messages.characterColumnName },
@@ -26,31 +25,6 @@ function formatTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return messages.characterNoValue;
   return date.toLocaleString("zh-CN", { hour12: false });
-}
-
-function NameChips({ names }: { names: CharacterSummary["names"] }) {
-  if (names.length === 0) {
-    return <span className="character-muted">{messages.characterNoValue}</span>;
-  }
-  const visible = names.slice(0, MAX_VISIBLE_NAMES);
-  const overflow = names.length - visible.length;
-  return (
-    <span className="character-chips">
-      {visible.map((name, index) => (
-        <span
-          key={`${name.kind}-${name.value}-${index}`}
-          className={`character-chip${name.kind === "title" ? " character-chip--title" : ""}`}
-        >
-          {name.value}
-        </span>
-      ))}
-      {overflow > 0 ? (
-        <span className="character-chip character-chip--more">
-          {messages.characterNameOverflow(overflow)}
-        </span>
-      ) : null}
-    </span>
-  );
 }
 
 export type CharacterTableProps = {
@@ -73,7 +47,7 @@ export function CharacterTable({
     <Link key="name" className="character-name-link" href={`/characters?id=${encodeURIComponent(item.id)}`}>
       {item.name}
     </Link>,
-    <NameChips key="names" names={item.names} />,
+    <CharacterNameChips key="names" names={item.names} max={3} />,
     <span key="realm">{item.system_summary ?? messages.characterNoValue}</span>,
     <span key="faction" className="character-muted">
       {messages.characterNoValue}

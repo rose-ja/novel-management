@@ -28,6 +28,7 @@ export type CharacterCategoryField = {
   id: string;
   name: string;
   categoryType: CategoryType;
+  isBuiltin: boolean;
   options: { value: string; label: string }[];
 };
 
@@ -72,6 +73,7 @@ export function useCharacterSystemFields(workID: string | null, enabled: boolean
               id: category.id,
               name: category.name,
               categoryType: category.category_type,
+              isBuiltin: category.is_builtin,
               options: flattenNodeOptions(nodes),
             };
           }),
