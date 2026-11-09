@@ -33,6 +33,7 @@ const typeOptions = [
   { value: "work", label: messages.trashTypeWork },
   { value: "system_category", label: messages.trashTypeSystemCategory },
   { value: "system_node", label: messages.trashTypeSystemNode },
+  { value: "character", label: messages.trashTypeCharacter },
 ];
 
 export default function TrashPage() {

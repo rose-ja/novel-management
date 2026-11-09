@@ -89,7 +89,7 @@ export async function listWorks(request: APIRequestContext): Promise<WorkJson[]>
 
 export async function listTrash(
   request: APIRequestContext,
-  rootType?: "work" | "system_category" | "system_node",
+  rootType?: "work" | "system_category" | "system_node" | "character",
 ): Promise<TrashItemJson[]> {
   const search = new URLSearchParams({ page: "1", page_size: "100" });
   if (rootType) search.set("root_type", rootType);
@@ -201,6 +201,91 @@ export async function undoTrash(request: APIRequestContext, undoToken: string): 
     headers: JSON_HEADERS,
   });
   await ensure(res, "撤销删除");
+}
+
+export type CharacterNameJson = {
+  kind: "alias" | "title";
+  value: string;
+};
+
+export type CharacterJson = {
+  id: string;
+  work_id: string;
+  name: string;
+  names: CharacterNameJson[];
+  description: string | null;
+  system_refs: {
+    category_id: string;
+    category_name: string;
+    node: { id: string; name: string; parent: { id: string; name: string } | null };
+  }[];
+  review_status: "confirmed" | "pending";
+  version: number;
+};
+
+export type CreateCharacterOptions = {
+  names?: CharacterNameJson[];
+  description?: string | null;
+  systemRefs?: { category_id: string; node_id: string }[];
+};
+
+export async function createCharacter(
+  request: APIRequestContext,
+  workID: string,
+  name: string,
+  options: CreateCharacterOptions = {},
+): Promise<CharacterJson> {
+  const res = await request.post("/api/v1/characters", {
+    data: {
+      work_id: workID,
+      name,
+      names: options.names ?? [],
+      description: options.description ?? null,
+      system_refs: options.systemRefs ?? [],
+      location_links: [],
+    },
+    headers: JSON_HEADERS,
+  });
+  await ensure(res, `创建人物「${name}」`);
+  return (await res.json()) as CharacterJson;
+}
+
+export async function updateCharacter(
+  request: APIRequestContext,
+  character: Pick<CharacterJson, "id" | "version">,
+  data: Record<string, unknown>,
+): Promise<CharacterJson> {
+  const res = await request.patch(`/api/v1/characters/${character.id}`, {
+    data,
+    headers: { ...JSON_HEADERS, "If-Match": `"${character.version}"` },
+  });
+  await ensure(res, `更新人物「${character.id}」`);
+  return (await res.json()) as CharacterJson;
+}
+
+export async function deleteCharacter(
+  request: APIRequestContext,
+  character: Pick<CharacterJson, "id" | "version">,
+): Promise<{ undo_token: string }> {
+  const res = await request.delete(`/api/v1/characters/${character.id}`, {
+    headers: { ...JSON_HEADERS, "If-Match": `"${character.version}"` },
+  });
+  await ensure(res, `删除人物「${character.id}」`);
+  return (await res.json()) as { undo_token: string };
+}
+
+export async function listCharacters(
+  request: APIRequestContext,
+  workID: string,
+  params: { q?: string; page?: number; pageSize?: number } = {},
+): Promise<CharacterJson[]> {
+  const search = new URLSearchParams({ work_id: workID, page: String(params.page ?? 1) });
+  search.set("page_size", String(params.pageSize ?? 100));
+  if (params.q) search.set("q", params.q);
+  const res = await request.get(`/api/v1/characters?${search.toString()}`);
+  await ensure(res, "读取人物列表");
+  const body = (await res.json()) as { items: CharacterJson[] };
+  return body.items;
 }
 
 /**

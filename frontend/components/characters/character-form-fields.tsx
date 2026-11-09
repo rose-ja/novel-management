@@ -159,7 +159,7 @@ export function CharacterFormFields({
             {values.names.map((name, index) => (
               <div className="character-names-row" key={index}>
                 <Select
-                  aria-label={`${messages.characterNamesLabel} ${index + 1}`}
+                  aria-label={messages.characterNameKindAria(index + 1)}
                   value={name.kind}
                   disabled={disabled}
                   options={[
@@ -171,7 +171,7 @@ export function CharacterFormFields({
                   }
                 />
                 <Input
-                  aria-label={`${messages.characterNamesLabel} ${index + 1}`}
+                  aria-label={messages.characterNameValueAria(index + 1)}
                   value={name.value}
                   maxLength={100}
                   placeholder={messages.characterNameValuePlaceholder}

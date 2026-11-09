@@ -7,6 +7,8 @@ function trashTypeLabel(rootType: string): string {
       return "体系类别";
     case "system_node":
       return "体系节点";
+    case "character":
+      return "人物";
     default:
       return "未知类型";
   }
@@ -112,6 +114,7 @@ export const messages = {
   trashTypeWork: "作品",
   trashTypeSystemCategory: "体系类别",
   trashTypeSystemNode: "体系节点",
+  trashTypeCharacter: "人物",
   trashTypeUnknown: "未知类型",
   trashTypeLabel,
   trashDisplayName,
@@ -131,6 +134,8 @@ export const messages = {
         return `共 ${count} 个节点`;
       case "system_node":
         return `共 ${count > 0 ? count : 1} 项`;
+      case "character":
+        return `共 ${count > 0 ? count : 1} 项`;
       default:
         return `共 ${count} 项`;
     }
@@ -144,6 +149,8 @@ export const messages = {
         return `整组恢复类别「${name}」？`;
       case "system_node":
         return `恢复节点「${name}」？`;
+      case "character":
+        return `恢复人物「${name}」？`;
       default:
         return `恢复「${name}」？`;
     }
@@ -156,6 +163,8 @@ export const messages = {
         return "整组恢复类别及其节点；如与现有记录重名，可改名后恢复。";
       case "system_node":
         return "恢复节点；如与现有记录重名，可改名后恢复。";
+      case "character":
+        return "恢复人物及其别名与体系引用；如与现有记录重名，可改名后恢复。";
       default:
         return "将整组恢复到原位置；如与现有记录重名，可改名后恢复。";
     }
@@ -179,6 +188,8 @@ export const messages = {
         return `永久删除体系类别「${name}」？`;
       case "system_node":
         return `永久删除体系节点「${name}」？`;
+      case "character":
+        return `永久删除人物「${name}」？`;
       default:
         return `永久删除「${name}」？`;
     }
@@ -189,6 +200,8 @@ export const messages = {
         return "该类别及其下节点将永久删除，不可恢复。删除前会自动创建快照。";
       case "system_node":
         return "节点将永久删除，不可恢复。删除前会自动创建快照。";
+      case "character":
+        return "人物及别名、体系引用将永久删除，不可恢复。删除前会自动创建快照。";
       default:
         return "此操作不可撤销。删除前会自动创建快照。";
     }
@@ -402,6 +415,8 @@ export const messages = {
   characterNameKindAlias: "别名",
   characterNameKindTitle: "称号",
   characterNameValuePlaceholder: "输入内容",
+  characterNameKindAria: (index: number) => `第 ${index} 条类型`,
+  characterNameValueAria: (index: number) => `第 ${index} 条内容`,
   characterNameRemove: (index: number) => `移除第 ${index} 条别名或称号`,
   characterDescriptionLabel: "简介",
   characterDescriptionHint: "可选，最多 20,000 字符。",

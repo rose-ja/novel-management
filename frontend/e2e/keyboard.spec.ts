@@ -27,6 +27,7 @@ test.describe("键盘可达", () => {
     const nav = page.getByRole("navigation", { name: "主导航" });
     const overview = nav.getByRole("link", { name: "概览" });
     const system = nav.getByRole("link", { name: "体系" });
+    const characters = nav.getByRole("link", { name: "人物" });
     const trash = nav.getByRole("link", { name: "回收站" });
     const settings = nav.getByRole("link", { name: "设置" });
 
@@ -34,6 +35,8 @@ test.describe("键盘可达", () => {
     await expect(overview).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(system).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(characters).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(trash).toBeFocused();
     await page.keyboard.press("Tab");

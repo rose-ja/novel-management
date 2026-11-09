@@ -2,9 +2,11 @@ import { expect, test } from "@playwright/test";
 
 import {
   cleanupE2E,
+  createCharacter,
   createSystemCategory,
   createSystemNode,
   createWork,
+  listSystemCategories,
 } from "./helpers";
 
 /**
@@ -76,6 +78,71 @@ test.describe("视觉基线", () => {
  * 体系页基线使用固定的 E2E 作品与类别名，避免本机数据影响截图；
  * 每次运行前后只清理 E2E- 前缀数据。
  */
+test.describe("视觉基线 · 人物", () => {
+  const WORK_NAME = "E2E-视觉人物";
+
+  test.beforeEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  for (const { width, height } of [
+    { width: 1280, height: 900 },
+    { width: 1024, height: 800 },
+  ]) {
+    test(`人物列表 ${width}`, async ({ page, request }) => {
+      const work = await createWork(request, WORK_NAME);
+      const categories = await listSystemCategories(request, work.id);
+      const realm = categories.find((category) => category.is_builtin);
+      if (!realm) throw new Error("内置境界类别缺失");
+      const node = await createSystemNode(request, realm.id, "E2E-视觉金丹");
+      await createCharacter(request, work.id, "E2E-视觉陆沉", {
+        names: [
+          { kind: "alias", value: "沉舟" },
+          { kind: "title", value: "剑主" },
+        ],
+        systemRefs: [{ category_id: realm.id, node_id: node.id }],
+      });
+      await createCharacter(request, work.id, "E2E-视觉顾清寒");
+
+      await page.setViewportSize({ width, height });
+      await page.goto("/characters");
+      await expect(page.getByRole("heading", { name: "人物", level: 1 })).toBeVisible();
+      await expect(page.locator(".ui-table tbody tr")).toHaveCount(2);
+
+      await expect(page).toHaveScreenshot(`characters-${width}.png`, {
+        fullPage: true,
+        mask: [page.locator(".character-time")],
+      });
+    });
+  }
+
+  test("人物详情 1280", async ({ page, request }) => {
+    const work = await createWork(request, WORK_NAME);
+    const categories = await listSystemCategories(request, work.id);
+    const realm = categories.find((category) => category.is_builtin);
+    if (!realm) throw new Error("内置境界类别缺失");
+    const node = await createSystemNode(request, realm.id, "E2E-视觉金丹");
+    const character = await createCharacter(request, work.id, "E2E-视觉陆沉", {
+      names: [{ kind: "title", value: "剑主" }],
+      description: "E2E 固定简介，用于视觉基线。",
+      systemRefs: [{ category_id: realm.id, node_id: node.id }],
+    });
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/characters?id=${character.id}`);
+    await expect(page.getByRole("heading", { name: "E2E-视觉陆沉", level: 1 })).toBeVisible();
+
+    await expect(page).toHaveScreenshot("character-detail-1280.png", {
+      fullPage: true,
+      mask: [page.locator(".character-archive-meta")],
+    });
+  });
+});
+
 test.describe("视觉基线 · 体系", () => {
   const WORK_NAME = "E2E-视觉体系";
   const CATEGORY_NAME = "E2E-视觉血脉";

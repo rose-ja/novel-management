@@ -1,10 +1,8 @@
-import { execFileSync } from "node:child_process";
-import path from "node:path";
-
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 import {
   cleanupE2E,
+  createCharacter,
   createSystemCategory,
   createSystemNode,
   createWork,
@@ -19,45 +17,6 @@ import {
   type SystemCategoryJson,
   type SystemNodeJson,
 } from "./helpers";
-
-const REPO_ROOT = path.resolve(process.cwd(), "..");
-
-/** 直接通过容器内 psql 播种/清理引用行；0003 阶段没有人物接口。 */
-let dbContainer: string | null = null;
-
-function resolveDBContainer(): string {
-  if (!dbContainer) {
-    const names = execFileSync(
-      "docker",
-      ["ps", "--filter", "label=com.docker.compose.service=db", "--format", "{{.Names}}"],
-      { cwd: REPO_ROOT, encoding: "utf8" },
-    )
-      .trim()
-      .split(/\r?\n/);
-    dbContainer = names[0] || "";
-    if (!dbContainer) throw new Error("未找到 db 容器，请先 docker compose up -d");
-  }
-  return dbContainer;
-}
-
-function psql(sql: string): string {
-  return execFileSync(
-    "docker",
-    ["exec", resolveDBContainer(), "psql", "-U", "novel", "-d", "novel", "-v", "ON_ERROR_STOP=1", "-c", sql],
-    { cwd: REPO_ROOT, encoding: "utf8" },
-  );
-}
-
-function clearE2EReferences(): void {
-  psql("DELETE FROM character_system_refs WHERE character_id LIKE 'E2E-%';");
-}
-
-function seedReference(workID: string, categoryID: string, nodeID: string, characterID: string): void {
-  psql(
-    "INSERT INTO character_system_refs (id, work_id, character_id, category_id, node_id) " +
-      `VALUES ('${characterID}-ref', '${workID}', '${characterID}', '${categoryID}', '${nodeID}');`,
-  );
-}
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -129,12 +88,10 @@ function nodeNames(nodes: SystemNodeJson[]): string[] {
 
 test.describe("体系配置", () => {
   test.beforeEach(async ({ request }) => {
-    clearE2EReferences();
     await cleanupE2E(request);
   });
 
   test.afterEach(async ({ request }) => {
-    clearE2EReferences();
     await cleanupE2E(request);
   });
 
@@ -310,53 +267,51 @@ test.describe("体系配置", () => {
     const { workID } = await bootWork(request, "引用");
     const category = await createSystemCategory(request, workID, uniqueName("引用类"));
     const node = await createSystemNode(request, category.id, uniqueName("引用节点"));
-    const characterID = uniqueName("人物");
+    const character = await createCharacter(request, workID, uniqueName("引用人物"), {
+      systemRefs: [{ category_id: category.id, node_id: node.id }],
+    });
 
-    try {
-      seedReference(workID, category.id, node.id, characterID);
+    await openSystem(page);
+    await selectCategory(page, category.name);
+    await expect(page.getByRole("option", { name: new RegExp(escapeRegExp(category.name)) })).toContainText(
+      "被引用 1 人",
+    );
 
-      await openSystem(page);
-      await selectCategory(page, category.name);
-      await expect(page.getByRole("option", { name: new RegExp(escapeRegExp(category.name)) })).toContainText(
-        "被引用 1 人",
-      );
+    await page.locator(".system-detail").getByRole("button", { name: "停用", exact: true }).click();
+    let dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "停用" }).click();
+    await expect(page.getByRole("dialog")).toContainText(
+      `无法停用「${category.name}」：仍有 1 人引用该类别`,
+    );
+    await expect(page.getByRole("dialog")).toContainText(node.name);
+    await expect(page.getByRole("dialog")).toContainText(character.name);
+    await expect(page.getByRole("dialog")).toContainText("1 人");
+    await page.getByRole("dialog").getByRole("button", { name: "知道了" }).click();
 
-      await page.locator(".system-detail").getByRole("button", { name: "停用", exact: true }).click();
-      let dialog = page.getByRole("dialog");
-      await dialog.getByRole("button", { name: "停用" }).click();
-      await expect(page.getByRole("dialog")).toContainText(
-        `无法停用「${category.name}」：仍有 1 人引用该类别`,
-      );
-      await expect(page.getByRole("dialog")).toContainText(node.name);
-      await expect(page.getByRole("dialog")).toContainText("1 人");
-      await page.getByRole("dialog").getByRole("button", { name: "知道了" }).click();
+    await page.locator(".system-detail").getByRole("button", { name: "删除", exact: true }).click();
+    dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "删除" }).click();
+    await expect(page.getByRole("dialog")).toContainText(
+      `无法删除「${category.name}」：仍有 1 人引用该类别`,
+    );
+    await expect(page.getByRole("dialog")).toContainText(node.name);
+    await page.getByRole("dialog").getByRole("button", { name: "知道了" }).click();
 
-      await page.locator(".system-detail").getByRole("button", { name: "删除", exact: true }).click();
-      dialog = page.getByRole("dialog");
-      await dialog.getByRole("button", { name: "删除" }).click();
-      await expect(page.getByRole("dialog")).toContainText(
-        `无法删除「${category.name}」：仍有 1 人引用该类别`,
-      );
-      await expect(page.getByRole("dialog")).toContainText(node.name);
-      await page.getByRole("dialog").getByRole("button", { name: "知道了" }).click();
-
-      const remove = await request.delete(`/api/v1/system-categories/${category.id}`, {
-        headers: { ...JSON_HEADERS, "If-Match": `"${category.version}"` },
-      });
-      expect(remove.status()).toBe(409);
-      const body = await remove.json();
-      expect(body.error.code).toBe("REFERENCE_CONFLICT");
-      expect(body.error.details).toHaveLength(1);
-      expect(body.error.details[0]).toMatchObject({
-        type: "character_system_ref",
-        entity_id: characterID,
-        field: "node",
-        value: node.name,
-        in_trash: false,
-      });
-    } finally {
-      clearE2EReferences();
-    }
+    const remove = await request.delete(`/api/v1/system-categories/${category.id}`, {
+      headers: { ...JSON_HEADERS, "If-Match": `"${category.version}"` },
+    });
+    expect(remove.status()).toBe(409);
+    const body = await remove.json();
+    expect(body.error.code).toBe("REFERENCE_CONFLICT");
+    expect(body.error.details).toHaveLength(1);
+    expect(body.error.details[0]).toMatchObject({
+      type: "character_system_ref",
+      entity_id: character.id,
+      name: character.name,
+      field: "node",
+      value: node.name,
+      in_trash: false,
+    });
   });
 
   test("整组删除进入回收站，并用 new_name 整组恢复", async ({ page, request }) => {

@@ -17,7 +17,7 @@
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
 | AC-01 | 新建 Drawer 按启用类别生成体系字段；停用/未启用类别不出现 | E2E + 集成 | ☐ |
-| AC-02 | 详情首屏显示姓名、别名、称号、境界（`父·子`）；势力/地点/榜单空态 | E2E | ☐ |
+| AC-02 | 详情首屏显示姓名、别名、称号、境界（`父·子`）；势力/地点/榜单空态 | `characters.spec.ts`「内联编辑、未保存守卫与版本冲突」 | ☑ |
 | AC-03 | 同名别名跨人物允许；同人物重复别名去重且不报错 | 集成 + E2E | ☐ |
 | AC-17 | 姓名空/超 200/同作品重名 → 422/409 字段级错误 | 集成 | ☐ |
 | CH-01 | 简介 ≤20,000，超长 422 | 集成 | ☐ |
@@ -37,7 +37,7 @@
 |---|---|---|---|
 | LD-01 | 列表仅返回当前作品未删人物；`work_id` 缺失 → 422 | 集成 | ☐ |
 | LD-02 | `q` 命中主名称/别名/称号，大小写不敏感，`%`/`_` 已转义 | 集成 | ☐ |
-| LD-03 | 境界筛选按选中节点匹配 | 集成 + E2E | ☐ |
+| LD-03 | 境界筛选按选中节点匹配 | `characters.spec.ts` 列表筛选用例 | ☑ |
 | LD-04 | 待校对筛选 `pending`/`confirmed` 与库列映射正确 | 集成 | ☐ |
 | LD-05 | 排序 `-updated_at`（默认）/`name`/`-name` 生效 | 集成 | ☐ |
 | LD-06 | 分页默认 20、上限 100、越界页码返回空 items 且 total 正确 | 集成 | ☐ |
@@ -49,11 +49,11 @@
 
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
-| AC-16 | 并发保存后到者 409 `VERSION_CONFLICT`，输入保留、不覆盖 | 集成 + E2E | ☐ |
+| AC-16 | 并发保存后到者 409 `VERSION_CONFLICT`，输入保留、不覆盖 | `characters.spec.ts` 版本冲突用例 | ☑ |
 | EX-04 | 连续点击保存仅产生一次更新，提交期间按钮禁用 | E2E | ☐ |
 | EX-06 | 保存失败（断网/500）输入保留 + 重试入口 | E2E | ☐ |
-| EX-08 | 未保存离开弹窗，取消保留编辑 | E2E | ☐ |
-| DT-01 | 内联编辑姓名/别名/称号/简介/体系字段后保存成功，version+1 | 集成 + E2E | ☐ |
+| EX-08 | 未保存离开弹窗，取消保留编辑 | `characters.spec.ts`「未保存守卫拦截站内链接」 | ☑ |
+| DT-01 | 内联编辑姓名/别名/称号/简介/体系字段后保存成功，version+1 | `characters.spec.ts` 内联编辑用例 | ☑ |
 | DT-02 | 保存后关系摘要与列表同步刷新 | E2E | ☐ |
 | DT-03 | 停用类别在编辑态灰显并提示，保存被拒绝 | E2E + 集成 | ☐ |
 | DT-04 | 404 人物显示「不存在或已删除」并可返回列表 | E2E | ☐ |
@@ -63,20 +63,20 @@
 
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
-| AC-14 | 删除返回 `undo_token`；8 秒内撤销恢复人物与体系引用 | 集成 + E2E | ☐ |
-| TR-01 | 回收站 `root_type=character` 列出人物，父级为作品名 | 集成 + E2E | ☐ |
+| AC-14 | 删除返回 `undo_token`；8 秒内撤销恢复人物与体系引用 | `characters.spec.ts`「删除后可撤销」 | ☑ |
+| TR-01 | 回收站 `root_type=character` 列出人物，父级为作品名 | 同上，回收站按人物筛选 | ☑ |
 | TR-02 | 重复删除 → 409 `ALREADY_DELETED`；撤销令牌过期 → 409 `UNDO_EXPIRED` | 集成 | ☐ |
 | TR-03 | 恢复时作品在回收站 → 409 `PARENT_DELETED` | 集成 | ☐ |
 | TR-04 | 恢复同名冲突 → 422 `RESTORE_CONFLICT` 且未恢复；`new_name` 成功 | 集成 + E2E | ☐ |
 | TR-05 | 永久删除清理 refs/names/characters，失败整体回滚 | 集成 | ☐ |
 | TR-06 | 清空回收站含人物根 + 作品根 + 体系根时全部成功 | 集成 | ☐ |
-| TR-07 | 回收站类型筛选「人物」、Badge、文案正确 | E2E | ☐ |
+| TR-07 | 回收站类型筛选「人物」、Badge、文案正确 | `characters.spec.ts`「删除后可撤销…」 | ☑ |
 
 ## 6. 引用与跨作品
 
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
-| RF-01 | 人物引用类别 → 停用/删除类别 409 `REFERENCE_CONFLICT`，details 含人物名与 `in_trash` | 集成 + E2E | ☐ |
+| RF-01 | 人物引用类别 → 停用/删除类别 409 `REFERENCE_CONFLICT`，details 含人物名与 `in_trash` | `system.spec.ts`「引用阻断：停用与删除均弹出引用清单」 | ☑ |
 | RF-02 | 人物进入回收站后引用仍阻断，`in_trash=true` | 集成 | ☐ |
 | RF-03 | 永久删除人物后类别可停用/删除 | 集成 | ☐ |
 | RF-04 | 入向引用检查框架存在；当前空实现下删除成功（势力/榜单 CHG-006/008 接入） | 代码审查 + 集成 | ☐ |
@@ -89,21 +89,21 @@
 
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
-| UI-01 | 导航「资料 > 人物」进入 `/characters`，当前项高亮 | E2E | ☐ |
+| UI-01 | 导航「资料 > 人物」进入 `/characters`，当前项高亮 | `keyboard.spec.ts` 导航遍历 + 人物页标题 | ☑ |
 | UI-02 | 无当前作品显示引导空态 | E2E | ☐ |
 | UI-03 | 列表骨架/空态/错误态/成功态齐备 | E2E | ☐ |
 | UI-04 | 新建 Drawer 字段顺序、必填标记、计数与错误定位正确 | E2E | ☐ |
-| UI-05 | 1280/1024 无横向溢出；表格操作列固定 | E2E + 视觉基线 | ☐ |
+| UI-05 | 1280/1024 无横向溢出；表格操作列固定 | `characters.spec.ts` 1024 溢出 + `visual.spec.ts` 人物基线 | ☑ |
 | UI-06 | 键盘可达：Tab 顺序、Esc 关闭 Drawer/对话框、焦点返回触发元素 | E2E | ☐ |
-| UI-07 | axe 无 serious/critical（`/characters` 列表与详情） | E2E a11y | ☐ |
+| UI-07 | axe 无 serious/critical（`/characters` 列表与详情） | `characters.spec.ts` 无障碍用例 + `a11y.spec.ts` | ☑ |
 
 ## 8. 回归与文档
 
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
-| RG-01 | 既有 E2E 全量通过（含作品/体系/回收站/设置/壳层） | Playwright 全量 | ☐ |
+| RG-01 | 既有 E2E 全量通过（含作品/体系/回收站/设置/壳层） | `npx playwright test`：63 passed | ☑ |
 | RG-02 | 后端 `go vet`、单测、集成全绿 | 命令输出 | ☐ |
-| RG-03 | `npm run lint/typecheck/test/build` 全绿 | 命令输出 | ☐ |
+| RG-03 | `npm run lint/typecheck/test/build` 全绿 | typecheck/lint 0；43 单测通过；build 成功 | ☑ |
 | DOC-01 | Spec 状态与缺口在 F10 更新（CHAR-001～005/008、WORK-001、SYS-002/005、TRASH-002/003/004） | `project/specs/*` | ☐ |
 | DOC-02 | `api-contract.md` 回写 `CharacterSummary.names[]/version`、DELETE `If-Match`、`location_id` 未开放 | `project/api-contract.md` | ☐ |
 | DOC-03 | `data-model.md` 记录 `faction_id` 无 FK 的实施差异 | `project/data-model.md` | ☐ |

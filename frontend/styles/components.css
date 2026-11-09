@@ -1784,7 +1784,7 @@
 }
 
 .character-chip--more {
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 .character-muted {
@@ -1931,7 +1931,7 @@
 }
 
 .character-detail__fact dt {
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   font-size: var(--text-caption);
   line-height: var(--text-caption-line);
 }
@@ -1950,7 +1950,7 @@
   border: var(--border-width) dashed var(--color-border-subtle);
   border-radius: var(--radius-md);
   background: var(--color-surface-sunken);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   font-size: var(--text-small);
 }
 
