@@ -68,3 +68,11 @@ type ReferenceConflictError struct {
 }
 
 func (e *ReferenceConflictError) Error() string { return e.Message }
+
+// CrossWorkReferenceError 表示请求引用了其他作品的类别或节点。
+type CrossWorkReferenceError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+func (e *CrossWorkReferenceError) Error() string { return e.Message }
