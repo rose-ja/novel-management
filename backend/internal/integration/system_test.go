@@ -318,6 +318,36 @@ func TestSystemCategoriesReferenceConflict(t *testing.T) {
 	}
 }
 
+func TestSystemCrossWorkIsolation(t *testing.T) {
+	h := newHarness(t)
+	first := h.createWork("作品甲")
+	second := h.createWork("作品乙")
+
+	category := h.createCategory(first.ID, "同名类别", model.CategoryTypeNormal)
+	other := h.createCategory(second.ID, "同名类别", model.CategoryTypeNormal)
+	node := seedNode(t, h, systemRepoForTest(h), first.ID, category.ID, nil, "金丹", model.ReviewStatusReviewed)
+
+	list := h.listCategories(second.ID, nil)
+	if len(list.Items) != 2 {
+		t.Fatalf("作品乙应只有内置与自己的类别，实际 %d：%+v", len(list.Items), list.Items)
+	}
+	for _, item := range list.Items {
+		if item.WorkID != second.ID {
+			t.Fatalf("列表混入其他作品类别：%+v", item)
+		}
+	}
+
+	nodes := h.getNodes(category.ID, "")
+	if len(nodes.Items) != 1 || nodes.Items[0].ID != node.ID {
+		t.Fatalf("节点列表应按类别隔离：%+v", nodes.Items)
+	}
+
+	empty := h.getNodes(other.ID, "")
+	if len(empty.Items) != 0 {
+		t.Fatalf("另一作品的类别不应含节点：%+v", empty.Items)
+	}
+}
+
 func errorField(t *testing.T, envelope errorEnvelope) string {
 	t.Helper()
 	var details struct {

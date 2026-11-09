@@ -51,10 +51,10 @@ func listSystemCategoriesHandler(svc *service.System) gin.HandlerFunc {
 
 func createSystemCategoryHandler(svc *service.System) gin.HandlerFunc {
 	type request struct {
-		WorkID       string  `json:"work_id"`
-		Name         string  `json:"name"`
-		CategoryType string  `json:"category_type"`
-		IsEnabled    *bool   `json:"is_enabled"`
+		WorkID       string `json:"work_id"`
+		Name         string `json:"name"`
+		CategoryType string `json:"category_type"`
+		IsEnabled    *bool  `json:"is_enabled"`
 	}
 	return func(c *gin.Context) {
 		var body request

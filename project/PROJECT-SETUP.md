@@ -228,15 +228,15 @@
 | 启动开发环境 | `docker compose -f docker-compose.yml -f compose.dev.yml up -d db cache`；`go run ./cmd/server`；`npm run dev` | 通过（db/cache 仅开发映射宿主回环端口） |
 | 启动完整栈 | `docker compose build`；`docker compose up -d`；`docker compose ps` | 通过（app/db/cache 均 healthy） |
 | Lint | `golangci-lint run`；`npm run lint` | 通过（golangci-lint v2.15.0，0 issues；ESLint 无警告） |
-| Format check | `gofmt -l .` | 通过（无输出） |
+| Format check | `gofmt -l .` | 通过（无输出）。Windows 工作区 `core.autocrlf=true` 时该命令会把全部 `.go` 文件判为未格式化，属环境性误报：先按 LF 归一化再检查，或直接以 Linux CI 结果为准 |
 | Type check | `go vet ./...`；`npm run typecheck` | 通过 |
-| Unit test | `go test ./...`；`npm test` | 通过（后端 3 个包，前端 4 个文件 / 19 条）；`-race` 需 cgo，仅在 Linux/容器执行 |
-| Integration test | `docker compose up -d --wait db`；`set TEST_DATABASE_URL=...`；`go test -tags=integration ./internal/integration/...` | 通过（CHG-002：在 PostgreSQL 上创建独立 scratch 库 `{db}_it`，每个用例在事务中运行并回滚；覆盖回收站/快照/迁移往返） |
-| E2E test | `cd frontend && npm run test:e2e`；更新视觉基线 `npm run test:e2e:update` | 通过（CHG-002：34 条用例覆盖壳层、无障碍、视觉基线（含 `/trash` 1280/1024）、错误态、键盘、作品生命周期、回收站与设置页快照；需先 `docker compose up -d` 并重建含最新静态导出的镜像）。浏览器默认用本机已安装 Chrome（`channel: "chrome"`），因本机无法从 Playwright CDN 下载 Chromium；可用 `set E2E_CHANNEL=chromium` + `npx playwright install chromium` 切换 |
+| Unit test | `go test ./...`；`npm test` | 通过（后端 4 个包；前端 5 个文件 / 30 条）；`-race` 需 cgo，仅在 Linux/容器执行 |
+| Integration test | `docker compose up -d --wait db`；`set TEST_DATABASE_URL=...`；`go test -tags=integration ./internal/integration/...` | 通过（CHG-002：在 PostgreSQL 上创建独立 scratch 库 `{db}_it`，每个用例在事务中运行并回滚；覆盖回收站/快照/迁移往返。CHG-003：新增体系类别/节点/引用/回收站三根共 28 个用例，含 `TestMigrationRoundTrip` 对 0003 的 Down/Up 往返） |
+| E2E test | `cd frontend && npm run test:e2e`；更新视觉基线 `npm run test:e2e:update` | 通过（CHG-003：50 条用例覆盖壳层、无障碍、视觉基线（含 `/system` 与 `/trash` 的 1280/1024）、错误态、键盘、作品生命周期、回收站、设置页快照与体系配置；需先 `docker compose up -d` 并重建含最新静态导出的镜像）。浏览器默认用本机已安装 Chrome（`channel: "chrome"`），因本机无法从 Playwright CDN 下载 Chromium；可用 `set E2E_CHANNEL=chromium` + `npx playwright install chromium` 切换 |
 | Build | `npm run build`；`go build ./...`；`docker compose build` | 通过（静态导出 `frontend/out`，镜像 `novel-settings:dev`） |
-| Database migration | `docker compose run --rm cli migrate` | 通过（`goose_db_version` version 2：0001 基座 + 0002 作品/回收站/快照；`pg_trgm` 已启用；迁移由 server 启动时自动执行） |
+| Database migration | `docker compose run --rm cli migrate` | 通过（`goose_db_version` version 3：0001 基座 + 0002 作品/回收站/快照 + 0003 体系类别/节点/人物引用骨架；`pg_trgm` 已启用；迁移由 server 启动时自动执行） |
 | Smoke test | `powershell -File scripts/smoke.ps1` | 通过（`SMOKE OK: version=0.1.0 db=ok cache=ok`） |
-| 本地 CI | `powershell -File scripts/ci.ps1`（首次生成视觉基线加 `-UpdateE2E`） | 通过（gofmt、golangci-lint、go vet、govulncheck、go test、go build、PostgreSQL 集成测试、npm ci/lint/typecheck/test/build、`docker compose build`、Playwright E2E + axe + 视觉基线） |
+| 本地 CI | `powershell -File scripts/ci.ps1`（首次生成视觉基线加 `-UpdateE2E`） | 通过（gofmt、golangci-lint、go vet、govulncheck、go test、go build、PostgreSQL 集成测试、npm ci/lint/typecheck/test/build、`docker compose build`、Playwright E2E + axe + 视觉基线）。Windows + `core.autocrlf=true` 下脚本会在 gofmt 步骤中止，属环境性误报，其余步骤可逐条执行 |
 
 ## 12. 风险与敏感操作
 

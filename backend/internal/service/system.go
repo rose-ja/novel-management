@@ -279,13 +279,13 @@ type CreateNodeInput struct {
 }
 
 type UpdateNodeInput struct {
-	Name         *string
-	SortOrder    *int
-	EraStartText *string
+	Name          *string
+	SortOrder     *int
+	EraStartText  *string
 	ClearEraStart bool
-	EraEndText   *string
-	ClearEraEnd  bool
-	IfMatch      string
+	EraEndText    *string
+	ClearEraEnd   bool
+	IfMatch       string
 }
 
 type DeleteNodeInput struct {

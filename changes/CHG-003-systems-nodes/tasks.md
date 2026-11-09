@@ -289,6 +289,8 @@
 
 ## T12 全量门禁与文档同步
 
+- [x] 已完成：gofmt（LF 副本复核）、golangci-lint 0 issues、go vet、govulncheck、Go 单测/集成、前端 lint/typecheck/test/build、Playwright 50 passed；容器内 0003/三表/内置唯一核对通过；`verification.md` 与 `PROJECT-SETUP.md`/`PG-10` 实施差异已同步
+
 **Files**
 - `changes/CHG-003-systems-nodes/verification.md`（F3 输出，F2 结束时建骨架）
 - `project/PROJECT-SETUP.md`（§11 迁移与测试）

@@ -269,13 +269,13 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
 	var affected int64
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		scope := "work_id IN (SELECT id FROM works WHERE deleted_at IS NOT NULL)"
-		if err := tx.Exec("DELETE FROM character_system_refs WHERE "+scope).Error; err != nil {
+		if err := tx.Exec("DELETE FROM character_system_refs WHERE " + scope).Error; err != nil {
 			return err
 		}
-		if err := tx.Exec("DELETE FROM system_nodes WHERE "+scope).Error; err != nil {
+		if err := tx.Exec("DELETE FROM system_nodes WHERE " + scope).Error; err != nil {
 			return err
 		}
-		if err := tx.Exec("DELETE FROM system_categories WHERE "+scope).Error; err != nil {
+		if err := tx.Exec("DELETE FROM system_categories WHERE " + scope).Error; err != nil {
 			return err
 		}
 		res := tx.Where("deleted_at IS NOT NULL").Delete(&model.Work{})
