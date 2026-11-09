@@ -1747,3 +1747,118 @@
     grid-template-columns: 240px minmax(0, 1fr);
   }
 }
+
+/* ---------- 人物（CHG-004） ---------- */
+.character-name-link {
+  color: var(--color-text-link);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.character-name-link:hover {
+  text-decoration: underline;
+}
+
+.character-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.character-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+}
+
+.character-chip--title {
+  border-color: var(--color-brand-200);
+  background: var(--color-brand-50);
+  color: var(--color-brand-700);
+}
+
+.character-chip--more {
+  color: var(--color-text-tertiary);
+}
+
+.character-muted {
+  color: var(--color-text-tertiary);
+}
+
+.character-time {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  white-space: nowrap;
+}
+
+.character-filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+
+.character-names-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.character-names-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.character-names-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.character-description-count {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  text-align: right;
+}
+
+.character-form-note {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+}
+
+.character-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.character-form-section__title {
+  margin: 0;
+  font-size: var(--text-small);
+  line-height: var(--text-small-line);
+  font-weight: 600;
+}
+
+.character-system-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+

@@ -14,10 +14,12 @@ export type TableProps = {
   empty?: ReactNode;
   caption?: string;
   rowKey?: (index: number) => string;
+  /** 加载时渲染的骨架行数，默认 3。 */
+  skeletonRows?: number;
 };
 
 /** 数据表：统一 loading 骨架与空状态槽位，表格本身保持语义化 table 结构。 */
-export function Table({ columns, rows, loading = false, empty, caption, rowKey }: TableProps) {
+export function Table({ columns, rows, loading = false, empty, caption, rowKey, skeletonRows = 3 }: TableProps) {
   const showEmpty = !loading && rows.length === 0 && empty;
 
   return (
@@ -35,7 +37,7 @@ export function Table({ columns, rows, loading = false, empty, caption, rowKey }
         </thead>
         <tbody>
           {loading
-            ? Array.from({ length: 3 }, (_, index) => (
+            ? Array.from({ length: skeletonRows }, (_, index) => (
                 <tr key={`skeleton-${index}`} className="ui-table__skeleton-row">
                   {columns.map((column) => (
                     <td key={column.key}>
