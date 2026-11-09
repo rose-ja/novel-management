@@ -23,9 +23,11 @@ type CountRow struct {
 }
 
 type ReferenceRow struct {
-	CharacterID string `gorm:"column:character_id"`
-	NodeID      string `gorm:"column:node_id"`
-	NodeName    string `gorm:"column:node_name"`
+	CharacterID   string  `gorm:"column:character_id"`
+	CharacterName *string `gorm:"column:character_name"`
+	InTrash       bool    `gorm:"column:in_trash"`
+	NodeID        string  `gorm:"column:node_id"`
+	NodeName      string  `gorm:"column:node_name"`
 }
 
 // ListCategories 返回未删除类别；内置置顶，其余按创建时间稳定排序。
@@ -603,24 +605,26 @@ func (r *System) ReorderNodes(ctx context.Context, ids []string, now time.Time) 
 	})
 }
 
-// ListReferencesByCategory 返回类别下全部人物引用（按节点、人物排序）。
+// ListReferencesByCategory 返回类别下全部人物引用（含回收站人物，按节点、人物排序）。
 func (r *System) ListReferencesByCategory(ctx context.Context, categoryID string) ([]ReferenceRow, error) {
 	var rows []ReferenceRow
 	err := r.DB.WithContext(ctx).Table("character_system_refs AS ref").
-		Select("ref.character_id, ref.node_id, node.name AS node_name").
+		Select("ref.character_id, c.name AS character_name, (c.deleted_at IS NOT NULL) AS in_trash, ref.node_id, node.name AS node_name").
 		Joins("JOIN system_nodes node ON node.id = ref.node_id").
+		Joins("LEFT JOIN characters c ON c.id = ref.character_id").
 		Where("ref.category_id = ?", categoryID).
 		Order("ref.node_id ASC, ref.character_id ASC").
 		Scan(&rows).Error
 	return rows, err
 }
 
-// ListReferencesByNode 返回单个节点的全部人物引用。
+// ListReferencesByNode 返回单个节点的全部人物引用（含回收站人物）。
 func (r *System) ListReferencesByNode(ctx context.Context, nodeID string) ([]ReferenceRow, error) {
 	var rows []ReferenceRow
 	err := r.DB.WithContext(ctx).Table("character_system_refs AS ref").
-		Select("ref.character_id, ref.node_id, node.name AS node_name").
+		Select("ref.character_id, c.name AS character_name, (c.deleted_at IS NOT NULL) AS in_trash, ref.node_id, node.name AS node_name").
 		Joins("JOIN system_nodes node ON node.id = ref.node_id").
+		Joins("LEFT JOIN characters c ON c.id = ref.character_id").
 		Where("ref.node_id = ?", nodeID).
 		Order("ref.character_id ASC").
 		Scan(&rows).Error
@@ -647,8 +651,9 @@ func (r *System) AnyReferenceForNode(ctx context.Context, nodeID string) (bool, 
 func (r *System) ListReferencesByWork(ctx context.Context, workID string) ([]ReferenceRow, error) {
 	var rows []ReferenceRow
 	err := r.DB.WithContext(ctx).Table("character_system_refs AS ref").
-		Select("ref.character_id, ref.node_id, node.name AS node_name").
+		Select("ref.character_id, c.name AS character_name, (c.deleted_at IS NOT NULL) AS in_trash, ref.node_id, node.name AS node_name").
 		Joins("JOIN system_nodes node ON node.id = ref.node_id").
+		Joins("LEFT JOIN characters c ON c.id = ref.character_id").
 		Where("ref.work_id = ?", workID).
 		Order("ref.character_id ASC, ref.node_id ASC").
 		Scan(&rows).Error

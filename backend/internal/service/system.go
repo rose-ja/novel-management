@@ -621,9 +621,10 @@ func referenceConflict(rows []repository.ReferenceRow, subject, action string) e
 		items = append(items, model.ReferenceItem{
 			Type:     "character_system_ref",
 			EntityID: row.CharacterID,
+			Name:     row.CharacterName,
 			Field:    "node",
 			Value:    row.NodeName,
-			InTrash:  false,
+			InTrash:  row.InTrash,
 		})
 	}
 	return &model.ReferenceConflictError{
