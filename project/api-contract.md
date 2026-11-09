@@ -99,8 +99,8 @@
 | `CATEGORY_LIMIT` | 409 | 类别已达 10 类 | 新建类别 |
 | `CATEGORY_BUILTIN_IMMUTABLE` | 409 | 内置「境界」不可改名/停用/删除 | 对应操作 |
 | `CATEGORY_DISABLED` | 409 | 引用已停用类别 | 人物保存体系引用 |
-| `NODE_LEVEL_LIMIT` | 409 | 体系节点超过两级 | 新建子节点于子节点下 |
-| `NODE_PARENT_MISMATCH` | 400 | 节点与类别/父级不匹配 | 体系引用写入 |
+| `NODE_LEVEL_LIMIT` | 422 | 体系节点超过两级 | 新建子节点于子节点下 |
+| `NODE_PARENT_MISMATCH` | 422 | 节点与类别/父级不匹配 | 体系引用写入 |
 | `SEAT_CONFLICT` | 409 | 同一人物同榜已占其他席位 | 指派/交换 |
 | `SEAT_OUT_OF_RANGE` | 400 | 席位号超出 1..N | 指派/扩容/缩容 |
 | `SEAT_SHRINK_OCCUPIED` | 409 | 缩容目标尾部席位有占用 | 减少席位数 |

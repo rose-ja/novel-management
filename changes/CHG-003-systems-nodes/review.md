@@ -40,9 +40,8 @@ git diff 3c2c10a^..HEAD -- frontend/lib frontend/components/system frontend/app/
 
 ## 2. 结论
 
-**FAIL**
-
-存在 3 个 S1 问题（其中 2 个为可直接触发的功能/契约缺陷，1 个为用户可见的需求缺口）。S0：0；S1：3；S2：6。
+- F4 初审：**FAIL**。S0：0；S1：3；S2：6。
+- F5 复审（独立 Reviewer，2026-11-09）：**PASS**。S1 清零，无新增回归；CR-07 接受为已知性能项。详见第 6 节。
 
 ## 3. 问题清单
 
@@ -95,4 +94,18 @@ git diff 3c2c10a^..HEAD -- frontend/lib frontend/components/system frontend/app/
 
 **CR-07 处理决定**：N+1 与全表聚合属性能类 S2，不影响正确性与契约；本轮保留并记录为已知性能项，待后续性能专项（或回收站数据量增长后）再优化。接受理由：修复会改动列表查询结构与分页语义，超出 F5「修复审查缺陷、不打乱已验收契约」的范围。
 
-**复审状态**：进行中，待 F4 独立 Reviewer 只读检查 F5 Diff 与受影响区域后给出 PASS/FAIL。
+**复审状态**：已完成。独立 Reviewer 只读检查 F5 Diff 与受影响区域，逐项复核 CR-01～CR-09：
+
+| ID | 复审状态 | 说明 |
+|---|---|---|
+| CR-01 | 已修复 | 回收站类型/名称/父级/筛选/文案按 `root_type` 渲染；E2E 2 条实跑通过 |
+| CR-02 | 已修复 | `ActiveName` 只取 active 作品；恢复与 Undo 两路径均映射 `PARENT_DELETED` |
+| CR-03 | 已修复 | 含软删子节点阻断、子先父后、类别组先子行后根行；3 个集成用例通过 |
+| CR-04 | 已修复 | 最终名称同级去重 + 活跃节点比对，写入前完成、事务回滚 |
+| CR-05 | 已修复 | `details.items` 形状一致，前端兼容 `{items}` 与数组并有本地回退 |
+| CR-06 | 已修复 | 引用检查与写入同事务；未加行锁的单用户窗口接受 |
+| CR-07 | 接受 | 性能类 S2，不影响正确性 |
+| CR-08 | 已修复 | 5 个集成用例 + 2 条 E2E，断言错误码/details/未恢复状态 |
+| CR-09 | 已修复 | `checklist.md`、`proposal.md` 已 422；复审发现的 `project/api-contract.md:102-103` 残留已同步为 422 |
+
+**最终结论：PASS**（S1 清零、无新增回归）。遗留非阻塞项：待校对筛选下 `HAS_CHILDREN` 的 UI E2E 未补；工作级 `PurgeGroup` 未纳入父子顺序专项测试。

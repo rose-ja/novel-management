@@ -103,4 +103,7 @@ PASS
 
 ### 8.3 F5 复审结论
 
-- 待独立 Reviewer 依据 F5 Diff 给出 PASS/FAIL；S1 清零且无新增回归后方可进入 F6。
+- 独立 Reviewer 只读检查 F5 Diff 与受影响区域，结论 **PASS**：CR-01～CR-06、CR-08、CR-09 均已修复，S1 清零，无新增回归；CR-07 接受为已知性能项。
+- 复审独立执行的门禁：`go vet ./...` 0；集成测试 `ok 4.842s`；`npm run lint`/`typecheck` 0；容器健康；`npx playwright test trash-system.spec.ts` 2 passed。
+- 复审发现 `project/api-contract.md:102-103` 仍写 `NODE_LEVEL_LIMIT=409`、`NODE_PARENT_MISMATCH=400`，已同步为 422（与实现 `httpapi/request.go:93,97` 一致）。
+- 非阻塞遗留：待校对筛选下 `HAS_CHILDREN` 的 UI E2E 未补；工作级 `PurgeGroup` 未纳入父子顺序专项测试。
