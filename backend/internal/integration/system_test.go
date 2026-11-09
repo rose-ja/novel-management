@@ -300,7 +300,7 @@ func TestSystemCategoriesReferenceConflict(t *testing.T) {
 	if err := json.Unmarshal(envelope.Error.Details, &items); err != nil {
 		t.Fatalf("解析引用明细失败：%v，body=%s", err, envelope.Error.Details)
 	}
-	if len(items) != 1 || items[0].EntityID != "char-1" || items[0].Field != "node" || items[0].Value != "金丹" || items[0].Name != nil {
+	if len(items) != 1 || items[0].EntityID != "char-1" || items[0].Field != "node" || items[0].Value != "金丹" || items[0].Name == nil || *items[0].Name != "char-1" {
 		t.Fatalf("引用明细不符：%+v", items)
 	}
 

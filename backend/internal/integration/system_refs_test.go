@@ -21,22 +21,13 @@ func TestSystemRefsWorkPurge(t *testing.T) {
 		t.Fatalf("删除作品失败（status=%d）：%s", rec.Code, rec.Body.String())
 	}
 
-	rec = h.do(http.MethodDelete, "/api/v1/trash/work/"+work.ID, map[string]any{"confirm": true}, nil)
-	envelope := assertErrorCode(t, rec, http.StatusConflict, "REFERENCE_CONFLICT")
-	items := decodeReferenceItems(t, envelope)
-	if len(items) != 1 || items[0].EntityID != "char-1" || items[0].Value != "金丹" || items[0].Name != nil || items[0].InTrash {
-		t.Fatalf("作品引用明细不符：%+v", items)
-	}
-
-	if err := h.tx.Exec("DELETE FROM character_system_refs WHERE work_id = ?", work.ID).Error; err != nil {
-		t.Fatalf("清理引用失败：%v", err)
-	}
+	// 作品内人物引用指向本作品的类别/节点，永久删除作品时随组清理，不构成阻断。
 	rec = h.do(http.MethodDelete, "/api/v1/trash/work/"+work.ID, map[string]any{"confirm": true}, nil)
 	if rec.Code != http.StatusNoContent {
-		t.Fatalf("清理引用后永久删除应成功（status=%d）：%s", rec.Code, rec.Body.String())
+		t.Fatalf("作品内引用不应阻断永久删除（status=%d）：%s", rec.Code, rec.Body.String())
 	}
 
-	for _, table := range []string{"works", "system_categories", "system_nodes", "character_system_refs"} {
+	for _, table := range []string{"works", "system_categories", "system_nodes", "character_system_refs", "characters", "character_names"} {
 		var total int64
 		column := "work_id"
 		if table == "works" {
@@ -51,7 +42,7 @@ func TestSystemRefsWorkPurge(t *testing.T) {
 	}
 }
 
-func TestSystemRefsPurgeAllDedup(t *testing.T) {
+func TestSystemRefsPurgeAllWithWorkChildren(t *testing.T) {
 	h := newHarness(t)
 	work := h.createWork("清空引用")
 	first := h.createCategory(work.ID, "第一类", model.CategoryTypeNormal)
@@ -67,15 +58,6 @@ func TestSystemRefsPurgeAllDedup(t *testing.T) {
 	}
 
 	rec = h.do(http.MethodDelete, "/api/v1/trash", map[string]any{"confirm": "PURGE_ALL"}, nil)
-	envelope := assertErrorCode(t, rec, http.StatusConflict, "REFERENCE_CONFLICT")
-	if items := decodeReferenceItems(t, envelope); len(items) != 1 || items[0].EntityID != "char-1" {
-		t.Fatalf("同一人物跨类别应去重为 1 条：%+v", items)
-	}
-
-	if err := h.tx.Exec("DELETE FROM character_system_refs WHERE work_id = ?", work.ID).Error; err != nil {
-		t.Fatalf("清理引用失败：%v", err)
-	}
-	rec = h.do(http.MethodDelete, "/api/v1/trash", map[string]any{"confirm": "PURGE_ALL"}, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("清空回收站失败（status=%d）：%s", rec.Code, rec.Body.String())
 	}
@@ -83,11 +65,13 @@ func TestSystemRefsPurgeAllDedup(t *testing.T) {
 	if result.Purged != 1 || result.SnapshotID == "" {
 		t.Fatalf("清空结果不符：%+v", result)
 	}
-	var remaining int64
-	if err := h.tx.Table("system_nodes").Where("work_id = ?", work.ID).Count(&remaining).Error; err != nil {
-		t.Fatalf("统计节点残留失败：%v", err)
-	}
-	if remaining != 0 {
-		t.Fatalf("清空后节点应无残留，实际 %d", remaining)
+	for _, table := range []string{"system_nodes", "characters", "character_names", "character_system_refs"} {
+		var remaining int64
+		if err := h.tx.Table(table).Where("work_id = ?", work.ID).Count(&remaining).Error; err != nil {
+			t.Fatalf("统计 %s 残留失败：%v", table, err)
+		}
+		if remaining != 0 {
+			t.Fatalf("清空后 %s 应无残留，实际 %d", table, remaining)
+		}
 	}
 }

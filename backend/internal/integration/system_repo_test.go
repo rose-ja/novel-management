@@ -73,6 +73,12 @@ func seedNode(t *testing.T, h *harness, repo *repository.System, workID, categor
 
 func seedReference(t *testing.T, h *harness, workID, characterID, categoryID, nodeID string) {
 	t.Helper()
+	if err := h.tx.Exec(`
+		INSERT INTO characters (id, work_id, name, name_key)
+		VALUES (?, ?, ?, lower(?))
+		ON CONFLICT (id) DO NOTHING`, characterID, workID, characterID, characterID).Error; err != nil {
+		t.Fatalf("插入人物失败：%v", err)
+	}
 	err := h.tx.Table("character_system_refs").Create(map[string]any{
 		"id":           model.NewID(),
 		"work_id":      workID,

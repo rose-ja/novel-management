@@ -363,7 +363,7 @@ func (s *Characters) Update(ctx context.Context, id string, in UpdateCharacterIn
 			return err
 		}
 		if version != item.Version {
-			return model.ErrVersionConflict
+			return &model.VersionConflictError{CurrentVersion: item.Version}
 		}
 
 		name, nameKey := item.Name, item.NameKey
@@ -462,7 +462,7 @@ func (s *Characters) Delete(ctx context.Context, id, ifMatch string) (*DeleteCha
 			return err
 		}
 		if version != item.Version {
-			return model.ErrVersionConflict
+			return &model.VersionConflictError{CurrentVersion: item.Version}
 		}
 		refs, err := characterInboundReferences(ctx, tx, id)
 		if err != nil {

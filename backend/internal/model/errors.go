@@ -38,6 +38,13 @@ type CategoryDisabledError struct {
 
 func (e *CategoryDisabledError) Error() string { return "该类别已停用" }
 
+// VersionConflictError 表示 If-Match 版本落后，details 携带当前版本。
+type VersionConflictError struct {
+	CurrentVersion int `json:"current_version"`
+}
+
+func (e *VersionConflictError) Error() string { return "内容已被修改，请刷新后重试" }
+
 // ValidationError 携带字段名，handler 转成 details.field。
 type ValidationError struct {
 	Field   string `json:"field"`

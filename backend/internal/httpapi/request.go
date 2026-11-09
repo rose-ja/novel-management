@@ -44,6 +44,14 @@ func abortServiceError(c *gin.Context, err error) {
 		return
 	}
 
+	var versionConflict *model.VersionConflictError
+	if errors.As(err, &versionConflict) {
+		abortErrorWithDetails(c, http.StatusConflict, "VERSION_CONFLICT", "内容已被修改，请刷新后重试", gin.H{
+			"current_version": versionConflict.CurrentVersion,
+		})
+		return
+	}
+
 	var nameConflict *model.NameConflictError
 	if errors.As(err, &nameConflict) {
 		abortErrorWithDetails(c, http.StatusConflict, "NAME_CONFLICT", "名称已存在", gin.H{
