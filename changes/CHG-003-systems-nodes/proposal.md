@@ -91,7 +91,7 @@ CHG-002 只交付了「创建作品时自动写入内置『境界』」的最小
 ## 7. Acceptance Criteria
 
 1. Given 新建作品，When 打开 `/system`，Then 存在唯一内置「境界」，且页面与 API 均无改名/停用/删除入口；直接调用返回 `CATEGORY_BUILTIN_IMMUTABLE`。
-2. Given 已有 9 个自定义类别，When 新增第 10 个，Then 成功；再新增第 11 个，Then `409 CATEGORY_LIMIT` 且页面「新增类别」禁用并说明上限。
+2. Given 已有 8 个自定义类别（含内置共 9 个），When 新增第 9 个自定义类别（共 10 个），Then 成功；再新增第 10 个自定义类别（共 11 个），Then `409 CATEGORY_LIMIT` 且页面「新增类别」禁用并说明上限。
 3. Given 新增类别「圣体」类型「普通」，When 再次新增「圣体」或「圣体」的大小写/全半角变体，Then `409 NAME_CONFLICT`；类别类型创建后 PATCH 被拒绝。
 4. Given 类别「星命」无引用，When 停用，Then `is_enabled=false`，节点保留；When 重新启用，Then 状态恢复。
 5. Given 类别下任一节点被 `character_system_refs` 引用，When 停用或删除该类别，Then `409 REFERENCE_CONFLICT`，`details` 列出引用数量与位置；停用/删除均未发生。

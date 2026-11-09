@@ -107,3 +107,58 @@ PASS
 - 复审独立执行的门禁：`go vet ./...` 0；集成测试 `ok 4.842s`；`npm run lint`/`typecheck` 0；容器健康；`npx playwright test trash-system.spec.ts` 2 passed。
 - 复审发现 `project/api-contract.md:102-103` 仍写 `NODE_LEVEL_LIMIT=409`、`NODE_PARENT_MISMATCH=400`，已同步为 422（与实现 `httpapi/request.go:93,97` 一致）。
 - 非阻塞遗留：待校对筛选下 `HAS_CHILDREN` 的 UI E2E 未补；工作级 `PurgeGroup` 未纳入父子顺序专项测试。
+
+## 9. F6 集成 / E2E 验证
+
+- 执行人：Agent（F6 QA，独立于 F5 修复）
+- 环境：Windows + PowerShell 5.1；应用 `http://127.0.0.1:17860`（容器 `novel-management-app-1`）；PostgreSQL 容器 `novel-management-db-1`；Playwright channel chrome、workers 1
+- 环境确认：`GET /api/v1/health` → `{"status":"ok","db":"ok","cache":"ok","data_dir_writable":true,"version":"0.1.0"}`
+- 验证后状态：`git status` 无改动；E2E/QA 前缀数据已清理，works total=0、trash total=0、`current_work_id=null`
+
+### 9.1 执行命令与结果
+
+| # | 命令 | Exit | 结果 |
+|---|---|---:|---|
+| 1 | `cd frontend; npx playwright test --reporter=list` | 0 | **52 passed / 0 failed / 0 skipped（34.0s）** |
+| 2 | 临时 Playwright 用例（加载骨架、空态、控制台/网络错误；用后删除） | 0 | 3 passed（4.3s） |
+| 3 | 临时 PowerShell API 边界脚本（用后删除） | 0 | 24 项断言，0 失败；`finally` 清理数据 |
+| 4 | `GET works / trash / settings` 复核 | 0 | works=0、trash=0、`current_work_id=null` |
+
+### 9.2 场景矩阵
+
+| 类别 | 场景 | 预期 | 实际 | 判定 | 证据来源 |
+|---|---|---|---|---|---|
+| 核心成功 | 内置境界保护、类别 CRUD、两级节点、排序持久、停用只读、纪元文本 | 全部可用 | 全量 E2E 通过 | PASS | 实跑 `system.spec.ts`（11） |
+| 核心成功 | 类别整组删除 + `new_name` 恢复、节点删除/撤销、回收站系统根 | 整组语义正确 | 全量 E2E 通过 | PASS | 实跑 `system.spec.ts`、`trash-system.spec.ts`（2） |
+| 异常路径 | 第三级节点 | 422 `NODE_LEVEL_LIMIT` | 422，`details.field=parent_id` | PASS | 实跑 API |
+| 异常路径 | 删除有子节点的父节点 | 409 `HAS_CHILDREN` + 子节点清单 | 409，`details.items` 含 `{id,name,entity_type:"system_node"}` | PASS | 实跑 API |
+| 异常路径 | 删除类别→删除作品→恢复类别 | 409 `PARENT_DELETED` | 409 `PARENT_DELETED` | PASS | 实跑 API |
+| 异常路径 | 恢复类别 `renames` 撞同组未改名兄弟 | 422 `RESTORE_CONFLICT`，不部分恢复 | 422，items 含兄弟节点；类别仍在回收站 | PASS | 实跑 API |
+| 异常路径 | 恢复类别改用不冲突名称 | 200 且整组恢复 | 200，`restored_count=3` | PASS | 实跑 API |
+| 边界 | 第 10 类（含内置）成功、第 11 类拒绝 | 201 / 409 `CATEGORY_LIMIT` | 201 / 409 `CATEGORY_LIMIT` | PASS | 实跑 API |
+| 边界 | 内置「境界」改名/停用/删除 | 409 `CATEGORY_BUILTIN_IMMUTABLE` | 409 ×3 | PASS | 实跑 API |
+| 边界 | 空名称、`PATCH parent_id:null` | 422 `VALIDATION_ERROR` | 422，字段 `name`/`parent_id` | PASS | 实跑 API |
+| 数据隔离 | 跨作品类别/节点列表与跨作品父级 | 不串扰 / 422 `NODE_PARENT_MISMATCH` | 不串扰 / 422 | PASS | 实跑 API；集成 `TestSystemCrossWorkIsolation` 引用 F3 |
+| UI 状态 | `/system`、`/trash` 加载/空/成功态 | 骨架、空态文案、成功态可见 | 全部可见（空节点「还没有节点」等） | PASS | 实跑临时用例 |
+| 视口 | system 1280 / 1024 | 视觉基线差异 ≤ 0.02 | 通过 | PASS | 实跑 `visual.spec.ts` |
+| 控制台/网络 | `/system`、`/trash` | 无未预期 4xx-5xx/pageerror | 0 个 API 4xx-5xx、0 个 pageerror；1 条既有 `favicon.ico` 404 | PASS（附既有低危项） | 实跑临时用例 |
+| 旧功能回归 | 作品、回收站、设置、壳层、错误态、键盘、a11y | 不回归 | 全量 52 passed | PASS | 实跑全量 E2E |
+
+### 9.3 F6 发现与处理
+
+| ID | 级别 | 发现 | 处理 |
+|---|---|---|---|
+| F6-01 | 文档 | `proposal.md` AC-2 写「已有 9 个自定义类别，第 10 个成功」，与实现/checklist「上限 10 含内置」矛盾 | 改为「8 个自定义（含内置 9）→ 第 9 个成功；第 10 个自定义（共 11）→ 409」 |
+| F6-02 | 文档 | `checklist.md` UI-01 引用的 `system.spec.ts` 无作品空态用例不存在 | 证据改为 F6 临时用例实跑（已清理），如实记录 |
+| F6-03 | 既有问题 | `GET /favicon.ico` 404（全局壳层，非本变更引入） | 记录为已知低危项，不在 CHG-003 处理 |
+| F6-04 | 契约观察 | `POST /api/v1/system-nodes` 显式 `parent_id:null` 返回 201（按根节点处理），`PATCH` 显式 null 返回 422（parent_id 不可改） | 符合 design §5「POST parent_id? 可选 / PATCH parent_id 不可改」，不视为缺陷 |
+
+### 9.4 截图与日志
+
+- 视觉基线：`frontend/e2e/visual.spec.ts-snapshots/system-1280-chromium-win32.png`、`system-1024-chromium-win32.png`（本次全量通过）。
+- Playwright 失败截图/追踪：无失败项，`test-results/` 无失败产物。
+- API 边界脚本与临时 UI 用例执行后已删除，未留脚本文件；结果见 9.1/9.2。
+
+### 9.5 F6 结论
+
+**PASS**。核心成功路径、异常路径、边界条件、数据隔离、UI 状态、视口与旧功能回归均通过；F6-01/F6-02 文档矛盾已修正，F6-03 为既有全局低危项。可进入 F7 人工验收。
