@@ -37,7 +37,7 @@ export function RestoreTrashDialog({ item, onClose, onChanged }: Callbacks & { i
       reload();
       onChanged();
       onClose();
-      showToast({ tone: "success", message: messages.trashRestored(result.name) });
+      showToast({ tone: "success", message: messages.trashRestored(item.root_type, result.name) });
     } catch (cause) {
       if (isApiCode(cause, "RESTORE_CONFLICT")) {
         const conflicts = conflictItems(cause);
@@ -62,8 +62,14 @@ export function RestoreTrashDialog({ item, onClose, onChanged }: Callbacks & { i
       onOpenChange={(next) => {
         if (!next && !submitting) onClose();
       }}
-      title={conflict ? messages.trashRestoreConflictTitle : messages.trashRestoreTitle(item.name)}
-      description={conflict ? messages.trashRestoreConflictDescription : messages.trashRestoreDescription}
+      title={
+        conflict ? messages.trashRestoreConflictTitle : messages.trashRestoreTitle(item.root_type, item.name)
+      }
+      description={
+        conflict
+          ? messages.trashRestoreConflictDescription
+          : messages.trashRestoreDescription(item.root_type)
+      }
       size={conflict ? "lg" : "sm"}
       footer={
         <>
@@ -108,7 +114,7 @@ export function PurgeTrashDialog({ item, onClose, onChanged }: Callbacks & { ite
       await purgeTrashItem(item.root_type, item.root_id);
       onChanged();
       onClose();
-      showToast({ tone: "success", message: messages.trashPurged(item.name) });
+      showToast({ tone: "success", message: messages.trashPurged(item.root_type, item.name) });
     } catch (cause) {
       setError(toUserMessage(cause, messages.saveFailed));
       setSnapshotFailure(isApiCode(cause, "SNAPSHOT_FAILED"));
@@ -123,8 +129,8 @@ export function PurgeTrashDialog({ item, onClose, onChanged }: Callbacks & { ite
       onOpenChange={(next) => {
         if (!next && !submitting) onClose();
       }}
-      title={messages.trashPurgeTitle(item.name)}
-      description={messages.trashPurgeDescription}
+      title={messages.trashPurgeTitle(item.root_type, item.name)}
+      description={messages.trashPurgeDescription(item.root_type)}
       size="sm"
       footer={
         <>

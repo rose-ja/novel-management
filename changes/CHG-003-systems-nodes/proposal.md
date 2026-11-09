@@ -95,7 +95,7 @@ CHG-002 只交付了「创建作品时自动写入内置『境界』」的最小
 3. Given 新增类别「圣体」类型「普通」，When 再次新增「圣体」或「圣体」的大小写/全半角变体，Then `409 NAME_CONFLICT`；类别类型创建后 PATCH 被拒绝。
 4. Given 类别「星命」无引用，When 停用，Then `is_enabled=false`，节点保留；When 重新启用，Then 状态恢复。
 5. Given 类别下任一节点被 `character_system_refs` 引用，When 停用或删除该类别，Then `409 REFERENCE_CONFLICT`，`details` 列出引用数量与位置；停用/删除均未发生。
-6. Given 类别「境界」已有根「炼气」与子「初期」，When 在「初期」下新增节点，Then `409 NODE_LEVEL_LIMIT`；页面无第三级入口。
+6. Given 类别「境界」已有根「炼气」与子「初期」，When 在「初期」下新增节点，Then `422 NODE_LEVEL_LIMIT`；页面无第三级入口。
 7. Given 同类别同父级已有「炼气」，When 新增「炼气」或大小写/全半角变体，Then `409 NAME_CONFLICT`。
 8. Given 同级三个节点，When 上移/下移，Then `POST /system-nodes/reorder` 返回 `204`，刷新后顺序保持；集合不完整或跨父级返回 `422 VALIDATION_ERROR`。
 9. Given 类型为「纪元」的类别，When 新增节点并填写起止文本，Then 保存成功且仅按 `sort_order` 展示；起止文本可空、不校验格式；普通类别提交纪元字段被拒绝。

@@ -16,7 +16,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { Select } from "@/components/ui/select";
 import { Table } from "@/components/ui/table";
 import { toUserMessage } from "@/lib/api/errors";
-import { listTrash, type TrashItem, type TrashPage } from "@/lib/api/trash";
+import { listTrash, type TrashItem, type TrashPage, type TrashRootType } from "@/lib/api/trash";
 import { formatDateTime } from "@/lib/format";
 import { messages } from "@/lib/messages";
 
@@ -26,17 +26,22 @@ type Status = "loading" | "ready" | "error";
 
 type DialogState = { kind: "restore"; item: TrashItem } | { kind: "purge"; item: TrashItem } | { kind: "clear" };
 
+type TypeFilter = "all" | TrashRootType;
+
 const typeOptions = [
   { value: "all", label: messages.trashTypeAll },
   { value: "work", label: messages.trashTypeWork },
+  { value: "system_category", label: messages.trashTypeSystemCategory },
+  { value: "system_node", label: messages.trashTypeSystemNode },
 ];
 
 export default function TrashPage() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<TrashPage | null>(null);
+  const [allTotal, setAllTotal] = useState(0);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<Error | null>(null);
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<DialogState | null>(null);
 
@@ -44,14 +49,20 @@ export default function TrashPage() {
     setStatus("loading");
     setError(null);
     try {
-      const result = await listTrash({ page, pageSize: PAGE_SIZE });
+      const rootType = typeFilter === "all" ? undefined : typeFilter;
+      // 类型筛选走服务端 root_type；同时取全量总数，供页头/清空/空态使用。
+      const [result, all] = await Promise.all([
+        listTrash({ rootType, page, pageSize: PAGE_SIZE }),
+        rootType ? listTrash({ page: 1, pageSize: 1 }) : null,
+      ]);
       setData(result);
+      setAllTotal(all ? all.total : result.total);
       setStatus("ready");
     } catch (cause) {
       setError(cause instanceof Error ? cause : new Error(messages.loadFailed));
       setStatus("error");
     }
-  }, [page]);
+  }, [page, typeFilter]);
 
   useEffect(() => {
     void load();
@@ -79,7 +90,7 @@ export default function TrashPage() {
   const columns = [
     { key: "type", label: messages.trashColumnType, width: "96px" },
     { key: "name", label: messages.trashColumnName },
-    { key: "work", label: messages.trashColumnWork, width: "160px" },
+    { key: "parent", label: messages.trashColumnParent, width: "160px" },
     { key: "deleted_at", label: messages.trashColumnDeletedAt, width: "160px" },
     { key: "affected", label: messages.trashColumnAffected, width: "112px" },
     { key: "actions", label: messages.trashColumnActions, width: "160px", align: "right" as const },
@@ -87,19 +98,19 @@ export default function TrashPage() {
 
   const rows = filtered.map((item) => [
     <Badge key="type" tone="neutral">
-      {messages.trashTypeWork}
+      {messages.trashTypeLabel(item.root_type)}
     </Badge>,
-    <span key="name">《{item.name}》</span>,
-    "—",
+    <span key="name">{messages.trashDisplayName(item.root_type, item.name)}</span>,
+    item.parent_name ?? "—",
     <span key="deleted_at" className="snapshot-time">
       {formatDateTime(item.deleted_at)}
     </span>,
-    messages.trashAffected(item.affected_count),
+    messages.trashAffected(item.root_type, item.affected_count),
     <div key="actions" className="table-actions">
       <Button
         variant="ghost"
         size="sm"
-        aria-label={`${messages.trashRestore}作品《${item.name}》`}
+        aria-label={messages.trashRestoreAria(item.root_type, item.name)}
         onClick={() => setDialog({ kind: "restore", item })}
       >
         {messages.trashRestore}
@@ -108,7 +119,7 @@ export default function TrashPage() {
         variant="ghost"
         size="sm"
         className="table-actions__danger"
-        aria-label={`${messages.trashPurge}作品《${item.name}》`}
+        aria-label={messages.trashPurgeAria(item.root_type, item.name)}
         onClick={() => setDialog({ kind: "purge", item })}
       >
         {messages.trashPurge}
@@ -133,13 +144,13 @@ export default function TrashPage() {
     <div className="page">
       <PageHeader
         title={messages.trashTitle}
-        description={status === "ready" ? messages.trashDescription(total) : messages.trashTitle}
+        description={status === "ready" ? messages.trashDescription(allTotal) : messages.trashTitle}
         actions={
           <Button
             variant="danger"
             size="sm"
-            disabled={status === "loading" || total === 0}
-            title={total === 0 ? messages.trashEmptyTitle : undefined}
+            disabled={status === "loading" || allTotal === 0}
+            title={allTotal === 0 ? messages.trashEmptyTitle : undefined}
             onClick={() => setDialog({ kind: "clear" })}
           >
             {messages.trashClear}
@@ -163,7 +174,7 @@ export default function TrashPage() {
         />
       ) : null}
 
-      {status === "ready" && total === 0 ? (
+      {status === "ready" && allTotal === 0 ? (
         <EmptyState
           variant="page"
           icon={<Trash2 aria-hidden="true" size={22} />}
@@ -177,7 +188,7 @@ export default function TrashPage() {
         />
       ) : null}
 
-      {status === "loading" || total > 0 ? (
+      {status === "loading" || allTotal > 0 ? (
         <>
           <FilterBar
             label="回收站筛选"
@@ -201,7 +212,7 @@ export default function TrashPage() {
                 value={typeFilter}
                 options={typeOptions}
                 onChange={(event) => {
-                  setTypeFilter(event.target.value);
+                  setTypeFilter(event.target.value as TypeFilter);
                   setPage(1);
                 }}
               />
@@ -234,7 +245,7 @@ export default function TrashPage() {
         <PurgeTrashDialog item={dialog.item} onClose={() => setDialog(null)} onChanged={() => void load()} />
       ) : null}
       {dialog?.kind === "clear" ? (
-        <ClearTrashDialog count={total} onClose={() => setDialog(null)} onChanged={() => void load()} />
+        <ClearTrashDialog count={allTotal} onClose={() => setDialog(null)} onChanged={() => void load()} />
       ) : null}
     </div>
   );

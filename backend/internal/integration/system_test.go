@@ -306,6 +306,21 @@ func TestSystemCategoriesReferenceConflict(t *testing.T) {
 
 	rec = h.do(http.MethodDelete, "/api/v1/system-categories/"+category.ID, nil, map[string]string{"If-Match": `"1"`})
 	assertErrorCode(t, rec, http.StatusConflict, "REFERENCE_CONFLICT")
+	// 引用检查与删除共用事务，阻断后类别与节点均不得出现软删除痕迹。
+	var categoryDeleted, nodeDeleted int64
+	if err := h.tx.Table("system_categories").
+		Where("id = ? AND deleted_at IS NOT NULL", category.ID).
+		Count(&categoryDeleted).Error; err != nil {
+		t.Fatalf("检查类别软删除失败：%v", err)
+	}
+	if err := h.tx.Table("system_nodes").
+		Where("id = ? AND deleted_at IS NOT NULL", node.ID).
+		Count(&nodeDeleted).Error; err != nil {
+		t.Fatalf("检查节点软删除失败：%v", err)
+	}
+	if categoryDeleted != 0 || nodeDeleted != 0 {
+		t.Fatalf("引用阻断后不应软删除（类别=%d，节点=%d）", categoryDeleted, nodeDeleted)
+	}
 
 	if err := h.tx.Exec("DELETE FROM character_system_refs WHERE category_id = ?", category.ID).Error; err != nil {
 		t.Fatalf("清理引用失败：%v", err)

@@ -368,6 +368,230 @@ func TestSystemTrashPurgeAllTypes(t *testing.T) {
 	}
 }
 
+func TestSystemTrashCategoryRequiresActiveWork(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("类别恢复需活跃作品")
+	category := h.createCategory(work.ID, "需活跃作品", model.CategoryTypeNormal)
+	root := h.createNode(category.ID, "根", nil, nil, nil)
+	h.createNode(category.ID, "子", &root.ID, nil, nil)
+
+	rec := h.do(http.MethodDelete, "/api/v1/system-categories/"+category.ID, nil, map[string]string{"If-Match": `"1"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除类别失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	if rec := h.deleteWork(work.ID, work.Name, "1"); rec.Code != http.StatusOK {
+		t.Fatalf("删除作品失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+
+	// 作品在回收站时恢复类别应被拒绝。
+	rec = h.do(http.MethodPost, "/api/v1/trash/system_category/"+category.ID+"/restore", map[string]any{}, nil)
+	assertErrorCode(t, rec, http.StatusConflict, "PARENT_DELETED")
+
+	rec = h.do(http.MethodPost, "/api/v1/trash/work/"+work.ID+"/restore", map[string]any{}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("恢复作品失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	if trash := h.listTrash("system_category"); trash.Total != 1 || trash.Items[0].RootID != category.ID {
+		t.Fatalf("单独删除的类别应仍在回收站：%+v", trash)
+	}
+
+	rec = h.do(http.MethodPost, "/api/v1/trash/system_category/"+category.ID+"/restore", map[string]any{}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("作品恢复后恢复类别失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	if payload := decodeBody[restorePayload](t, rec); payload.RestoredCount != 3 {
+		t.Fatalf("类别与节点应恢复 3 条：%+v", payload)
+	}
+	if nodes := h.getNodes(category.ID, "flat=true"); len(nodes.Items) != 2 {
+		t.Fatalf("恢复后节点应齐全（2 个），实际 %d", len(nodes.Items))
+	}
+
+	// Undo 路径同样要求作品在回收站外。
+	rec = h.do(http.MethodDelete, "/api/v1/system-categories/"+category.ID, nil, map[string]string{"If-Match": `"3"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("再次删除类别失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	deleted := decodeBody[categoryDeletePayload](t, rec)
+	if rec := h.deleteWork(work.ID, work.Name, "3"); rec.Code != http.StatusOK {
+		t.Fatalf("再次删除作品失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	undo := h.do(http.MethodPost, "/api/v1/trash/undo", map[string]any{"undo_token": deleted.UndoToken}, nil)
+	assertErrorCode(t, undo, http.StatusConflict, "PARENT_DELETED")
+}
+
+func TestSystemTrashPurgeNodeWithDeletedChild(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("永久删除父子节点")
+	category := h.createCategory(work.ID, "父子节点", model.CategoryTypeNormal)
+	parent := h.createNode(category.ID, "父", nil, nil, nil)
+	child := h.createNode(category.ID, "子", &parent.ID, nil, nil)
+
+	rec := h.do(http.MethodDelete, "/api/v1/system-nodes/"+child.ID, nil, map[string]string{"If-Match": `"1"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除子节点失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	rec = h.do(http.MethodDelete, "/api/v1/system-nodes/"+parent.ID, nil, map[string]string{"If-Match": `"1"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除父节点失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+
+	rec = h.do(http.MethodDelete, "/api/v1/trash/system_node/"+parent.ID, map[string]any{"confirm": true}, nil)
+	envelope := assertErrorCode(t, rec, http.StatusConflict, "HAS_CHILDREN")
+	items := decodeConflictItems(t, envelope)
+	if len(items) != 1 || items[0].ID != child.ID || items[0].Name != "子" {
+		t.Fatalf("已软删子节点应列入 HAS_CHILDREN：%+v", items)
+	}
+	var parentRows, childRows int64
+	if err := h.tx.Table("system_nodes").Where("id = ?", parent.ID).Count(&parentRows).Error; err != nil {
+		t.Fatalf("统计父节点失败：%v", err)
+	}
+	if err := h.tx.Table("system_nodes").Where("id = ?", child.ID).Count(&childRows).Error; err != nil {
+		t.Fatalf("统计子节点失败：%v", err)
+	}
+	if parentRows != 1 || childRows != 1 {
+		t.Fatalf("阻断后父子节点均应保留（父=%d，子=%d）", parentRows, childRows)
+	}
+
+	rec = h.do(http.MethodDelete, "/api/v1/trash/system_node/"+child.ID, map[string]any{"confirm": true}, nil)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("永久删除子节点失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	rec = h.do(http.MethodDelete, "/api/v1/trash/system_node/"+parent.ID, map[string]any{"confirm": true}, nil)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("永久删除父节点失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	if rows := h.countNodeRows(t, work.ID); rows != 0 {
+		t.Fatalf("永久删除后节点应清空，实际 %d", rows)
+	}
+}
+
+func TestSystemTrashPurgeAllParentChild(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("清空父子节点")
+	category := h.createCategory(work.ID, "清空父子", model.CategoryTypeNormal)
+	parent := h.createNode(category.ID, "父", nil, nil, nil)
+	child := h.createNode(category.ID, "子", &parent.ID, nil, nil)
+
+	rec := h.do(http.MethodDelete, "/api/v1/system-nodes/"+child.ID, nil, map[string]string{"If-Match": `"1"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除子节点失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	rec = h.do(http.MethodDelete, "/api/v1/system-nodes/"+parent.ID, nil, map[string]string{"If-Match": `"1"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除父节点失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+
+	rec = h.do(http.MethodDelete, "/api/v1/trash", map[string]any{"confirm": "PURGE_ALL"}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("清空回收站失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	if payload := decodeBody[purgeAllPayload](t, rec); payload.Purged != 2 {
+		t.Fatalf("清空应删除 2 个节点根：%+v", payload)
+	}
+	if rows := h.countNodeRows(t, work.ID); rows != 0 {
+		t.Fatalf("清空后节点应无残留，实际 %d", rows)
+	}
+	var deletedNodes, deletedCategories int64
+	if err := h.tx.Table("system_nodes").Where("work_id = ? AND deleted_at IS NOT NULL", work.ID).Count(&deletedNodes).Error; err != nil {
+		t.Fatalf("统计软删节点失败：%v", err)
+	}
+	if err := h.tx.Table("system_categories").Where("work_id = ? AND deleted_at IS NOT NULL", work.ID).Count(&deletedCategories).Error; err != nil {
+		t.Fatalf("统计软删类别失败：%v", err)
+	}
+	if deletedNodes != 0 || deletedCategories != 0 {
+		t.Fatalf("清空后两表不应残留软删行（节点=%d，类别=%d）", deletedNodes, deletedCategories)
+	}
+	if total := h.trashTotal(); total != 0 {
+		t.Fatalf("清空后回收站应为空，实际 %d", total)
+	}
+}
+
+func TestSystemTrashPurgeCategoryWithTwoLevels(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("永久删除两级类别")
+	category := h.createCategory(work.ID, "两级类别", model.CategoryTypeNormal)
+	root := h.createNode(category.ID, "根", nil, nil, nil)
+	h.createNode(category.ID, "子", &root.ID, nil, nil)
+
+	rec := h.do(http.MethodDelete, "/api/v1/system-categories/"+category.ID, nil, map[string]string{"If-Match": `"1"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除类别失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	rec = h.do(http.MethodDelete, "/api/v1/trash/system_category/"+category.ID, map[string]any{"confirm": true}, nil)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("永久删除两级类别失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	var nodeRows, categoryRows int64
+	if err := h.tx.Table("system_nodes").Where("category_id = ?", category.ID).Count(&nodeRows).Error; err != nil {
+		t.Fatalf("统计节点失败：%v", err)
+	}
+	if err := h.tx.Table("system_categories").Where("id = ?", category.ID).Count(&categoryRows).Error; err != nil {
+		t.Fatalf("统计类别失败：%v", err)
+	}
+	if nodeRows != 0 || categoryRows != 0 {
+		t.Fatalf("永久删除后应无节点/类别残留（节点=%d，类别=%d）", nodeRows, categoryRows)
+	}
+}
+
+func TestSystemTrashRestoreCategoryRenamedCollidesSibling(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("整组恢复兄弟重名")
+	category := h.createCategory(work.ID, "兄弟重名", model.CategoryTypeNormal)
+	rootA := h.createNode(category.ID, "甲", nil, nil, nil)
+	rootB := h.createNode(category.ID, "乙", nil, nil, nil)
+	h.createNode(category.ID, "子", &rootA.ID, nil, nil)
+
+	rec := h.do(http.MethodDelete, "/api/v1/system-categories/"+category.ID, nil, map[string]string{"If-Match": `"1"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除类别失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+
+	// 改名撞同组未被改名的兄弟 → 422 且整组不恢复。
+	rec = h.do(http.MethodPost, "/api/v1/trash/system_category/"+category.ID+"/restore", map[string]any{
+		"renames": []map[string]any{
+			{"entity_type": "system_node", "entity_id": rootB.ID, "new_name": "甲"},
+		},
+	}, nil)
+	envelope := assertErrorCode(t, rec, http.StatusUnprocessableEntity, "RESTORE_CONFLICT")
+	items := decodeConflictItems(t, envelope)
+	if len(items) != 1 || items[0].ID != rootB.ID || items[0].Name != "甲" || items[0].EntityType != "system_node" {
+		t.Fatalf("改名撞未改名兄弟应列出该节点：%+v", items)
+	}
+	if trash := h.listTrash("system_category"); trash.Total != 1 || trash.Items[0].RootID != category.ID {
+		t.Fatalf("冲突后类别应仍在回收站：%+v", trash)
+	}
+	var deletedNodes int64
+	if err := h.tx.Table("system_nodes").Where("deleted_root_id = ?", category.ID).Count(&deletedNodes).Error; err != nil {
+		t.Fatalf("统计组内节点失败：%v", err)
+	}
+	if deletedNodes != 3 {
+		t.Fatalf("冲突后组内 3 个节点均应仍在回收站，实际 %d", deletedNodes)
+	}
+
+	// 父子不同层级同名合法。
+	rec = h.do(http.MethodPost, "/api/v1/trash/system_category/"+category.ID+"/restore", map[string]any{
+		"renames": []map[string]any{
+			{"entity_type": "system_node", "entity_id": rootB.ID, "new_name": "子"},
+		},
+	}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("不同层级同名应可恢复（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	tree := h.getNodes(category.ID, "")
+	if len(tree.Items) != 2 || tree.Items[0].Name != "甲" || len(tree.Items[0].Children) != 1 || tree.Items[0].Children[0].Name != "子" || tree.Items[1].Name != "子" {
+		t.Fatalf("恢复后两级同名节点不符：%+v", tree.Items)
+	}
+}
+
+func (h *harness) countNodeRows(t *testing.T, workID string) int64 {
+	t.Helper()
+	var rows int64
+	if err := h.tx.Table("system_nodes").Where("work_id = ?", workID).Count(&rows).Error; err != nil {
+		t.Fatalf("统计节点失败：%v", err)
+	}
+	return rows
+}
+
 func decodeConflictItems(t *testing.T, envelope errorEnvelope) []model.ConflictItem {
 	t.Helper()
 	var payload struct {

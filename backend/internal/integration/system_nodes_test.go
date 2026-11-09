@@ -234,13 +234,27 @@ func TestSystemNodesDelete(t *testing.T) {
 	leaf := h.createNode(category.ID, "叶", nil, nil, nil)
 
 	rec := h.do(http.MethodDelete, "/api/v1/system-nodes/"+root.ID, nil, map[string]string{"If-Match": `"1"`})
-	assertErrorCode(t, rec, http.StatusConflict, "HAS_CHILDREN")
+	envelope := assertErrorCode(t, rec, http.StatusConflict, "HAS_CHILDREN")
+	items := decodeConflictItems(t, envelope)
+	if len(items) != 1 || items[0].ID != child.ID || items[0].Name != "子" || items[0].EntityType != "system_node" {
+		t.Fatalf("HAS_CHILDREN 应列出子节点：%+v", items)
+	}
 
 	seedReference(t, h, work.ID, "char-1", category.ID, child.ID)
 	rec = h.do(http.MethodDelete, "/api/v1/system-nodes/"+child.ID, nil, map[string]string{"If-Match": `"1"`})
-	envelope := assertErrorCode(t, rec, http.StatusConflict, "REFERENCE_CONFLICT")
+	envelope = assertErrorCode(t, rec, http.StatusConflict, "REFERENCE_CONFLICT")
 	if details := decodeReferenceItems(t, envelope); len(details) != 1 || details[0].Value != "子" {
 		t.Fatalf("节点引用明细不符：%+v", details)
+	}
+	// 引用阻断发生在同一事务内，失败后不得留下软删除痕迹。
+	var childDeleted int64
+	if err := h.tx.Table("system_nodes").
+		Where("id = ? AND deleted_at IS NOT NULL", child.ID).
+		Count(&childDeleted).Error; err != nil {
+		t.Fatalf("检查节点软删除失败：%v", err)
+	}
+	if childDeleted != 0 {
+		t.Fatalf("引用阻断后节点不应被软删除，实际 %d", childDeleted)
 	}
 
 	rec = h.do(http.MethodDelete, "/api/v1/system-nodes/"+leaf.ID, nil, map[string]string{"If-Match": `"1"`})

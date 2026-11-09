@@ -1,3 +1,27 @@
+/** 回收站根类型展示名；未知类型回退为「未知类型」，避免列表崩溃。 */
+function trashTypeLabel(rootType: string): string {
+  switch (rootType) {
+    case "work":
+      return "作品";
+    case "system_category":
+      return "体系类别";
+    case "system_node":
+      return "体系节点";
+    default:
+      return "未知类型";
+  }
+}
+
+/** 作品名称沿用书名号；体系类别/节点与未知类型直接显示名称。 */
+function trashDisplayName(rootType: string, name: string): string {
+  return rootType === "work" ? `《${name}》` : name;
+}
+
+/** 操作按钮与标题中的对象描述：作品用书名号，其余用「」。 */
+function trashEntityLabel(rootType: string, name: string): string {
+  return rootType === "work" ? `《${name}》` : `「${name}」`;
+}
+
 /** 全局文案：页面与组件只引用这里，避免同一语义出现多种说法。 */
 export const messages = {
   loadFailed: "加载失败，请重试",
@@ -84,27 +108,96 @@ export const messages = {
   trashCleared: "回收站已清空",
   trashTypeAll: "全部类型",
   trashTypeWork: "作品",
+  trashTypeSystemCategory: "体系类别",
+  trashTypeSystemNode: "体系节点",
+  trashTypeUnknown: "未知类型",
+  trashTypeLabel,
+  trashDisplayName,
+  trashEntityLabel,
   trashSearchPlaceholder: "搜索名称…",
   trashColumnType: "类型",
   trashColumnName: "名称",
-  trashColumnWork: "原作品",
+  trashColumnParent: "父级 / 所属",
   trashColumnDeletedAt: "删除时间",
   trashColumnAffected: "影响条数",
   trashColumnActions: "操作",
-  trashAffected: (count: number) => `共 ${count} 项`,
+  trashAffected: (rootType: string, count: number) => {
+    switch (rootType) {
+      case "work":
+        return `共 ${count} 项（类别与节点）`;
+      case "system_category":
+        return `共 ${count} 个节点`;
+      case "system_node":
+        return `共 ${count > 0 ? count : 1} 项`;
+      default:
+        return `共 ${count} 项`;
+    }
+  },
   trashRestore: "恢复",
-  trashRestoreTitle: (name: string) => `恢复作品《${name}》？`,
-  trashRestoreDescription: "将整组恢复到原位置；如与现有记录重名，可改名后恢复。",
+  trashRestoreTitle: (rootType: string, name: string) => {
+    switch (rootType) {
+      case "work":
+        return `恢复作品《${name}》？`;
+      case "system_category":
+        return `整组恢复类别「${name}」？`;
+      case "system_node":
+        return `恢复节点「${name}」？`;
+      default:
+        return `恢复「${name}」？`;
+    }
+  },
+  trashRestoreDescription: (rootType: string) => {
+    switch (rootType) {
+      case "work":
+        return "恢复作品及其类别与节点；如与现有记录重名，可改名后恢复。";
+      case "system_category":
+        return "整组恢复类别及其节点；如与现有记录重名，可改名后恢复。";
+      case "system_node":
+        return "恢复节点；如与现有记录重名，可改名后恢复。";
+      default:
+        return "将整组恢复到原位置；如与现有记录重名，可改名后恢复。";
+    }
+  },
+  trashRestoreAria: (rootType: string, name: string) =>
+    `恢复${trashTypeLabel(rootType)}${trashEntityLabel(rootType, name)}`,
   trashRestoreSubmit: "恢复",
-  trashRestored: (name: string) => `已恢复《${name}》`,
+  trashRestored: (rootType: string, name: string) =>
+    rootType === "work"
+      ? `已恢复《${name}》`
+      : `已恢复${trashTypeLabel(rootType)}${trashEntityLabel(rootType, name)}`,
   trashRestoreConflictTitle: "恢复目标与现有记录重名",
   trashRestoreConflictDescription: "同一位置已存在同名记录。请输入恢复后的名称，原记录不会被覆盖。",
   trashRestoreNewNameLabel: "恢复后名称",
   trashPurge: "永久删除",
-  trashPurgeTitle: (name: string) => `永久删除作品《${name}》？`,
-  trashPurgeDescription: "此操作不可撤销。删除前会自动创建快照。",
+  trashPurgeTitle: (rootType: string, name: string) => {
+    switch (rootType) {
+      case "work":
+        return `永久删除作品《${name}》？`;
+      case "system_category":
+        return `永久删除体系类别「${name}」？`;
+      case "system_node":
+        return `永久删除体系节点「${name}」？`;
+      default:
+        return `永久删除「${name}」？`;
+    }
+  },
+  trashPurgeDescription: (rootType: string) => {
+    switch (rootType) {
+      case "system_category":
+        return "该类别及其下节点将永久删除，不可恢复。删除前会自动创建快照。";
+      case "system_node":
+        return "节点将永久删除，不可恢复。删除前会自动创建快照。";
+      default:
+        return "此操作不可撤销。删除前会自动创建快照。";
+    }
+  },
+  trashPurgeAria: (rootType: string, name: string) =>
+    `永久删除${trashTypeLabel(rootType)}${trashEntityLabel(rootType, name)}`,
   trashPurgeSubmit: "永久删除",
-  trashPurged: (name: string) => `已永久删除《${name}》`,
+  trashPurged: (rootType: string, name: string) =>
+    rootType === "work"
+      ? `已永久删除《${name}》`
+      : `已永久删除${trashTypeLabel(rootType)}${trashEntityLabel(rootType, name)}`,
   trashEmptyTitle: "回收站是空的",
   trashEmptyDescription: "删除的内容会在这里保留，直到你恢复或永久删除。",
   trashEmptyAction: "返回概览",

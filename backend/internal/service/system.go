@@ -151,94 +151,103 @@ func (s *System) CreateCategory(ctx context.Context, in CreateCategoryInput) (*m
 
 // UpdateCategory 处理改名与启停；内置类别只允许无操作的 is_enabled=true。
 func (s *System) UpdateCategory(ctx context.Context, id string, in UpdateCategoryInput) (*model.SystemCategory, error) {
-	repo := repository.NewSystem(s.db)
-	item, err := repo.GetCategory(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	version, ok := ParseIfMatch(in.IfMatch)
-	if !ok || version != item.Version {
-		return nil, model.ErrVersionConflict
-	}
-
-	if item.IsBuiltin {
-		if in.Name != nil {
-			return nil, model.ErrCategoryBuiltinImmutable
-		}
-		if in.IsEnabled != nil && !*in.IsEnabled {
-			return nil, model.ErrCategoryBuiltinImmutable
-		}
-	}
-
-	name, nameKey := item.Name, item.NameKey
-	if in.Name != nil {
-		name, nameKey, err = model.NormalizeKey(*in.Name, "name")
-		if err != nil {
-			return nil, err
-		}
-	}
-	enabled := item.IsEnabled
-	if in.IsEnabled != nil {
-		enabled = *in.IsEnabled
-	}
-
-	if name == item.Name && enabled == item.IsEnabled {
-		return item, nil
-	}
-	if name != item.Name {
-		taken, err := repo.CategoryNameTaken(ctx, item.WorkID, nameKey, id)
-		if err != nil {
-			return nil, err
-		}
-		if taken {
-			return nil, model.ErrNameConflict
-		}
-	}
-	if item.IsEnabled && !enabled {
-		if err := s.assertCategoryUnreferenced(ctx, repo, id, "停用"); err != nil {
-			return nil, err
-		}
-	}
-
 	now := s.now().UTC()
-	rows, err := repo.UpdateCategory(ctx, id, name, nameKey, enabled, version, now)
-	if err != nil {
-		if repository.IsUniqueViolation(err, "system_categories_work_name_uq") {
-			return nil, model.ErrNameConflict
+	var updated *model.SystemCategory
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := repository.NewSystem(tx)
+		item, err := repo.GetCategory(ctx, id)
+		if err != nil {
+			return err
 		}
+		version, ok := ParseIfMatch(in.IfMatch)
+		if !ok || version != item.Version {
+			return model.ErrVersionConflict
+		}
+
+		if item.IsBuiltin {
+			if in.Name != nil {
+				return model.ErrCategoryBuiltinImmutable
+			}
+			if in.IsEnabled != nil && !*in.IsEnabled {
+				return model.ErrCategoryBuiltinImmutable
+			}
+		}
+
+		name, nameKey := item.Name, item.NameKey
+		if in.Name != nil {
+			name, nameKey, err = model.NormalizeKey(*in.Name, "name")
+			if err != nil {
+				return err
+			}
+		}
+		enabled := item.IsEnabled
+		if in.IsEnabled != nil {
+			enabled = *in.IsEnabled
+		}
+
+		if name == item.Name && enabled == item.IsEnabled {
+			updated = item
+			return nil
+		}
+		if name != item.Name {
+			taken, err := repo.CategoryNameTaken(ctx, item.WorkID, nameKey, id)
+			if err != nil {
+				return err
+			}
+			if taken {
+				return model.ErrNameConflict
+			}
+		}
+		// design §9：停用前的引用检查与写入必须共用同一事务，避免 TOCTOU。
+		if item.IsEnabled && !enabled {
+			if err := s.assertCategoryUnreferenced(ctx, repo, id, "停用"); err != nil {
+				return err
+			}
+		}
+
+		rows, err := repo.UpdateCategory(ctx, id, name, nameKey, enabled, version, now)
+		if err != nil {
+			if repository.IsUniqueViolation(err, "system_categories_work_name_uq") {
+				return model.ErrNameConflict
+			}
+			return err
+		}
+		if rows == 0 {
+			return model.ErrVersionConflict
+		}
+		updated, err = repo.GetCategory(ctx, id)
+		return err
+	})
+	if err != nil {
 		return nil, err
 	}
-	if rows == 0 {
-		return nil, model.ErrVersionConflict
-	}
-	return repo.GetCategory(ctx, id)
+	return updated, nil
 }
 
 // DeleteCategory 引用检查通过后整组软删除类别与节点，并发放撤销令牌。
 func (s *System) DeleteCategory(ctx context.Context, id string, in DeleteCategoryInput) (*DeleteCategoryResult, error) {
-	repo := repository.NewSystem(s.db)
-	item, err := repo.GetCategory(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if item.IsBuiltin {
-		return nil, model.ErrCategoryBuiltinImmutable
-	}
-	version, ok := ParseIfMatch(in.IfMatch)
-	if !ok || version != item.Version {
-		return nil, model.ErrVersionConflict
-	}
-	if err := s.assertCategoryUnreferenced(ctx, repo, id, "删除"); err != nil {
-		return nil, err
-	}
-
 	now := s.now().UTC()
 	expires := now.Add(model.UndoWindowSeconds * time.Second)
 	token := newUndoToken()
 	var affectedNodes int64
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var err error
-		affectedNodes, err = repository.NewSystem(tx).SoftDeleteCategoryGroup(ctx, id, version, ActionCategoryDelete, now)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := repository.NewSystem(tx)
+		item, err := repo.GetCategory(ctx, id)
+		if err != nil {
+			return err
+		}
+		if item.IsBuiltin {
+			return model.ErrCategoryBuiltinImmutable
+		}
+		version, ok := ParseIfMatch(in.IfMatch)
+		if !ok || version != item.Version {
+			return model.ErrVersionConflict
+		}
+		// design §9：引用检查与软删除共用同一事务。
+		if err := s.assertCategoryUnreferenced(ctx, repo, id, "删除"); err != nil {
+			return err
+		}
+		affectedNodes, err = repo.SoftDeleteCategoryGroup(ctx, id, version, ActionCategoryDelete, now)
 		if err != nil {
 			return err
 		}
@@ -490,40 +499,42 @@ func (s *System) UpdateNode(ctx context.Context, id string, in UpdateNodeInput) 
 
 // DeleteNode 有子节点或人物引用时拒绝；通过后软删除自身并发放撤销令牌。
 func (s *System) DeleteNode(ctx context.Context, id string, in DeleteNodeInput) (*DeleteNodeResult, error) {
-	repo := repository.NewSystem(s.db)
-	node, err := repo.GetNode(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	category, err := repo.GetCategory(ctx, node.CategoryID)
-	if err != nil {
-		return nil, err
-	}
-	if !category.IsEnabled {
-		return nil, model.ErrCategoryDisabled
-	}
-	version, ok := ParseIfMatch(in.IfMatch)
-	if !ok || version != node.Version {
-		return nil, model.ErrVersionConflict
-	}
-	children, err := repo.CountNodeChildren(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if children > 0 {
-		return nil, model.ErrHasChildren
-	}
-	if err := s.assertNodeUnreferenced(ctx, repo, node, "删除"); err != nil {
-		return nil, err
-	}
-
 	now := s.now().UTC()
 	expires := now.Add(model.UndoWindowSeconds * time.Second)
 	token := newUndoToken()
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if rows, err := repository.NewSystem(tx).SoftDeleteNode(ctx, id, version, ActionNodeDelete, now); err != nil {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := repository.NewSystem(tx)
+		node, err := repo.GetNode(ctx, id)
+		if err != nil {
 			return err
-		} else if rows == 0 {
+		}
+		category, err := repo.GetCategory(ctx, node.CategoryID)
+		if err != nil {
+			return err
+		}
+		if !category.IsEnabled {
+			return model.ErrCategoryDisabled
+		}
+		version, ok := ParseIfMatch(in.IfMatch)
+		if !ok || version != node.Version {
+			return model.ErrVersionConflict
+		}
+		children, err := repo.ListActiveNodeChildren(ctx, id)
+		if err != nil {
+			return err
+		}
+		if len(children) > 0 {
+			return &model.HasChildrenError{Items: childConflictItems(children)}
+		}
+		// design §9：引用检查、子节点检查与软删除共用同一事务。
+		if err := s.assertNodeUnreferenced(ctx, repo, node, "删除"); err != nil {
+			return err
+		}
+		rows, err := repo.SoftDeleteNode(ctx, id, version, ActionNodeDelete, now)
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
 			return model.ErrVersionConflict
 		}
 		return repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
@@ -538,6 +549,19 @@ func (s *System) DeleteNode(ctx context.Context, id string, in DeleteNodeInput) 
 		return nil, err
 	}
 	return &DeleteNodeResult{Deleted: true, UndoToken: token, ExpiresAt: expires}, nil
+}
+
+// childConflictItems 将子节点转换为 HAS_CHILDREN details 项。
+func childConflictItems(children []model.SystemNode) []model.ConflictItem {
+	items := make([]model.ConflictItem, 0, len(children))
+	for _, child := range children {
+		items = append(items, model.ConflictItem{
+			ID:         child.ID,
+			Name:       child.Name,
+			EntityType: RootTypeSystemNode,
+		})
+	}
+	return items
 }
 
 // ReorderNodes 校验同级集合完整后按给定顺序持久化。

@@ -297,10 +297,18 @@ func (r *System) CountDeletedNodesByCategoryRoot(ctx context.Context) (map[strin
 }
 
 // PurgeCategoryGroup 物理删除类别组；调用方必须先确认无人物引用。
+// 先删子节点行，再删根节点行，最后删类别，避免自引用 FK RESTRICT 立即约束。
 func (r *System) PurgeCategoryGroup(ctx context.Context, id string) (int64, error) {
 	var deleted int64
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Table("system_nodes").Where("category_id = ?", id).Delete(&model.SystemNode{}).Error; err != nil {
+		if err := tx.Table("system_nodes").
+			Where("category_id = ? AND parent_id IS NOT NULL", id).
+			Delete(&model.SystemNode{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Table("system_nodes").
+			Where("category_id = ? AND parent_id IS NULL", id).
+			Delete(&model.SystemNode{}).Error; err != nil {
 			return err
 		}
 		res := tx.Table("system_categories").Where("id = ?", id).Delete(&model.SystemCategory{})
@@ -400,6 +408,28 @@ func (r *System) CountNodeChildren(ctx context.Context, nodeID string) (int64, e
 		Where("parent_id = ? AND deleted_at IS NULL", nodeID).
 		Count(&total).Error
 	return total, err
+}
+
+// ListNodeChildren 返回节点下全部子节点（含已软删除行），用于永久删除前的阻断。
+func (r *System) ListNodeChildren(ctx context.Context, nodeID string) ([]model.SystemNode, error) {
+	var items []model.SystemNode
+	err := r.DB.WithContext(ctx).
+		Select("id", "name").
+		Where("parent_id = ?", nodeID).
+		Order("sort_order ASC, id ASC").
+		Find(&items).Error
+	return items, err
+}
+
+// ListActiveNodeChildren 返回节点下未删除子节点，用于删除阻断明细。
+func (r *System) ListActiveNodeChildren(ctx context.Context, nodeID string) ([]model.SystemNode, error) {
+	var items []model.SystemNode
+	err := r.DB.WithContext(ctx).
+		Select("id", "name").
+		Where("parent_id = ? AND deleted_at IS NULL", nodeID).
+		Order("sort_order ASC, id ASC").
+		Find(&items).Error
+	return items, err
 }
 
 func (r *System) NextNodeSortOrder(ctx context.Context, categoryID string, parentID *string) (int, error) {

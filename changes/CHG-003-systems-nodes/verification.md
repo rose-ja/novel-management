@@ -66,3 +66,41 @@
 PASS
 
 （`gofmt -l .` 的 32 个文件标记为 Windows CRLF 环境性误报，已在 LF 归一化副本上验证格式正确；其余门禁与容器核对全部通过。）
+
+## 8. F5 Review Findings Fix & Retest
+
+- 输入：`review.md` 的 F4 结论（FAIL：S0=0、S1=3、S2=6）
+- 修复范围：CR-01～CR-06、CR-08、CR-09；CR-07 记录为已接受的性能类 S2
+- 执行人：Agent（F5 修复）
+
+### 8.1 修复项与重测
+
+| Finding | Severity | Fix summary | Retest command | Result |
+|---|---|---|---|---|
+| CR-01 | S1 | 回收站按 `root_type` 渲染类型/名称/父级与筛选；恢复/永久删除文案按根类型 | `npx playwright test`（含 `e2e/trash-system.spec.ts` 2 用例） | PASS（52 passed） |
+| CR-02 | S1 | `Works.ActiveName` 仅返回未删除作品；恢复/撤销类别时作品在回收站返回 `PARENT_DELETED` | `go test -tags=integration ./internal/integration/...`（`TestSystemTrashCategoryRequiresActiveWork`） | PASS |
+| CR-03 | S1 | `PurgeNode` 检查含软删子节点并返回 `HAS_CHILDREN`；`PurgeAll` 子先父后；`PurgeCategoryGroup` 先子行后根行 | 集成（`TestSystemTrashPurgeNodeWithDeletedChild`、`TestSystemTrashPurgeAllParentChild`、`TestSystemTrashPurgeCategoryWithTwoLevels`） | PASS |
+| CR-04 | S2 | 恢复类别按最终名称做同级去重，并与活跃节点比对，冲突返回 `RESTORE_CONFLICT` | 集成（`TestSystemTrashRestoreCategoryRenamedCollidesSibling`） | PASS（422，未部分恢复） |
+| CR-05 | S2 | `HasChildrenError` 映射 409 `HAS_CHILDREN`，`details.items` 含子节点 id/name | 集成（`TestSystemNodesDelete` details 断言） | PASS |
+| CR-06 | S2 | 类别更新/删除、节点删除、回收站永久删除的引用检查移入事务 | `go vet` + 集成回归 | PASS |
+| CR-07 | S2 | 不修复，接受为已知性能项（N+1/全表聚合不影响正确性） | — | ACCEPTED |
+| CR-08 | S2 | 新增 5 个后端集成用例 + 2 个回收站 E2E | 集成/Playwright | PASS |
+| CR-09 | S2 | `checklist.md` ND-02/ND-03、`proposal.md` AC-6 统一为 422 `NODE_LEVEL_LIMIT` | 文档一致性检查 | PASS |
+
+### 8.2 F5 门禁记录（2026-11-09）
+
+| Command | Exit code | Result | Evidence |
+|---|---:|---|---|
+| `cd backend; go vet ./...` | 0 | 无输出 | — |
+| `cd backend; go test -count=1 ./...` | 0 | 全部 ok | `config`、`httpapi`、`model`、`service` |
+| `TEST_DATABASE_URL=...; cd backend; go test -count=1 -tags=integration ./internal/integration/...` | 0 | `ok ... 10.123s` | 新增 5 个回收站用例，体系用例总数 33 |
+| `cd frontend; npm run lint` | 0 | 无告警 | ESLint |
+| `cd frontend; npm run typecheck` | 0 | 无输出 | `tsc --noEmit` |
+| `cd frontend; npm run test` | 0 | 5 个文件 / 30 个用例通过 | vitest |
+| `cd frontend; npm run build` | 0 | 静态导出成功 | Next.js `output: export` |
+| `docker compose build app; docker compose up -d app; GET /api/v1/health` | 0 | `{"cache":"ok","data_dir_writable":true,"db":"ok","status":"ok","version":"0.1.0"}` | 容器 `novel-management-app-1` |
+| `cd frontend; npx playwright test --reporter=list` | 0 | **52 passed (36.7s)** | 含 `trash-system.spec.ts` 2 条、`system.spec.ts` 11 条 |
+
+### 8.3 F5 复审结论
+
+- 待独立 Reviewer 依据 F5 Diff 给出 PASS/FAIL；S1 清零且无新增回归后方可进入 F6。

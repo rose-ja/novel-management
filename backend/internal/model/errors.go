@@ -37,6 +37,13 @@ type RestoreConflictError struct {
 
 func (e *RestoreConflictError) Error() string { return "恢复目标与现有记录重名" }
 
+// HasChildrenError 表示节点仍有子节点（含已软删除），details.items 列出子节点。
+type HasChildrenError struct {
+	Items []ConflictItem `json:"items"`
+}
+
+func (e *HasChildrenError) Error() string { return "仍有下级节点，无法删除" }
+
 // ConflictItem 是恢复冲突的单项描述。
 type ConflictItem struct {
 	ID         string `json:"id"`

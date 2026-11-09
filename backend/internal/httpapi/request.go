@@ -52,6 +52,14 @@ func abortServiceError(c *gin.Context, err error) {
 		return
 	}
 
+	var hasChildren *model.HasChildrenError
+	if errors.As(err, &hasChildren) {
+		abortErrorWithDetails(c, http.StatusConflict, "HAS_CHILDREN", "仍有下级节点，无法删除", gin.H{
+			"items": hasChildren.Items,
+		})
+		return
+	}
+
 	var reference *model.ReferenceConflictError
 	if errors.As(err, &reference) {
 		abortErrorWithDetails(c, http.StatusConflict, "REFERENCE_CONFLICT", reference.Message, reference.Items)

@@ -24,8 +24,8 @@
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
 | ND-01 | 可创建主层级；可在根下创建子层级，形成两级 | `TestSystemNodesTreeAndEra` → 根 2、子 1；E2E `system.spec.ts` | ✅ |
-| ND-02 | 在子层级下再建节点返回 `409 NODE_LEVEL_LIMIT`；页面无第三级入口 | `TestSystemNodesHierarchyAndUnique` → 422 `NODE_LEVEL_LIMIT`；E2E 断言子行无新增入口 | ✅ |
-| ND-03 | `parent_id` 与类别不匹配返回 `409 NODE_PARENT_MISMATCH` | `TestSystemNodesHierarchyAndUnique` → 跨类别/不存在父级各 422 | ✅ |
+| ND-02 | 在子层级下再建节点返回 `422 NODE_LEVEL_LIMIT`；页面无第三级入口 | `TestSystemNodesHierarchyAndUnique` → 422 `NODE_LEVEL_LIMIT`；E2E 断言子行无新增入口 | ✅ |
+| ND-03 | `parent_id` 与类别不匹配返回 `422 NODE_PARENT_MISMATCH` | `TestSystemNodesHierarchyAndUnique` → 跨类别/不存在父级各 422 | ✅ |
 | ND-04 | 同类别同父级名称唯一（含大小写/全半角/空白变体），冲突 `409 NAME_CONFLICT`；不同父级可同名 | `TestSystemNodesHierarchyAndUnique` → `Ｓｗｏｒｄ` 与 `"  sword  "` 冲突；不同父级同名通过 | ✅ |
 | ND-05 | 上移/下移调用 `reorder` 返回 204，刷新后顺序保持；集合缺失/重复/跨父级 422 | `TestSystemNodesReorder` → 204 且顺序 `c,b,a`；E2E 刷新后顺序保持 | ✅ |
 | ND-06 | 纪元类别可保存起止文本（可空、不校验日期）；普通类别提交非空返回 422 | `TestSystemNodesTreeAndEra`（修剪回填）、`TestSystemNodesUpdate`（`null` 清空）、`TestSystemNodesHierarchyAndUnique`（普通类别 422） | ✅ |

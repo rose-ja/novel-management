@@ -237,6 +237,19 @@ func (r *Works) CountDeletedByRoot(ctx context.Context) (map[string]int64, error
 	return counts, nil
 }
 
+// ActiveName 返回未删除作品的名称；作品不存在或已软删除统一 ErrNotFound。
+func (r *Works) ActiveName(ctx context.Context, id string) (string, error) {
+	var work model.Work
+	err := r.DB.WithContext(ctx).Select("id", "name").Where("id = ? AND deleted_at IS NULL", id).Take(&work).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", model.ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return work.Name, nil
+}
+
 // Name 返回作品名称（含回收站记录），用于类别回收站展示父级。
 func (r *Works) Name(ctx context.Context, id string) (string, error) {
 	var work model.Work

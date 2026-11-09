@@ -259,7 +259,7 @@ func (s *Trash) restoreCategory(ctx context.Context, tx *gorm.DB, rootID string,
 	if err != nil {
 		return nil, alreadyDeleted(err)
 	}
-	if _, err := repository.NewWorks(tx).Name(ctx, category.WorkID); err != nil {
+	if _, err := repository.NewWorks(tx).ActiveName(ctx, category.WorkID); err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			return nil, model.ErrParentDeleted
 		}
@@ -275,12 +275,20 @@ func (s *Trash) restoreCategory(ctx context.Context, tx *gorm.DB, rootID string,
 	}
 
 	var conflicts []model.ConflictItem
+	conflictSeen := make(map[string]struct{})
+	addConflict := func(item model.ConflictItem) {
+		if _, exists := conflictSeen[item.ID]; exists {
+			return
+		}
+		conflictSeen[item.ID] = struct{}{}
+		conflicts = append(conflicts, item)
+	}
 	taken, err := system.CategoryNameTaken(ctx, category.WorkID, nameKey, "")
 	if err != nil {
 		return nil, err
 	}
 	if taken {
-		conflicts = append(conflicts, model.ConflictItem{
+		addConflict(model.ConflictItem{
 			ID:         category.ID,
 			Name:       name,
 			EntityType: RootTypeSystemCategory,
@@ -301,34 +309,57 @@ func (s *Trash) restoreCategory(ctx context.Context, tx *gorm.DB, rootID string,
 		if rename.EntityType != RootTypeSystemNode {
 			return nil, &model.ValidationError{Field: "renames", Message: "renames.entity_type 仅支持 system_node"}
 		}
-		node, ok := nodeByID[rename.EntityID]
-		if !ok {
+		if _, ok := nodeByID[rename.EntityID]; !ok {
 			return nil, &model.ValidationError{Field: "renames", Message: "renames 指向的节点不在该类别回收站组内"}
 		}
 		display, key, err := model.NormalizeKey(rename.NewName, "new_name")
 		if err != nil {
 			return nil, err
 		}
-		if _, exists := renameKeys[siblingGroupKey(node.ParentID)+key]; exists {
-			conflicts = append(conflicts, model.ConflictItem{
+		renameNames[rename.EntityID] = display
+		renameKeys[rename.EntityID] = key
+	}
+
+	// 计算每个节点的最终名称：改名节点用 renames，未改名节点沿用原名；
+	// 按父级分组检测最终名称重复，覆盖「改名撞同组未改名兄弟」。
+	finalDisplay := make(map[string]string, len(nodes))
+	finalKey := make(map[string]string, len(nodes))
+	for _, node := range nodes {
+		if display, ok := renameNames[node.ID]; ok {
+			finalDisplay[node.ID] = display
+			finalKey[node.ID] = renameKeys[node.ID]
+			continue
+		}
+		finalDisplay[node.ID] = node.Name
+		finalKey[node.ID] = node.NameKey
+	}
+	seenGroup := make(map[string]struct{}, len(nodes))
+	for _, node := range nodes {
+		groupKey := siblingGroupKey(node.ParentID) + finalKey[node.ID]
+		if _, exists := seenGroup[groupKey]; exists {
+			addConflict(model.ConflictItem{
 				ID:         node.ID,
-				Name:       display,
+				Name:       finalDisplay[node.ID],
 				EntityType: RootTypeSystemNode,
 			})
+			continue
 		}
-		renameKeys[siblingGroupKey(node.ParentID)+key] = node.ID
-		taken, err := system.NodeNameTaken(ctx, category.ID, node.ParentID, key, node.ID)
+		seenGroup[groupKey] = struct{}{}
+	}
+
+	// 最终名称还需与同类别活跃节点比较（改名与未改名节点都覆盖）。
+	for _, node := range nodes {
+		taken, err := system.NodeNameTaken(ctx, category.ID, node.ParentID, finalKey[node.ID], node.ID)
 		if err != nil {
 			return nil, err
 		}
 		if taken {
-			conflicts = append(conflicts, model.ConflictItem{
+			addConflict(model.ConflictItem{
 				ID:         node.ID,
-				Name:       display,
+				Name:       finalDisplay[node.ID],
 				EntityType: RootTypeSystemNode,
 			})
 		}
-		renameNames[node.ID] = display
 	}
 	if len(conflicts) > 0 {
 		return nil, &model.RestoreConflictError{Items: conflicts}
@@ -340,11 +371,7 @@ func (s *Trash) restoreCategory(ctx context.Context, tx *gorm.DB, rootID string,
 		}
 	}
 	for nodeID, display := range renameNames {
-		_, key, err := model.NormalizeKey(display, "name")
-		if err != nil {
-			return nil, err
-		}
-		if err := system.RenameDeletedNodeInGroup(ctx, nodeID, rootID, display, key, now); err != nil {
+		if err := system.RenameDeletedNodeInGroup(ctx, nodeID, rootID, display, renameKeys[nodeID], now); err != nil {
 			return nil, alreadyDeleted(err)
 		}
 	}
@@ -430,7 +457,8 @@ func (s *Trash) restoreNode(ctx context.Context, tx *gorm.DB, rootID string, in 
 	}, nil
 }
 
-// Purge 永久删除单个根；先落 trash_purge 快照，失败即阻止。
+// Purge 永久删除单个根；先落 trash_purge 快照，失败即阻止；
+// 引用检查与物理删除共用同一事务，避免 TOCTOU。
 func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 	system := repository.NewSystem(s.db)
 	switch rootType {
@@ -441,18 +469,20 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
 			return err
 		}
-		rows, err := system.ListReferencesByWork(ctx, rootID)
-		if err != nil {
-			return err
-		}
-		if err := referenceConflict(rows, "作品", "永久删除"); err != nil {
-			return err
-		}
 		now := s.now().UTC()
-		if _, err := repository.NewWorks(s.db).PurgeGroup(ctx, rootID); err != nil {
-			return err
-		}
-		return repository.NewSettings(s.db).ClearCurrentWorkIf(ctx, rootID, now)
+		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			rows, err := repository.NewSystem(tx).ListReferencesByWork(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if err := referenceConflict(rows, "作品", "永久删除"); err != nil {
+				return err
+			}
+			if _, err := repository.NewWorks(tx).PurgeGroup(ctx, rootID); err != nil {
+				return err
+			}
+			return repository.NewSettings(tx).ClearCurrentWorkIf(ctx, rootID, now)
+		})
 	case RootTypeSystemCategory:
 		if _, err := system.GetDeletedCategoryRoot(ctx, rootID); err != nil {
 			return alreadyDeleted(err)
@@ -460,37 +490,50 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
 			return err
 		}
-		rows, err := system.ListReferencesByCategory(ctx, rootID)
-		if err != nil {
+		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			repo := repository.NewSystem(tx)
+			rows, err := repo.ListReferencesByCategory(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if err := referenceConflict(rows, "类别", "永久删除"); err != nil {
+				return err
+			}
+			_, err = repo.PurgeCategoryGroup(ctx, rootID)
 			return err
-		}
-		if err := referenceConflict(rows, "类别", "永久删除"); err != nil {
-			return err
-		}
-		_, err = system.PurgeCategoryGroup(ctx, rootID)
-		return err
+		})
 	case RootTypeSystemNode:
 		if _, err := system.GetDeletedNodeRoot(ctx, rootID); err != nil {
 			return alreadyDeleted(err)
 		}
-		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
-			return err
-		}
-		rows, err := system.ListReferencesByNode(ctx, rootID)
+		children, err := system.ListNodeChildren(ctx, rootID)
 		if err != nil {
 			return err
 		}
-		if err := referenceConflict(rows, "节点", "永久删除"); err != nil {
+		if len(children) > 0 {
+			return &model.HasChildrenError{Items: childConflictItems(children)}
+		}
+		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
 			return err
 		}
-		_, err = system.PurgeNode(ctx, rootID)
-		return err
+		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			repo := repository.NewSystem(tx)
+			rows, err := repo.ListReferencesByNode(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if err := referenceConflict(rows, "节点", "永久删除"); err != nil {
+				return err
+			}
+			_, err = repo.PurgeNode(ctx, rootID)
+			return err
+		})
 	default:
 		return model.ErrInvalidRootType
 	}
 }
 
-// PurgeAll 清空回收站；先做全量引用检查，再落快照并按顺序物理删除。
+// PurgeAll 清空回收站；先做全量引用检查，再落快照，最后在事务内复核并物理删除。
 func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, error) {
 	if confirm != "PURGE_ALL" {
 		return nil, &model.ValidationError{Field: "confirm", Message: "清空回收站需要提供 confirm=PURGE_ALL"}
@@ -512,7 +555,61 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	if len(works)+len(categories)+len(nodes) == 0 {
 		return &PurgeAllResult{Purged: 0}, nil
 	}
+	nodes = orderNodeRootsForPurge(nodes)
 
+	// 先检查后快照：引用命中即中止，不落快照。
+	references, err := s.collectReferences(ctx, system, works, categories, nodes)
+	if err != nil {
+		return nil, err
+	}
+	if err := referenceConflict(references, "回收站", "清空"); err != nil {
+		return nil, err
+	}
+
+	snapshot, err := s.snapshots.Create(ctx, model.SnapshotReasonPurgeAll)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txSystem := repository.NewSystem(tx)
+		// 事务内复核引用，确保引用检查与物理删除共用同一快照点。
+		references, err := s.collectReferences(ctx, txSystem, works, categories, nodes)
+		if err != nil {
+			return err
+		}
+		if err := referenceConflict(references, "回收站", "清空"); err != nil {
+			return err
+		}
+		txWorks := repository.NewWorks(tx)
+		for _, work := range works {
+			if _, err := txWorks.PurgeGroup(ctx, work.ID); err != nil {
+				return err
+			}
+		}
+		for _, category := range categories {
+			if _, err := txSystem.PurgeCategoryGroup(ctx, category.ID); err != nil {
+				return err
+			}
+		}
+		for _, node := range nodes {
+			if _, err := txSystem.PurgeNode(ctx, node.ID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &PurgeAllResult{
+		Purged:     int64(len(works) + len(categories) + len(nodes)),
+		SnapshotID: snapshot.ID,
+	}, nil
+}
+
+// collectReferences 汇总全部回收站根的引用明细。
+func (s *Trash) collectReferences(ctx context.Context, system *repository.System, works []model.Work, categories []model.SystemCategory, nodes []model.SystemNode) ([]repository.ReferenceRow, error) {
 	var references []repository.ReferenceRow
 	for _, work := range works {
 		rows, err := system.ListReferencesByWork(ctx, work.ID)
@@ -535,40 +632,46 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 		}
 		references = append(references, rows...)
 	}
-	if err := referenceConflict(references, "回收站", "清空"); err != nil {
-		return nil, err
-	}
+	return references, nil
+}
 
-	snapshot, err := s.snapshots.Create(ctx, model.SnapshotReasonPurgeAll)
-	if err != nil {
-		return nil, err
+// orderNodeRootsForPurge 保证子节点根先于父节点根删除，避免自引用 FK RESTRICT。
+func orderNodeRootsForPurge(nodes []model.SystemNode) []model.SystemNode {
+	if len(nodes) < 2 {
+		return nodes
 	}
-
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, work := range works {
-			if _, err := repository.NewWorks(tx).PurgeGroup(ctx, work.ID); err != nil {
-				return err
-			}
-		}
-		for _, category := range categories {
-			if _, err := repository.NewSystem(tx).PurgeCategoryGroup(ctx, category.ID); err != nil {
-				return err
-			}
-		}
-		for _, node := range nodes {
-			if _, err := repository.NewSystem(tx).PurgeNode(ctx, node.ID); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	rootIDs := make(map[string]struct{}, len(nodes))
+	byID := make(map[string]model.SystemNode, len(nodes))
+	children := make(map[string][]string, len(nodes))
+	for _, node := range nodes {
+		rootIDs[node.ID] = struct{}{}
+		byID[node.ID] = node
 	}
-	return &PurgeAllResult{
-		Purged:     int64(len(works) + len(categories) + len(nodes)),
-		SnapshotID: snapshot.ID,
-	}, nil
+	for _, node := range nodes {
+		if node.ParentID == nil {
+			continue
+		}
+		if _, ok := rootIDs[*node.ParentID]; ok {
+			children[*node.ParentID] = append(children[*node.ParentID], node.ID)
+		}
+	}
+	visited := make(map[string]bool, len(nodes))
+	ordered := make([]model.SystemNode, 0, len(nodes))
+	var visit func(id string)
+	visit = func(id string) {
+		if visited[id] {
+			return
+		}
+		visited[id] = true
+		for _, childID := range children[id] {
+			visit(childID)
+		}
+		ordered = append(ordered, byID[id])
+	}
+	for _, node := range nodes {
+		visit(node.ID)
+	}
+	return ordered
 }
 
 // Undo 在 8 秒窗口内撤销最近的删除；令牌一次性，重复使用返回 ALREADY_DELETED。
@@ -602,7 +705,7 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 			if err != nil {
 				return alreadyDeleted(err)
 			}
-			if _, err := repository.NewWorks(tx).Name(ctx, category.WorkID); err != nil {
+			if _, err := repository.NewWorks(tx).ActiveName(ctx, category.WorkID); err != nil {
 				if errors.Is(err, model.ErrNotFound) {
 					return model.ErrParentDeleted
 				}
