@@ -20,7 +20,22 @@ var (
 	ErrNodeParentMismatch       = errors.New("上级节点与类别不匹配")
 	ErrHasChildren              = errors.New("仍有下级节点")
 	ErrParentDeleted            = errors.New("上级或类别仍在回收站")
+	ErrPreconditionRequired     = errors.New("缺少 If-Match 请求头")
 )
+
+// NameConflictError 表示同名冲突，details.items 列出冲突记录。
+type NameConflictError struct {
+	Items []ConflictItem `json:"items"`
+}
+
+func (e *NameConflictError) Error() string { return "名称已存在" }
+
+// CategoryDisabledError 表示引用了未启用类别，details 携带类别名。
+type CategoryDisabledError struct {
+	CategoryName string `json:"category_name"`
+}
+
+func (e *CategoryDisabledError) Error() string { return "该类别已停用" }
 
 // ValidationError 携带字段名，handler 转成 details.field。
 type ValidationError struct {

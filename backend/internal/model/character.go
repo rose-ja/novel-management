@@ -163,6 +163,21 @@ func NormalizeCharacterNameValue(raw, field string) (value, valueKey string, err
 	return value, strings.ToLower(value), nil
 }
 
+// NormalizeCharacterDescription 空字符串视为未填写（nil），并校验 20,000 字符上限。
+func NormalizeCharacterDescription(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	value := strings.TrimSpace(*raw)
+	if value == "" {
+		return nil, nil
+	}
+	if utf8.RuneCountInString(value) > MaxDescriptionRunes {
+		return nil, &ValidationError{Field: "description", Message: "人物简介不能超过 20000 个字符"}
+	}
+	return &value, nil
+}
+
 func normalizeCharacterName(raw, field string) (name, nameKey string, err error) {
 	name = strings.TrimSpace(raw)
 	if name == "" {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"novel-management/backend/internal/model"
 )
@@ -119,6 +120,22 @@ func (r *Characters) GetActiveByWork(ctx context.Context, workID, id string) (*m
 	var item model.Character
 	err := r.DB.WithContext(ctx).
 		Where("id = ? AND work_id = ? AND deleted_at IS NULL", id, workID).
+		First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+// GetForUpdate 在事务内锁定未删除人物行，供乐观锁读取。
+func (r *Characters) GetForUpdate(ctx context.Context, id string) (*model.Character, error) {
+	var item model.Character
+	err := r.DB.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND deleted_at IS NULL", id).
 		First(&item).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, model.ErrNotFound
