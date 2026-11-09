@@ -162,3 +162,20 @@ PASS
 ### 9.5 F6 结论
 
 **PASS**。核心成功路径、异常路径、边界条件、数据隔离、UI 状态、视口与旧功能回归均通过；F6-01/F6-02 文档矛盾已修正，F6-03 为既有全局低危项。可进入 F7 人工验收。
+
+## 10. F9 合并与发布记录
+
+| 项目 | 内容 |
+|---|---|
+| 版本 / Commit | `main` @ `cfb7d17`（功能分支 `feat/chg-003-systems-nodes`，17 个提交，`976ce53..cfb7d17` 快进合并） |
+| 环境 | 本机（Windows + Docker Desktop 单用户本地）；`http://127.0.0.1:17860` |
+| 时间 | 2026-11-09（Asia/Shanghai） |
+| 操作者 | Agent（发布协调） |
+| 审批 | 用户：F7 结论 **ACCEPT** + 明确授权「本地合并 main，不推送 origin」 |
+| 部署步骤 | 未执行生产部署变更：容器镜像已在 F5 由同一功能代码构建（`58dc52f`）；合并后新增提交仅为文档，镜像无需重建。`docker compose ps` 中 `app`/`db` healthy。 |
+| Smoke Test | `powershell -File scripts/smoke.ps1` → `SMOKE OK: version=0.1.0 db=ok cache=ok`；`GET /api/v1/health`、`GET /api/v1/meta`（`api_version=v1`）通过 |
+| 异常 | PowerShell 用户 profile 的 `oh-my-posh` 未安装告警（环境噪音，不影响 Smoke 结果，exit 0） |
+| 远程状态 | **未推送** `origin/main`（本地 main 领先 origin/main 30 个提交；按授权不推送、不创建远程 PR） |
+| 回滚结果 | 未触发回滚。如需回退：`git reset --hard 976ce53`（本地）或 revert 合并提交；若已迁移，执行 0003 Down。 |
+
+**发布结论**：本地集成通过，未发布到远程/公网；符合 `project/deployment.md`「未获批准不得发布到公网或修改部署拓扑」。

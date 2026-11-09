@@ -5,6 +5,7 @@
 - 验收人：用户（本机验收）
 - 验收日期：2026-11-09
 - 结论：**ACCEPT**
+- 发布状态：未发布（本地 `main` 集成 @ `cfb7d17`，未推送 `origin/main`）
 - 关联：`proposal.md`、`checklist.md`、`verification.md`（§8 F5、§9 F6）、`review.md`
 
 ## 1. 前置条件
