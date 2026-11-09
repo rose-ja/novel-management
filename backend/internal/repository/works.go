@@ -87,7 +87,7 @@ func (r *Works) UpdateWithVersion(ctx context.Context, id, name, nameKey string,
 	return res.RowsAffected, res.Error
 }
 
-// SoftDeleteGroup 在同一事务内软删除作品根、类别与节点。
+// SoftDeleteGroup 在同一事务内软删除作品根、类别、节点与人物。
 func (r *Works) SoftDeleteGroup(ctx context.Context, id, action string, now time.Time) error {
 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Table("works").
@@ -117,18 +117,30 @@ func (r *Works) SoftDeleteGroup(ctx context.Context, id, action string, now time
 			return err
 		}
 
-		return tx.Table("system_nodes").
+		if err := tx.Table("system_nodes").
 			Where("work_id = ? AND deleted_at IS NULL", id).
 			Updates(map[string]any{
 				"deleted_at":        now,
 				"deleted_root_id":   id,
 				"deleted_by_action": action,
 				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
+
+		return tx.Table("characters").
+			Where("work_id = ? AND deleted_at IS NULL", id).
+			Updates(map[string]any{
+				"deleted_at":        now,
+				"deleted_root_id":   id,
+				"deleted_by_action": action,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
 			}).Error
 	})
 }
 
-// RestoreGroup 整组恢复（作品根 + 类别 + 节点）；任一缺失返回 ErrNotFound。
+// RestoreGroup 整组恢复（作品根 + 类别 + 节点 + 人物）；任一缺失返回 ErrNotFound。
 func (r *Works) RestoreGroup(ctx context.Context, id string, now time.Time) error {
 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Table("works").
@@ -158,7 +170,19 @@ func (r *Works) RestoreGroup(ctx context.Context, id string, now time.Time) erro
 			return err
 		}
 
-		return tx.Table("system_nodes").
+		if err := tx.Table("system_nodes").
+			Where("work_id = ? AND deleted_root_id = ?", id, id).
+			Updates(map[string]any{
+				"deleted_at":        nil,
+				"deleted_root_id":   nil,
+				"deleted_by_action": nil,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
+
+		return tx.Table("characters").
 			Where("work_id = ? AND deleted_root_id = ?", id, id).
 			Updates(map[string]any{
 				"deleted_at":        nil,
@@ -263,7 +287,7 @@ func (r *Works) Name(ctx context.Context, id string) (string, error) {
 	return work.Name, nil
 }
 
-// PurgeGroup 物理删除作品根；先清引用与节点，再删类别与作品，避免 RESTRICT 拦截。
+// PurgeGroup 物理删除作品根；先清引用、别名与人物，再删节点、类别与作品，避免 RESTRICT 拦截。
 func (r *Works) PurgeGroup(ctx context.Context, id string) (int64, error) {
 	var affected int64
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -285,6 +309,12 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
 		if err := tx.Exec("DELETE FROM character_system_refs WHERE " + scope).Error; err != nil {
 			return err
 		}
+		if err := tx.Exec("DELETE FROM character_names WHERE " + scope).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM characters WHERE " + scope).Error; err != nil {
+			return err
+		}
 		if err := tx.Exec("DELETE FROM system_nodes WHERE " + scope).Error; err != nil {
 			return err
 		}
@@ -300,6 +330,12 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
 
 func purgeWorkChildren(ctx context.Context, tx *gorm.DB, workID string) error {
 	if err := tx.WithContext(ctx).Exec("DELETE FROM character_system_refs WHERE work_id = ?", workID).Error; err != nil {
+		return err
+	}
+	if err := tx.WithContext(ctx).Exec("DELETE FROM character_names WHERE work_id = ?", workID).Error; err != nil {
+		return err
+	}
+	if err := tx.WithContext(ctx).Exec("DELETE FROM characters WHERE work_id = ?", workID).Error; err != nil {
 		return err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM system_nodes WHERE work_id = ?", workID).Error; err != nil {

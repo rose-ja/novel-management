@@ -547,13 +547,7 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 		}
 		now := s.now().UTC()
 		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			rows, err := repository.NewSystem(tx).ListReferencesByWork(ctx, rootID)
-			if err != nil {
-				return err
-			}
-			if err := referenceConflict(rows, "作品", "永久删除"); err != nil {
-				return err
-			}
+			// 作品内人物引用指向本作品的类别/节点，属于随组删除的子记录，不构成入向阻断。
 			if _, err := repository.NewWorks(tx).PurgeGroup(ctx, rootID); err != nil {
 				return err
 			}
@@ -656,7 +650,7 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	total := int64(len(works) + len(categories) + len(nodes) + len(characters))
 
 	// 先检查后快照：引用命中即中止，不落快照。
-	references, err := s.collectReferences(ctx, system, works, categories, nodes)
+	references, err := s.collectReferences(ctx, system, categories, nodes)
 	if err != nil {
 		return nil, err
 	}
@@ -672,7 +666,7 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txSystem := repository.NewSystem(tx)
 		// 事务内复核引用，确保引用检查与物理删除共用同一快照点。
-		references, err := s.collectReferences(ctx, txSystem, works, categories, nodes)
+		references, err := s.collectReferences(ctx, txSystem, categories, nodes)
 		if err != nil {
 			return err
 		}
@@ -713,16 +707,9 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	}, nil
 }
 
-// collectReferences 汇总全部回收站根的引用明细。
-func (s *Trash) collectReferences(ctx context.Context, system *repository.System, works []model.Work, categories []model.SystemCategory, nodes []model.SystemNode) ([]repository.ReferenceRow, error) {
+// collectReferences 汇总类别/节点的引用明细；作品内引用随作品整组删除，不计入阻断。
+func (s *Trash) collectReferences(ctx context.Context, system *repository.System, categories []model.SystemCategory, nodes []model.SystemNode) ([]repository.ReferenceRow, error) {
 	var references []repository.ReferenceRow
-	for _, work := range works {
-		rows, err := system.ListReferencesByWork(ctx, work.ID)
-		if err != nil {
-			return nil, err
-		}
-		references = append(references, rows...)
-	}
 	for _, category := range categories {
 		rows, err := system.ListReferencesByCategory(ctx, category.ID)
 		if err != nil {

@@ -4,6 +4,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 )
@@ -147,6 +148,61 @@ func TestCharacterRestoreConflictAndParentDeleted(t *testing.T) {
 	}
 	blocked := h.do(http.MethodPost, "/api/v1/trash/character/"+second.ID+"/restore", map[string]any{}, nil)
 	assertErrorCode(t, blocked, http.StatusConflict, "PARENT_DELETED")
+}
+
+func TestCharacterWorkGroupLifecycle(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("作品联动")
+	category := h.listCategories(work.ID, nil).Items[0]
+	node := h.createCharacterNode(work.ID, category.ID, "", "帝境")
+	character := h.createCharacter(work.ID, "陆沉", []characterNamePayload{{Kind: "alias", Value: "小圣"}}, []map[string]string{
+		{"category_id": category.ID, "node_id": node},
+	})
+
+	deleted := h.deleteWork(work.ID, "作品联动", "1")
+	if deleted.Code != http.StatusOK {
+		t.Fatalf("删除作品失败（status=%d）：%s", deleted.Code, deleted.Body.String())
+	}
+	if gone := h.do(http.MethodGet, "/api/v1/characters/"+character.ID, nil, nil); gone.Code != http.StatusNotFound {
+		t.Fatalf("作品删除后人物应不可见，实际 %d", gone.Code)
+	}
+	if list := h.listCharacters(work.ID, ""); list.Total != 0 {
+		t.Fatalf("作品删除后列表应为空，实际 %d", list.Total)
+	}
+	trash := decodeBody[trashPage](t, h.do(http.MethodGet, "/api/v1/trash?root_type=character", nil, nil))
+	if trash.Total != 0 {
+		t.Fatalf("随作品删除的人物不应作为独立根出现，实际 %d", trash.Total)
+	}
+	if h.trashTotal() != 1 {
+		t.Fatalf("回收站应只有作品根，实际 %d", h.trashTotal())
+	}
+
+	restored := h.do(http.MethodPost, "/api/v1/trash/work/"+work.ID+"/restore", map[string]any{}, nil)
+	if restored.Code != http.StatusOK {
+		t.Fatalf("恢复作品失败（status=%d）：%s", restored.Code, restored.Body.String())
+	}
+	detail := h.do(http.MethodGet, "/api/v1/characters/"+character.ID, nil, nil)
+	if detail.Code != http.StatusOK {
+		t.Fatalf("恢复作品后人物应回来（status=%d）：%s", detail.Code, detail.Body.String())
+	}
+	payload := decodeBody[characterPayload](t, detail)
+	if len(payload.SystemRefs) != 1 || len(payload.Names) != 1 {
+		t.Fatalf("恢复后体系引用与别名应原状返回：%+v", payload)
+	}
+
+	workDetail := h.do(http.MethodGet, "/api/v1/works/"+work.ID, nil, nil)
+	workVersion := decodeBody[workPayload](t, workDetail).Version
+	if again := h.deleteWork(work.ID, "作品联动", fmt.Sprint(workVersion)); again.Code != http.StatusOK {
+		t.Fatalf("再次删除作品失败（status=%d）：%s", again.Code, again.Body.String())
+	}
+	purged := h.do(http.MethodDelete, "/api/v1/trash/work/"+work.ID, map[string]any{"confirm": true}, nil)
+	if purged.Code != http.StatusNoContent {
+		t.Fatalf("永久删除作品失败（status=%d）：%s", purged.Code, purged.Body.String())
+	}
+	characters, names, refs := h.characterRowCount(character.ID)
+	if characters != 0 || names != 0 || refs != 0 {
+		t.Fatalf("永久删除作品后人物应物理清除：characters=%d names=%d refs=%d", characters, names, refs)
+	}
 }
 
 func TestCharacterPurgeAll(t *testing.T) {
