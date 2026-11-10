@@ -344,6 +344,13 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
 }
 
 func purgeWorkChildren(ctx context.Context, tx *gorm.DB, workID string) error {
+	// 与单条人物 Purge 保持一致的「人物行 → 引用 → 别名」加锁顺序，避免并发死锁。
+	var characterIDs []string
+	if err := tx.WithContext(ctx).
+		Raw("SELECT id FROM characters WHERE work_id = ? FOR UPDATE", workID).
+		Scan(&characterIDs).Error; err != nil {
+		return err
+	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM character_system_refs WHERE work_id = ?", workID).Error; err != nil {
 		return err
 	}

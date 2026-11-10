@@ -2,7 +2,7 @@
 
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 export type DrawerProps = {
   open: boolean;
@@ -25,6 +25,8 @@ export function Drawer({
   children,
   footer,
 }: DrawerProps) {
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
@@ -32,6 +34,14 @@ export function Drawer({
         <RadixDialog.Content
           className={`ui-drawer ui-drawer--${side} ui-drawer--${width}`}
           aria-describedby={undefined}
+          onOpenAutoFocus={() => {
+            restoreFocusRef.current = document.activeElement as HTMLElement | null;
+          }}
+          onCloseAutoFocus={(event) => {
+            if (!restoreFocusRef.current) return;
+            event.preventDefault();
+            restoreFocusRef.current.focus();
+          }}
         >
           <div className="ui-dialog__header">
             <RadixDialog.Title className="ui-dialog__title">{title}</RadixDialog.Title>

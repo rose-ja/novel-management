@@ -90,3 +90,59 @@
 | `characters.spec.ts` | 7 passed（新建跳详情、冲突新文案均验证） |
 
 结论待复审更新。
+
+## F5 复审结果
+
+复审对象：`feat/chg-004-characters-core` 的 `36f6398`（16 files changed）。本地仓库不存在任务给出的 `6a6f0a6`，故以 `git show 36f6398` 对照当前工作区代码复核；工作区干净，未修改源码、未提交 git。
+
+### 逐 ID 状态
+
+| ID | 原严重度 | 复审状态 | 结论依据 | 遗留/备注 |
+|---|---|---|---|---|
+| C-01 | S1 | **已修复** | `repository/characters.go:374-400` 在事务内以 `FOR UPDATE` 复核 `deleted_at IS NOT NULL AND deleted_root_id = id`，未命中返回 0 行；`service/trash.go:608-617` 将 0 行映射为 `ALREADY_DELETED`；`PurgeAll` 对 0 行容错（`trash.go:692-698`）。恢复先提交时，Purge 的 `SELECT ... FOR UPDATE` 会重新求值条件并返回 0 行，不再删除活跃人物 | `TestCharacterPurgeSkipsRestoredRoot`（`character_trash_test.go:211-239`）为「先恢复、后 Purge」的顺序等价场景，能证明条件守卫分支，但未起两个并发事务，也未覆盖服务层预检与 PurgeAll 路径；建议 F6 补真实并发用例（非阻断） |
+| C-02 | S2 | **已修复** | `migrations/0004_characters.sql` Down 在删表前执行 `DELETE FROM character_system_refs;`；`migrations_test.go:51-81` 播种作品/类别/节点/人物/引用后回滚 0004，断言 refs=0，并完成全量 Down/Up 往返 | DB-05 证据已同步修正，描述与测试一致 |
+| C-03 | S2 | **部分修复，接受延后** | `messages.ts:439` 改为固定文案「数据已被其他页面修改，请刷新后重试」，`character-detail-page.tsx:206-212` 不再读取/展示 `current_version`，E2E `characters.spec.ts:183` 已同步 | `ConflictDialog` 仍未落地（顶部 Alert + 刷新按钮）；`review.md`/`verification.md` 已如实标注为部分修复，未虚假勾选 |
+| C-04 | S2 | **接受延后** | 行菜单/sticky 操作列/窄屏隐藏别名列/表头排序/筛选 chips 未实现；UI-05 已取消勾选并写入偏差（`checklist.md:96`） | 延期说明「超出 T11 已声明范围」不准确：T11 明确包含「筛选、排序」（`tasks.md:118`），实际只是排序改为筛选栏 Select；建议修正表述并登记承接任务 |
+| C-05 | S2 | **已修复** | `character-create-drawer.tsx:67` 回传 `{id,name}`；`character-list-page.tsx:244-246` 创建后 `router.push('/characters?id=…')`；E2E `characters.spec.ts:73-77` 断言详情 URL/标题并返回列表 | 列表在返回时重新挂载拉取，未发现刷新回归 |
+| C-06 | S2 | **部分修复，接受延后** | 引用冲突 `ReferenceDialog` 依赖入向引用检查（CHG-006/008），当前不可达，理由成立 | 「删除入口收进更多菜单」「删除成功后返回 PG-02」不依赖引用检查，仍保持现状；延期理由未覆盖这两点，登记为遗留 S2，需在 F6/CHG-006/008 明确承接 |
+| C-07 | S2 | **接受延后** | 撤销 Toast 仍为 8 秒自动关闭，无倒计时/超时提示；已作为已知简化记录在 `review.md` 与 `verification.md` | 属 UI 体验 S2，未虚假声明已实现 |
+| C-08 | S2 | **接受延后** | 前端字段级错误定位未实现，错误仍在顶部 Alert；UI-04 保持未勾选；后端 `VALIDATION_ERROR.details.field`/`NAME_CONFLICT` 明细已具备 | T12 验收文字含「名称冲突字段错误」（`tasks.md:127`），与当前实现存在张力；建议 F6/F7 收口时明确记为遗留或调整验收 |
+| C-09 | S2 | **接受延后** | 停用类别编辑态灰显/清除未实现；DT-03 保持未勾选（`checklist.md:58`） | 正常路径被「被引用类别不可停用」阻断，仅并发绕过/历史数据可达，接受为记录项 |
+| C-10 | S2 | **已修复** | `service/characters.go:285、354` 改为 `in.FactionID != nil` 即 422，空串不再静默通过；`character_test.go:69、215` 覆盖 Create/Update 空串 | `faction_id: null` 仍可清空（`ClearFaction` 分支保留）；前端默认发送 `null`，未发现回归 |
+| C-11 | S2 | **已修复（实现）** | 新增 `repository/works.go:57-68` `GetForUpdate`（`FOR UPDATE` + `deleted_at IS NULL`）；`service/characters.go:311` 与 `service/trash.go:493` 在事务内先锁作品再写人物；锁序为「作品 → 人物」，与作品组软删除一致 | 未补并发交错测试；属 S2 测试增强项，建议 F6 用 `-race` 补「作品软删除 vs 人物创建/恢复」用例。实现本身可接受 |
+| C-12 | S2 | **接受延后** | 回收站人物根父名 N+1 未优化；已记录为性能待办 | 不涉及已声明的列表 P95 门禁，接受为遗留 S2 |
+| C-13 | S2 | **已修复** | `character-list-page.tsx:122` 请求失败时 `setData(null)`，不再与旧数据并存；筛选与重试保留 | 与 PG-02 §6.5 一致 |
+| C-14 | S2 | **部分修复，接受延后** | data-model 三处漂移延后至 F10 的 DOC-03 | `checklist.md:109` 的 DOC-03 目前只写「`faction_id` 无 FK」，未覆盖 `work_id` 级联、`reviewed_by` 默认值、`names` 长度；需在 F10 前扩大 DOC-03 范围，否则「随 DOC-03 回写」不成立 |
+| C-15 | S2 | **部分修复** | 迁移往返已补真实数据；1024 列策略/sticky 断言随 C-04 延后；E2E-02「删除被阻止」在 `review.md`/`verification.md` 记录为 N/A（入向检查待 CHG-006/008） | `characters.spec.ts` 的 1024 用例仍只断言文档无横向溢出；UI-05 已取消勾选，未虚假声明 |
+
+### 新增问题（本次修复引入/暴露）
+
+| ID | 严重度 | 文件与行号 | 触发条件 | 实际影响 | 修复建议 | 验证建议 |
+|---|---|---|---|---|---|---|
+| R-01 | S2 | `backend/internal/repository/characters.go:379-396`；`backend/internal/repository/works.go:346-359` | 同一人物的「单条永久删除」与「作品根永久删除/PurgeAll」并发执行（人物先单独删除、作品后删除时，两者会同时出现在回收站） | 单条 Purge 新锁序为「人物行 → refs → names → characters」；`purgeWorkChildren` 为「refs → names → characters」。两事务可形成环：一方持有 refs 等待人物行锁，另一方持有该行锁等待 refs，PostgreSQL 报 `40P01` 并使其中一个请求失败（500），无数据损坏，可重试 | 统一加锁顺序：在 `purgeWorkChildren` 开头先 `SELECT id FROM characters WHERE work_id = ? FOR UPDATE`，或统一改为「先删人物（依赖 FK 级联）再删 refs/names」；也可对死锁错误做有限重试 | 并发集成测试：两个事务分别执行单条 Purge 与 PurgeGroup，断言无 `40P01`、最终状态一致；或对 `purgeWorkChildren` 的锁序做代码级约束测试 |
+
+### 复审结论
+
+**PASS**（无新增 S0/S1；C-01 已实质修复）。
+
+- 已修复：C-01、C-02、C-05、C-10、C-11、C-13。
+- 部分修复并如实记录：C-03、C-06、C-14、C-15。
+- 已记录延后且 checklist/verification 未虚假勾选：C-04、C-07、C-08、C-09、C-12。
+- 需在 F6/F10 跟踪的遗留项：R-01 死锁风险；C-06 的「删除入口/成功返回列表」部分；C-14 的 DOC-03 范围；C-11 的并发测试与 C-01 的真实交错测试；C-04 的延期表述修正与承接任务。
+
+以上遗留均为 S2，且已明确记录，不阻断本次复审通过；建议在 F6 证据补充阶段关闭 R-01 与 C-06 未覆盖部分，在 F10 前完成 DOC-03 扩项。
+
+---
+
+## F6 回归补充（作者记录）
+
+| 项 | 处理 | 证据 |
+|---|---|---|
+| R-01 | 已修复：`purgeWorkChildren` 开头先 `SELECT id FROM characters WHERE work_id = ? FOR UPDATE`，与单条 Purge 统一为「人物行 → refs → names」锁序 | `repository/works.go`；集成 65 PASS（未做真实交错并发测试，作为后续增强） |
+| UI-03 | 已修复：错误态不再同时渲染表格与空态，仅保留 Alert + 重试 | QA 场景 + `error-states.spec.ts` 通过 |
+| UI-06 | 已修复：`Drawer` 在 `onOpenAutoFocus` 记录触发元素、`onCloseAutoFocus` 归还焦点 | QA 场景断言 Esc 后焦点回到「新建人物」通过 |
+| C-06 | 仍延后（S2）：删除入口菜单与「成功后返回列表」未改，引用对话框待 CHG-006/008 | `review.md` 保留 |
+| C-14 | 仍延后至 F10；DOC-03 范围需包含 `work_id` 级联、`reviewed_by` 默认值、`names` 长度 | 待 F10 扩项 |
+| C-11 / C-01 并发测试 | 未补真实交错用例，保留为 S2 测试增强 | 现有顺序等价用例通过 |
+
+回归结果：全量 E2E 63 passed（47.2s）；F6 QA 临时用例 1 passed（8 个场景：EX-04/EX-06/DT-02/DT-04/DT-05/UI-02/UI-03/UI-06），用后删除；后端 gofmt/vet/单测/集成 65 PASS；前端 typecheck/lint/43 单测通过。

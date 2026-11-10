@@ -218,24 +218,26 @@ export function CharacterListPage() {
                 </Button>
               }
             />
-          ) : null}
+          ) : (
+            <>
+              <CharacterTable
+                items={data?.items ?? []}
+                loading={status === "loading"}
+                filtered={filtered}
+                onCreate={() => setDrawerOpen(true)}
+                onClearFilters={resetFilters}
+              />
 
-          <CharacterTable
-            items={data?.items ?? []}
-            loading={status === "loading"}
-            filtered={filtered}
-            onCreate={() => setDrawerOpen(true)}
-            onClearFilters={resetFilters}
-          />
-
-          {data && data.total > 0 ? (
-            <Pagination
-              page={data.page}
-              pageSize={data.page_size}
-              total={data.total}
-              onChange={setPage}
-            />
-          ) : null}
+              {data && data.total > 0 ? (
+                <Pagination
+                  page={data.page}
+                  pageSize={data.page_size}
+                  total={data.total}
+                  onChange={setPage}
+                />
+              ) : null}
+            </>
+          )}
 
           <CharacterCreateDrawer
             open={drawerOpen}
