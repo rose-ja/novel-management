@@ -48,6 +48,19 @@ func TestMigrationRoundTrip(t *testing.T) {
 		t.Fatalf("迁移版本应为 4，实际 %d", version)
 	}
 
+	seed := []string{
+		`INSERT INTO works (id, name, name_key) VALUES ('MIGWORK', '迁移作品', '迁移作品')`,
+		`INSERT INTO system_categories (id, work_id, name, name_key) VALUES ('MIGCAT', 'MIGWORK', '迁移类别', '迁移类别')`,
+		`INSERT INTO system_nodes (id, work_id, category_id, name, name_key) VALUES ('MIGNODE', 'MIGWORK', 'MIGCAT', '迁移节点', '迁移节点')`,
+		`INSERT INTO characters (id, work_id, name, name_key) VALUES ('MIGCHAR', 'MIGWORK', '迁移人物', '迁移人物')`,
+		`INSERT INTO character_system_refs (id, work_id, character_id, category_id, node_id) VALUES ('MIGREF', 'MIGWORK', 'MIGCHAR', 'MIGCAT', 'MIGNODE')`,
+	}
+	for _, statement := range seed {
+		if err := testDB.Exec(statement).Error; err != nil {
+			t.Fatalf("播种 0004 回滚数据失败：%v", err)
+		}
+	}
+
 	if err := migrations.Down(ctx, sqlDB); err != nil {
 		t.Fatalf("回滚 0004 失败：%v", err)
 	}
@@ -58,6 +71,13 @@ func TestMigrationRoundTrip(t *testing.T) {
 	}
 	if !tableExists(t, "character_system_refs") {
 		t.Fatal("回滚 0004 不应删除表 character_system_refs")
+	}
+	var leftoverRefs int64
+	if err := testDB.Raw("SELECT count(*) FROM character_system_refs").Scan(&leftoverRefs).Error; err != nil {
+		t.Fatalf("统计 character_system_refs 失败：%v", err)
+	}
+	if leftoverRefs != 0 {
+		t.Fatalf("回滚 0004 后 character_system_refs 应清空，实际 %d 行", leftoverRefs)
 	}
 
 	if err := migrations.Down(ctx, sqlDB); err != nil {

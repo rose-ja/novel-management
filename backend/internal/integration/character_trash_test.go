@@ -3,10 +3,13 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
+
+	"novel-management/backend/internal/repository"
 )
 
 type characterDeletePayload struct {
@@ -202,6 +205,36 @@ func TestCharacterWorkGroupLifecycle(t *testing.T) {
 	characters, names, refs := h.characterRowCount(character.ID)
 	if characters != 0 || names != 0 || refs != 0 {
 		t.Fatalf("永久删除作品后人物应物理清除：characters=%d names=%d refs=%d", characters, names, refs)
+	}
+}
+
+// TestCharacterPurgeSkipsRestoredRoot 覆盖「回收站列表读取后、永久删除前人物被恢复」的竞态：
+// 物理删除必须在事务内重新确认 deleted_at 与根标记，不能清掉已恢复的活跃人物。
+func TestCharacterPurgeSkipsRestoredRoot(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("恢复后清理")
+	category := h.listCategories(work.ID, nil).Items[0]
+	node := h.createCharacterNode(work.ID, category.ID, "", "帝境")
+	character := h.createCharacter(work.ID, "陆沉", []characterNamePayload{{Kind: "alias", Value: "小圣"}}, []map[string]string{
+		{"category_id": category.ID, "node_id": node},
+	})
+	h.deleteCharacter(character.ID, "1")
+
+	restore := h.do(http.MethodPost, "/api/v1/trash/character/"+character.ID+"/restore", map[string]any{}, nil)
+	if restore.Code != http.StatusOK {
+		t.Fatalf("恢复人物失败（status=%d）：%s", restore.Code, restore.Body.String())
+	}
+
+	rows, err := repository.NewCharacters(h.tx).Purge(context.Background(), character.ID)
+	if err != nil {
+		t.Fatalf("清理已恢复人物返回错误：%v", err)
+	}
+	if rows != 0 {
+		t.Fatalf("已恢复人物不应被物理删除，rows=%d", rows)
+	}
+	characters, names, refs := h.characterRowCount(character.ID)
+	if characters != 1 || names != 1 || refs != 1 {
+		t.Fatalf("已恢复人物数据被破坏：characters=%d names=%d refs=%d", characters, names, refs)
 	}
 }
 

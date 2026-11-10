@@ -436,10 +436,7 @@ export const messages = {
   characterEditTitle: "编辑人物",
   characterSaveSubmit: "保存修改",
   characterUpdated: (name: string) => `已保存人物「${name}」`,
-  characterVersionConflict: (version: number | null) =>
-    version === null
-      ? "内容已被修改，请刷新最新内容后重试"
-      : `内容已被修改（最新版本 ${version}），请刷新最新内容后重试`,
+  characterVersionConflict: "数据已被其他页面修改，请刷新后重试",
   characterRefresh: "刷新最新内容",
   characterDelete: "删除人物",
   characterDeleteTitle: (name: string) => `删除人物「${name}」？`,

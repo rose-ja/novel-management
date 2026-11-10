@@ -490,7 +490,7 @@ func (s *Trash) restoreCharacter(ctx context.Context, tx *gorm.DB, rootID string
 	if err != nil {
 		return nil, alreadyDeleted(err)
 	}
-	if _, err := repository.NewWorks(tx).Get(ctx, item.WorkID); err != nil {
+	if _, err := repository.NewWorks(tx).GetForUpdate(ctx, item.WorkID); err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			return nil, model.ErrParentDeleted
 		}

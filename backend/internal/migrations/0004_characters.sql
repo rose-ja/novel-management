@@ -59,5 +59,6 @@ ALTER TABLE character_system_refs
 
 -- +goose Down
 ALTER TABLE character_system_refs DROP CONSTRAINT IF EXISTS character_system_refs_character_fk;
+DELETE FROM character_system_refs;
 DROP TABLE IF EXISTS character_names;
 DROP TABLE IF EXISTS characters;

@@ -282,7 +282,7 @@ func (s *Characters) Create(ctx context.Context, in CreateCharacterInput) (*mode
 	if err != nil {
 		return nil, err
 	}
-	if in.FactionID != nil && strings.TrimSpace(*in.FactionID) != "" {
+	if in.FactionID != nil {
 		return nil, &model.ValidationError{Field: "faction_id", Message: "势力功能尚未开放"}
 	}
 	if len(in.LocationLinks) > 0 {
@@ -308,7 +308,7 @@ func (s *Characters) Create(ctx context.Context, in CreateCharacterInput) (*mode
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		repo := repository.NewCharacters(tx)
-		if _, err := repository.NewWorks(tx).Get(ctx, workID); err != nil {
+		if _, err := repository.NewWorks(tx).GetForUpdate(ctx, workID); err != nil {
 			if errors.Is(err, model.ErrNotFound) {
 				return model.ErrCharacterWorkUnavailable
 			}
@@ -351,7 +351,7 @@ func (s *Characters) Update(ctx context.Context, id string, in UpdateCharacterIn
 	if in.LocationLinks != nil && len(*in.LocationLinks) > 0 {
 		return nil, &model.ValidationError{Field: "location_links", Message: "地点功能尚未开放"}
 	}
-	if in.FactionID != nil && strings.TrimSpace(*in.FactionID) != "" {
+	if in.FactionID != nil {
 		return nil, &model.ValidationError{Field: "faction_id", Message: "势力功能尚未开放"}
 	}
 

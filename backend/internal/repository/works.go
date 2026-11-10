@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"novel-management/backend/internal/model"
 )
@@ -44,6 +45,20 @@ func (r *Works) List(ctx context.Context, q string, page, size int) ([]model.Wor
 func (r *Works) Get(ctx context.Context, id string) (*model.Work, error) {
 	var work model.Work
 	err := r.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&work).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &work, nil
+}
+
+// GetForUpdate 以行锁读取未删除作品，供子资源写入/恢复时避免与整组软删除并发。
+func (r *Works) GetForUpdate(ctx context.Context, id string) (*model.Work, error) {
+	var work model.Work
+	err := r.DB.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND deleted_at IS NULL", id).First(&work).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, model.ErrNotFound
 	}

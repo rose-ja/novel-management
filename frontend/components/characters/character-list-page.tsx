@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BookOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -33,6 +34,7 @@ const DEFAULT_FILTERS: CharacterFilterValues = {
 
 /** 人物列表页：工作区隔离、筛选/排序/分页与新建 Drawer（PG-11 §6.1）。 */
 export function CharacterListPage() {
+  const router = useRouter();
   const { settings, status: settingsStatus, error: settingsError, reload } = useSettings();
   const workID = settings.current_work_id;
   const [workName, setWorkName] = useState<string | null>(null);
@@ -117,6 +119,7 @@ export function CharacterListPage() {
       })
       .catch((cause: unknown) => {
         if (!active) return;
+        setData(null);
         setError(cause instanceof Error ? cause : new Error(messages.loadFailed));
         setStatus("error");
       });
@@ -238,9 +241,8 @@ export function CharacterListPage() {
             open={drawerOpen}
             workID={workID}
             onClose={() => setDrawerOpen(false)}
-            onCreated={() => {
-              setPage(1);
-              setReloadTick((value) => value + 1);
+            onCreated={(created) => {
+              router.push(`/characters?id=${created.id}`);
             }}
           />
         </>

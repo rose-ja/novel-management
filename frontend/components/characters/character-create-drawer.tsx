@@ -23,7 +23,7 @@ export type CharacterCreateDrawerProps = {
   open: boolean;
   workID: string;
   onClose: () => void;
-  onCreated: (name: string) => void;
+  onCreated: (character: { id: string; name: string }) => void;
 };
 
 /** 新建人物 Drawer：名称、别名/称号、简介与体系动态字段（PG-11 §6.1）。 */
@@ -64,7 +64,7 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
         systemRefs: toCharacterSystemRefs(values),
       });
       guard.reset();
-      onCreated(created.name);
+      onCreated({ id: created.id, name: created.name });
       onClose();
       showToast({ tone: "success", message: messages.characterCreated(created.name) });
     } catch (cause) {

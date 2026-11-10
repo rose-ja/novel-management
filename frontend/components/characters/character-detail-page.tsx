@@ -22,12 +22,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { ApiError } from "@/lib/api/client";
-import { getCharacter, updateCharacter, type CharacterDetail, type CharacterSystemRef } from "@/lib/api/characters";
+import { messages } from "@/lib/messages";
 import { isApiCode, toUserMessage } from "@/lib/api/errors";
+import { getCharacter, updateCharacter, type CharacterDetail, type CharacterSystemRef } from "@/lib/api/characters";
 import { undoTrash } from "@/lib/api/trash";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
-import { messages } from "@/lib/messages";
 
 type DetailStatus = "loading" | "ready" | "notfound" | "error";
 
@@ -44,12 +43,6 @@ function detailToForm(detail: CharacterDetail): CharacterFormValues {
       detail.system_refs.map((ref) => [ref.category_id, ref.node.id]),
     ),
   };
-}
-
-function versionFromError(error: unknown): number | null {
-  if (!(error instanceof ApiError)) return null;
-  const details = error.details as { current_version?: unknown } | null | undefined;
-  return typeof details?.current_version === "number" ? details.current_version : null;
 }
 
 function formatTime(value: string): string {
@@ -213,9 +206,8 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
       showToast({ tone: "success", message: messages.characterUpdated(updated.name) });
     } catch (cause) {
       if (isApiCode(cause, "VERSION_CONFLICT")) {
-        const current = versionFromError(cause);
         setHasConflict(true);
-        setFormError(messages.characterVersionConflict(current));
+        setFormError(messages.characterVersionConflict);
       } else {
         setFormError(toUserMessage(cause, messages.saveFailed));
       }

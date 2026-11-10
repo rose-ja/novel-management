@@ -371,10 +371,22 @@ func (r *Characters) ListDeletedRoots(ctx context.Context) ([]model.Character, e
 	return items, err
 }
 
-// Purge 物理删除人物；顺序为体系引用 → 别名 → 人物，失败整体回滚。
+// Purge 物理删除人物；事务内先锁定并复核回收站根，
+// 顺序为体系引用 → 别名 → 人物，失败整体回滚；根已恢复时返回 0 行。
 func (r *Characters) Purge(ctx context.Context, id string) (int64, error) {
 	var affected int64
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var locked model.Character
+		err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
+			First(&locked).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			affected = 0
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 		if err := tx.WithContext(ctx).Exec("DELETE FROM character_system_refs WHERE character_id = ?", id).Error; err != nil {
 			return err
 		}

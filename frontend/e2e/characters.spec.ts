@@ -70,6 +70,11 @@ async function createCharacterViaUI(
   await dialog.getByRole("button", { name: "创建人物" }).click();
   await expect(page.locator(".ui-toast").filter({ hasText: `已创建人物「${options.name}」` })).toBeVisible();
   await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/characters\?id=/);
+  await expect(page.getByRole("heading", { name: options.name, level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: "返回人物列表" }).first().click();
+  await expect(page).toHaveURL(/\/characters$/);
+  await expect(page.locator(".ui-table")).toBeVisible();
 }
 
 test.describe("人物列表", () => {
@@ -175,7 +180,7 @@ test.describe("人物详情", () => {
     await page.getByRole("button", { name: "编辑" }).click();
     await page.getByLabel("姓名").fill("陆沉·草稿");
     await page.getByRole("button", { name: "保存修改" }).click();
-    await expect(page.getByText("内容已被修改（最新版本 3）")).toBeVisible();
+    await expect(page.getByText("数据已被其他页面修改，请刷新后重试")).toBeVisible();
     await page.getByRole("button", { name: "刷新最新内容" }).click();
     const discard = page.getByRole("dialog");
     await expect(discard.getByRole("heading", { name: "放弃未保存的修改？" })).toBeVisible();

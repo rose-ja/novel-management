@@ -10,7 +10,7 @@
 | DB-02 | 活跃主名称唯一 `(work_id, name_key)`，`Sword`/`sword` 视为同名 | `TestCharacterDatabaseConstraints`（大小写等价重名被拒） | ☑ |
 | DB-03 | `character_names` 唯一 `(character_id, kind, value_key)`，随人物级联删除 | `TestCharacterDatabaseConstraints`（物理删除后 names=0） | ☑ |
 | DB-04 | `character_system_refs` 追加人物外键，`ON DELETE CASCADE` | `0004_characters.sql`；`TestCharacterDatabaseConstraints`（refs=0） | ☑ |
-| DB-05 | 0004 Down 可回滚且数据不残留 | `TestMigrationRoundTrip`：回滚后重新迁移至版本 4 | ☑ |
+| DB-05 | 0004 Down 可回滚且数据不残留 | `TestMigrationRoundTrip`：播种人物+引用，回滚后 refs=0，再迁移至版本 4 | ☑ |
 
 ## 2. 创建与字段
 
@@ -93,7 +93,7 @@
 | UI-02 | 无当前作品显示引导空态 | E2E | ☐ |
 | UI-03 | 列表骨架/空态/错误态/成功态齐备 | E2E | ☐ |
 | UI-04 | 新建 Drawer 字段顺序、必填标记、计数与错误定位正确 | E2E | ☐ |
-| UI-05 | 1280/1024 无横向溢出；表格操作列固定 | `characters.spec.ts` 1024 溢出 + `visual.spec.ts` 人物基线 | ☑ |
+| UI-05 | 1280/1024 无横向溢出；表格操作列固定 | 溢出通过；操作列 sticky 未实现（审查 C-04/C-15，延后） | ☐ |
 | UI-06 | 键盘可达：Tab 顺序、Esc 关闭 Drawer/对话框、焦点返回触发元素 | E2E | ☐ |
 | UI-07 | axe 无 serious/critical（`/characters` 列表与详情） | `characters.spec.ts` 无障碍用例 + `a11y.spec.ts` | ☑ |
 
@@ -102,7 +102,7 @@
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
 | RG-01 | 既有 E2E 全量通过（含作品/体系/回收站/设置/壳层） | `npx playwright test`：63 passed | ☑ |
-| RG-02 | 后端 `go vet`、单测、集成全绿 | gofmt/vet/build 0；`go test ./...` ok；64 集成用例 PASS | ☑ |
+| RG-02 | 后端 `go vet`、单测、集成全绿 | gofmt/vet/build 0；`go test ./...` ok；65 集成用例 PASS | ☑ |
 | RG-03 | `npm run lint/typecheck/test/build` 全绿 | typecheck/lint 0；43 单测通过；build 成功 | ☑ |
 | DOC-01 | Spec 状态与缺口在 F10 更新（CHAR-001～005/008、WORK-001、SYS-002/005、TRASH-002/003/004） | `project/specs/*` | ☐ |
 | DOC-02 | `api-contract.md` 回写 `CharacterSummary.names[]/version`、DELETE `If-Match`、`location_id` 未开放 | `project/api-contract.md` | ☐ |

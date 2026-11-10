@@ -66,6 +66,7 @@ func TestCharacterCreateValidationMatrix(t *testing.T) {
 		{"名称超长", map[string]any{"work_id": work.ID, "name": strings.Repeat("龙", 201)}, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "name"},
 		{"简介超长", map[string]any{"work_id": work.ID, "name": "长简介", "description": strings.Repeat("龙", 20001)}, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "description"},
 		{"势力未开放", map[string]any{"work_id": work.ID, "name": "势力", "faction_id": "faction-1"}, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "faction_id"},
+		{"势力空串", map[string]any{"work_id": work.ID, "name": "势力空串", "faction_id": ""}, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "faction_id"},
 		{"地点未开放", map[string]any{"work_id": work.ID, "name": "地点", "location_links": []map[string]any{{"location_id": "loc-1"}}}, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "location_links"},
 		{"别名非法", map[string]any{"work_id": work.ID, "name": "别名", "names": []map[string]any{{"kind": "nickname", "value": "小圣"}}}, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "names"},
 		{"类别不存在", map[string]any{"work_id": work.ID, "name": "类别缺失", "system_refs": []map[string]any{{"category_id": "NOPE", "node_id": node}}}, http.StatusNotFound, "NOT_FOUND", ""},
@@ -210,6 +211,9 @@ func TestCharacterUpdateOptimisticLockAndFields(t *testing.T) {
 
 	unknown := h.patchCharacter(character.ID, "2", map[string]any{"work_id": "other"})
 	assertErrorCode(t, unknown, http.StatusUnprocessableEntity, "VALIDATION_ERROR")
+
+	emptyFaction := h.patchCharacter(character.ID, "2", map[string]any{"faction_id": ""})
+	assertErrorCode(t, emptyFaction, http.StatusUnprocessableEntity, "VALIDATION_ERROR")
 
 	other := h.createCharacter(work.ID, "顾清", nil, nil)
 	rename := h.patchCharacter(other.ID, "1", map[string]any{"name": "陆沉之"})
