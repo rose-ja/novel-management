@@ -22,7 +22,6 @@ type Character struct {
 	NameKey         string     `gorm:"column:name_key" json:"-"`
 	Description     *string    `gorm:"column:description" json:"description"`
 	FactionID       *string    `gorm:"column:faction_id" json:"-"`
-	ImagePath       *string    `gorm:"column:image_path" json:"-"`
 	ReviewStatus    string     `gorm:"column:review_status" json:"review_status"`
 	ReviewedAt      *time.Time `gorm:"column:reviewed_at" json:"reviewed_at"`
 	ReviewedBy      *string    `gorm:"column:reviewed_by" json:"reviewed_by"`
@@ -104,7 +103,7 @@ type LocationLinkView struct {
 	Note       *string `json:"note"`
 }
 
-// CharacterImageView 是主图占位；CHG-005 前恒为 null。
+// CharacterImageView 是历史占位类型；CHG-005 起详情直接使用 MediaView。
 type CharacterImageView struct {
 	AssetID string `json:"asset_id"`
 	URL     string `json:"url"`
@@ -136,7 +135,7 @@ type CharacterDetail struct {
 	Faction       *FactionBrief       `json:"faction"`
 	SystemRefs    []SystemRefView     `json:"system_refs"`
 	LocationLinks []LocationLinkView  `json:"location_links"`
-	Image         *CharacterImageView `json:"image"`
+	Image         *MediaView          `json:"image"`
 	ReviewStatus  string              `json:"review_status"`
 	ReviewedAt    *time.Time          `json:"reviewed_at"`
 	ReviewedBy    *string             `json:"reviewed_by"`

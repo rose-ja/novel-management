@@ -137,6 +137,16 @@ func abortServiceError(c *gin.Context, err error) {
 		abortError(c, http.StatusPreconditionRequired, "PRECONDITION_REQUIRED", "缺少 If-Match 请求头")
 	case errors.Is(err, model.ErrCharacterWorkUnavailable):
 		abortError(c, http.StatusUnprocessableEntity, "PARENT_DELETED", "作品不存在或已删除")
+	case errors.Is(err, model.ErrUnsupportedFileType):
+		abortError(c, http.StatusUnprocessableEntity, "UNSUPPORTED_FILE_TYPE", "仅支持 JPG、PNG 或 WebP 图片")
+	case errors.Is(err, model.ErrFileTooLarge):
+		abortError(c, http.StatusUnprocessableEntity, "FILE_TOO_LARGE", "图片不能超过 10MB")
+	case errors.Is(err, model.ErrImageTooLarge):
+		abortError(c, http.StatusUnprocessableEntity, "IMAGE_TOO_LARGE", "图片尺寸过大")
+	case errors.Is(err, model.ErrChronicleOwnerUnsupported):
+		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "暂不支持该大事记归属类型", gin.H{
+			"field": "owner_type",
+		})
 	default:
 		abortError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "服务内部错误")
 	}

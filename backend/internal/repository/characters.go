@@ -296,7 +296,7 @@ func (r *Characters) ListSystemRefRows(ctx context.Context, characterIDs []strin
 	return rows, nil
 }
 
-// SoftDelete 软删除人物自身根；version 不匹配返回 0 行。
+// SoftDelete 软删除人物自身根；同事务隐藏主图与大事记（子内容跟随根）。
 func (r *Characters) SoftDelete(ctx context.Context, id, action string, version int, now time.Time) (int64, error) {
 	res := r.DB.WithContext(ctx).Table("characters").
 		Where("id = ? AND deleted_at IS NULL AND version = ?", id, version).
@@ -307,7 +307,16 @@ func (r *Characters) SoftDelete(ctx context.Context, id, action string, version 
 			"version":           version + 1,
 			"updated_at":        now,
 		})
-	return res.RowsAffected, res.Error
+	if res.Error != nil || res.RowsAffected == 0 {
+		return res.RowsAffected, res.Error
+	}
+	if _, err := NewMedia(r.DB).MarkEntityDeleted(ctx, model.MediaEntityCharacter, id, id, model.ActionCharacterDelete, now); err != nil {
+		return 0, err
+	}
+	if err := NewChronicles(r.DB).MarkOwnerDeleted(ctx, id, id, model.ActionCharacterDelete, now); err != nil {
+		return 0, err
+	}
+	return res.RowsAffected, nil
 }
 
 // RenameDeleted 在回收站内改名，供恢复冲突时用 new_name 规避。
@@ -328,7 +337,7 @@ func (r *Characters) RenameDeleted(ctx context.Context, id, name, nameKey string
 	return nil
 }
 
-// Restore 恢复人物根并递增版本；体系引用与别名未删除，无需重建。
+// Restore 恢复人物根并递增版本；同时恢复随根删除的主图与大事记。
 func (r *Characters) Restore(ctx context.Context, id string, now time.Time) error {
 	res := r.DB.WithContext(ctx).Table("characters").
 		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
@@ -345,7 +354,10 @@ func (r *Characters) Restore(ctx context.Context, id string, now time.Time) erro
 	if res.RowsAffected == 0 {
 		return model.ErrNotFound
 	}
-	return nil
+	if err := NewMedia(r.DB).RestoreByRoot(ctx, id, model.ActionCharacterDelete, now); err != nil {
+		return err
+	}
+	return NewChronicles(r.DB).RestoreByRoot(ctx, id, model.ActionCharacterDelete, now)
 }
 
 // RestoreGroupByWork 恢复随作品整组删除的人物（deleted_root_id = workID）。
@@ -371,10 +383,11 @@ func (r *Characters) ListDeletedRoots(ctx context.Context) ([]model.Character, e
 	return items, err
 }
 
-// Purge 物理删除人物；事务内先锁定并复核回收站根，
-// 顺序为体系引用 → 别名 → 人物，失败整体回滚；根已恢复时返回 0 行。
-func (r *Characters) Purge(ctx context.Context, id string) (int64, error) {
+// Purge 物理删除人物及其图片/大事记；事务内先锁定并复核回收站根，
+// 返回待删除的图片相对路径，由调用方在提交后清理文件。
+func (r *Characters) Purge(ctx context.Context, id string) (int64, []string, error) {
 	var affected int64
+	var paths []string
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var locked model.Character
 		err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -393,9 +406,17 @@ func (r *Characters) Purge(ctx context.Context, id string) (int64, error) {
 		if err := tx.WithContext(ctx).Where("character_id = ?", id).Delete(&model.CharacterName{}).Error; err != nil {
 			return err
 		}
+		mediaPaths, err := NewMedia(tx).PurgeByRoot(ctx, id)
+		if err != nil {
+			return err
+		}
+		paths = mediaPaths
+		if err := NewChronicles(tx).PurgeByRoot(ctx, id); err != nil {
+			return err
+		}
 		res := tx.WithContext(ctx).Where("id = ?", id).Delete(&model.Character{})
 		affected = res.RowsAffected
 		return res.Error
 	})
-	return affected, err
+	return affected, paths, err
 }

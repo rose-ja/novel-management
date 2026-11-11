@@ -143,7 +143,7 @@ func (r *Works) SoftDeleteGroup(ctx context.Context, id, action string, now time
 			return err
 		}
 
-		return tx.Table("characters").
+		if err := tx.Table("characters").
 			Where("work_id = ? AND deleted_at IS NULL", id).
 			Updates(map[string]any{
 				"deleted_at":        now,
@@ -151,7 +151,13 @@ func (r *Works) SoftDeleteGroup(ctx context.Context, id, action string, now time
 				"deleted_by_action": action,
 				"version":           gorm.Expr("version + 1"),
 				"updated_at":        now,
-			}).Error
+			}).Error; err != nil {
+			return err
+		}
+		if _, err := NewMedia(tx).MarkWorkDeleted(ctx, id, id, model.ActionWorkDelete, now); err != nil {
+			return err
+		}
+		return NewChronicles(tx).MarkWorkDeleted(ctx, id, id, model.ActionWorkDelete, now)
 	})
 }
 
@@ -197,7 +203,7 @@ func (r *Works) RestoreGroup(ctx context.Context, id string, now time.Time) erro
 			return err
 		}
 
-		return tx.Table("characters").
+		if err := tx.Table("characters").
 			Where("work_id = ? AND deleted_root_id = ?", id, id).
 			Updates(map[string]any{
 				"deleted_at":        nil,
@@ -205,7 +211,13 @@ func (r *Works) RestoreGroup(ctx context.Context, id string, now time.Time) erro
 				"deleted_by_action": nil,
 				"version":           gorm.Expr("version + 1"),
 				"updated_at":        now,
-			}).Error
+			}).Error; err != nil {
+			return err
+		}
+		if err := NewMedia(tx).RestoreByWork(ctx, id, model.ActionWorkDelete, now); err != nil {
+			return err
+		}
+		return NewChronicles(tx).RestoreByWork(ctx, id, model.ActionWorkDelete, now)
 	})
 }
 
@@ -302,23 +314,28 @@ func (r *Works) Name(ctx context.Context, id string) (string, error) {
 	return work.Name, nil
 }
 
-// PurgeGroup 物理删除作品根；先清引用、别名与人物，再删节点、类别与作品，避免 RESTRICT 拦截。
-func (r *Works) PurgeGroup(ctx context.Context, id string) (int64, error) {
+// PurgeGroup 物理删除作品根；先清引用、别名、人物、图片与大事记，再删节点、类别与作品。
+// 返回待删除的图片相对路径，由调用方在提交后清理文件。
+func (r *Works) PurgeGroup(ctx context.Context, id string) (int64, []string, error) {
 	var affected int64
+	var paths []string
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := purgeWorkChildren(ctx, tx, id); err != nil {
+		childrenPaths, err := purgeWorkChildren(ctx, tx, id)
+		if err != nil {
 			return err
 		}
+		paths = childrenPaths
 		res := tx.Where("id = ? AND deleted_at IS NOT NULL", id).Delete(&model.Work{})
 		affected = res.RowsAffected
 		return res.Error
 	})
-	return affected, err
+	return affected, paths, err
 }
 
-// PurgeAllDeleted 物理删除全部回收站作品根，顺序同上。
-func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
+// PurgeAllDeleted 物理删除全部回收站作品根，顺序同上；返回待删除的图片相对路径。
+func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, []string, error) {
 	var affected int64
+	var paths []string
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		scope := "work_id IN (SELECT id FROM works WHERE deleted_at IS NOT NULL)"
 		if err := tx.Exec("DELETE FROM character_system_refs WHERE " + scope).Error; err != nil {
@@ -328,6 +345,14 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
 			return err
 		}
 		if err := tx.Exec("DELETE FROM characters WHERE " + scope).Error; err != nil {
+			return err
+		}
+		mediaPaths, err := NewMedia(tx).PurgeByDeletedWorks(ctx)
+		if err != nil {
+			return err
+		}
+		paths = mediaPaths
+		if err := tx.Exec("DELETE FROM chronicles WHERE " + scope).Error; err != nil {
 			return err
 		}
 		if err := tx.Exec("DELETE FROM system_nodes WHERE " + scope).Error; err != nil {
@@ -340,30 +365,40 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, error) {
 		affected = res.RowsAffected
 		return res.Error
 	})
-	return affected, err
+	return affected, paths, err
 }
 
-func purgeWorkChildren(ctx context.Context, tx *gorm.DB, workID string) error {
-	// 与单条人物 Purge 保持一致的「人物行 → 引用 → 别名」加锁顺序，避免并发死锁。
+func purgeWorkChildren(ctx context.Context, tx *gorm.DB, workID string) ([]string, error) {
+	// 与单条人物 Purge 保持一致的「人物行 → 引用 → 别名 → 媒体」加锁顺序，避免并发死锁。
 	var characterIDs []string
 	if err := tx.WithContext(ctx).
 		Raw("SELECT id FROM characters WHERE work_id = ? FOR UPDATE", workID).
 		Scan(&characterIDs).Error; err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM character_system_refs WHERE work_id = ?", workID).Error; err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM character_names WHERE work_id = ?", workID).Error; err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM characters WHERE work_id = ?", workID).Error; err != nil {
-		return err
+		return nil, err
+	}
+	paths, err := NewMedia(tx).PurgeByWork(ctx, workID)
+	if err != nil {
+		return nil, err
+	}
+	if err := NewChronicles(tx).PurgeByWork(ctx, workID); err != nil {
+		return nil, err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM system_nodes WHERE work_id = ?", workID).Error; err != nil {
-		return err
+		return nil, err
 	}
-	return tx.WithContext(ctx).Where("work_id = ?", workID).Delete(&model.SystemCategory{}).Error
+	if err := tx.WithContext(ctx).Where("work_id = ?", workID).Delete(&model.SystemCategory{}).Error; err != nil {
+		return nil, err
+	}
+	return paths, nil
 }
 
 // NameTaken 判断未删除作品中是否已有同名（用于恢复冲突预检）。

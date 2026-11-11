@@ -69,6 +69,7 @@ func run() error {
 	logPgDumpVersion(log)
 
 	snapshotService := service.NewSnapshot(db.Gorm, cfg, log, service.PGDumper{})
+	mediaService := service.NewMedia(db.Gorm, cfg.DataDir, log)
 	router := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    log,
@@ -79,11 +80,13 @@ func run() error {
 			Version:         cfg.Version,
 		},
 		Works:      service.NewWorks(db.Gorm, snapshotService),
-		Trash:      service.NewTrash(db.Gorm, snapshotService),
+		Trash:      service.NewTrash(db.Gorm, snapshotService, mediaService),
 		Snapshots:  snapshotService,
 		Settings:   service.NewSettings(db.Gorm),
 		System:     service.NewSystem(db.Gorm),
-		Characters: service.NewCharacters(db.Gorm),
+		Characters: service.NewCharacters(db.Gorm, mediaService),
+		Media:      mediaService,
+		Chronicles: service.NewChronicles(db.Gorm),
 	})
 
 	srv := &http.Server{

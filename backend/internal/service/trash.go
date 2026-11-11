@@ -16,11 +16,12 @@ import (
 type Trash struct {
 	db        *gorm.DB
 	snapshots *Snapshot
+	media     *Media
 	now       func() time.Time
 }
 
-func NewTrash(db *gorm.DB, snapshots *Snapshot) *Trash {
-	return &Trash{db: db, snapshots: snapshots, now: time.Now}
+func NewTrash(db *gorm.DB, snapshots *Snapshot, media *Media) *Trash {
+	return &Trash{db: db, snapshots: snapshots, media: media, now: time.Now}
 }
 
 type TrashItem struct {
@@ -546,13 +547,21 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			return err
 		}
 		now := s.now().UTC()
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var paths []string
+		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			// 作品内人物引用指向本作品的类别/节点，属于随组删除的子记录，不构成入向阻断。
-			if _, err := repository.NewWorks(tx).PurgeGroup(ctx, rootID); err != nil {
+			_, groupPaths, err := repository.NewWorks(tx).PurgeGroup(ctx, rootID)
+			if err != nil {
 				return err
 			}
+			paths = groupPaths
 			return repository.NewSettings(tx).ClearCurrentWorkIf(ctx, rootID, now)
 		})
+		if err != nil {
+			return err
+		}
+		s.removeMedia(paths)
+		return nil
 	case RootTypeSystemCategory:
 		if _, err := system.GetDeletedCategoryRoot(ctx, rootID); err != nil {
 			return alreadyDeleted(err)
@@ -605,16 +614,23 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
 			return err
 		}
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			rows, err := repository.NewCharacters(tx).Purge(ctx, rootID)
+		var paths []string
+		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			rows, mediaPaths, err := repository.NewCharacters(tx).Purge(ctx, rootID)
 			if err != nil {
 				return err
 			}
 			if rows == 0 {
 				return model.ErrAlreadyDeleted
 			}
+			paths = mediaPaths
 			return nil
 		})
+		if err != nil {
+			return err
+		}
+		s.removeMedia(paths)
+		return nil
 	default:
 		return model.ErrInvalidRootType
 	}
@@ -663,6 +679,7 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 		return nil, err
 	}
 
+	var purgePaths []string
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txSystem := repository.NewSystem(tx)
 		// 事务内复核引用，确保引用检查与物理删除共用同一快照点。
@@ -675,9 +692,11 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 		}
 		txWorks := repository.NewWorks(tx)
 		for _, work := range works {
-			if _, err := txWorks.PurgeGroup(ctx, work.ID); err != nil {
+			_, paths, err := txWorks.PurgeGroup(ctx, work.ID)
+			if err != nil {
 				return err
 			}
+			purgePaths = append(purgePaths, paths...)
 		}
 		for _, category := range categories {
 			if _, err := txSystem.PurgeCategoryGroup(ctx, category.ID); err != nil {
@@ -692,15 +711,18 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 		// 作品组删除已清理随作品删除的人物；此处只处理独立人物根。
 		txCharacters := repository.NewCharacters(tx)
 		for _, character := range characters {
-			if _, err := txCharacters.Purge(ctx, character.ID); err != nil {
+			_, paths, err := txCharacters.Purge(ctx, character.ID)
+			if err != nil {
 				return err
 			}
+			purgePaths = append(purgePaths, paths...)
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	s.removeMedia(purgePaths)
 	return &PurgeAllResult{
 		Purged:     total,
 		SnapshotID: snapshot.ID,
@@ -880,6 +902,19 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 				return alreadyDeleted(err)
 			}
 			return nil
+		case RootTypeChronicle:
+			repo := repository.NewChronicles(tx)
+			item, err := repo.GetDeleted(ctx, record.RootID)
+			if err != nil {
+				return err
+			}
+			if _, err := repository.NewCharacters(tx).Get(ctx, item.OwnerID); err != nil {
+				if errors.Is(err, model.ErrNotFound) {
+					return model.ErrParentDeleted
+				}
+				return err
+			}
+			return repo.RestoreDeleted(ctx, item.ID, now)
 		default:
 			return model.ErrAlreadyDeleted
 		}
@@ -897,4 +932,11 @@ func siblingGroupKey(parentID *string) string {
 		return "root:"
 	}
 	return "node:" + *parentID + ":"
+}
+
+func (s *Trash) removeMedia(paths []string) {
+	if s.media == nil || len(paths) == 0 {
+		return
+	}
+	s.media.RemoveFiles(paths)
 }

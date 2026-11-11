@@ -15,8 +15,9 @@ import (
 
 // Characters 负责人物档案的创建、查询、内联更新与删除。
 type Characters struct {
-	db  *gorm.DB
-	now func() time.Time
+	db    *gorm.DB
+	media *Media
+	now   func() time.Time
 }
 
 const (
@@ -32,8 +33,8 @@ type DeleteCharacterResult struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-func NewCharacters(db *gorm.DB) *Characters {
-	return &Characters{db: db, now: time.Now}
+func NewCharacters(db *gorm.DB, media *Media) *Characters {
+	return &Characters{db: db, media: media, now: time.Now}
 }
 
 type CharacterNameInput struct {
@@ -183,10 +184,25 @@ func (s *Characters) summaries(ctx context.Context, repo *repository.Characters,
 		summaryByCharacter[row.CharacterID] = &path
 	}
 
+	var images map[string]*model.MediaView
+	if s.media != nil && len(items) > 0 {
+		ids := make([]string, 0, len(items))
+		for _, item := range items {
+			ids = append(ids, item.ID)
+		}
+		// 图片是可选附件，读取失败降级为无图，不阻断列表。
+		images, _ = s.media.ListCharacterImages(ctx, ids)
+	}
+
 	for _, item := range items {
 		views := namesByCharacter[item.ID]
 		if views == nil {
 			views = []model.CharacterNameView{}
+		}
+		var thumbURL *string
+		if image := images[item.ID]; image != nil {
+			url := image.ThumbURL
+			thumbURL = &url
 		}
 		out = append(out, model.CharacterSummary{
 			ID:            item.ID,
@@ -194,7 +210,7 @@ func (s *Characters) summaries(ctx context.Context, repo *repository.Characters,
 			Names:         views,
 			Faction:       nil,
 			SystemSummary: summaryByCharacter[item.ID],
-			ImageThumbURL: nil,
+			ImageThumbURL: thumbURL,
 			ReviewStatus:  model.APIReviewStatus(item.ReviewStatus),
 			ReviewedAt:    item.ReviewedAt,
 			UpdatedAt:     item.UpdatedAt,
@@ -219,7 +235,12 @@ func (s *Characters) Get(ctx context.Context, id string) (*model.CharacterDetail
 	if err != nil {
 		return nil, err
 	}
-	return buildCharacterDetail(item, names, rows), nil
+	detail := buildCharacterDetail(item, names, rows)
+	if s.media != nil {
+		// 图片是可选附件，读取失败降级为无图。
+		detail.Image, _ = s.media.GetCharacterImage(ctx, id)
+	}
+	return detail, nil
 }
 
 func buildCharacterDetail(item *model.Character, names []model.CharacterName, rows []repository.CharacterSystemRefRow) *model.CharacterDetail {
