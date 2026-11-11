@@ -3,8 +3,8 @@
 - Change ID: CHG-004-characters-core（人物档案核心）
 - 分支：`feat/chg-004-characters-core`
 - 验收环境：`http://127.0.0.1:17860`（容器 `novel-management-app-1`）；数据库 `novel-management-db-1`（迁移至 0004）
-- 验收日期：____
-- 验收人：____
+- 验收日期：2026-11-11
+- 验收人：项目负责人
 
 ## 1. 前置条件
 

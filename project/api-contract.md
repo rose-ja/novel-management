@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.1 |
-| 状态 | 修订（P5b，2026-11-07，待复审） |
-| 日期 | 2026-11-07 |
+| 文档版本 | v1.2 |
+| 状态 | 修订（F10 回写 CHG-004，2026-11-11） |
+| 日期 | 2026-11-11 |
 | 实现技术栈 | Go 1.26 + gin + gorm；PostgreSQL 16；Redis 7（仅缓存） |
 | 基础路径 | `/api/v1` |
 | 协议 | HTTP/1.1，JSON（`application/json`）；上传 `multipart/form-data` |
@@ -334,10 +334,13 @@
 
 ### 3.3 人物 Characters（FR-04~08）
 
+> 实现状态（2026-11-11，CHG-004）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根。`faction_id` 本轮仅接受 `null`（无 FK，CHG-006 补真实势力）；`location_links` 仅接受空数组（CHG-007 开放）；`*/image` 端点与主图字段尚未实现（CHG-005）；`review_status` 只读返回，校对确认端点延后 CHG-011。
+
 #### GET /api/v1/characters
 - Query：`work_id`（必填）、`q`、`faction_id`、`system_node_id`、`location_id`、`review_status`、`sort`、`page`、`page_size`。
-- Response：`CharacterSummary[]`：`id, name, faction:{id,name}, system_summary:string, image_thumb_url, review_status, reviewed_at, updated_at`。
-- 仅未删除；`work_id` 缺失 `422`。
+- Response：`CharacterSummary[]`：`id, name, names:[{kind,value}], faction:{id,name}|null, system_summary:string|null, image_thumb_url:string|null, review_status, reviewed_at, updated_at, version`。
+- 说明：`names[]` 与 `version` 为 CHG-004 新增（列表展示别名/称号 chip、详情编辑携带版本）；`faction`/`image_thumb_url`/`system_summary` 在有数据前为 `null`。
+- 仅未删除；`work_id` 缺失 `422`；`q` 命中主名称/别名/称号，`%`/`_` 已转义；`sort` 支持 `-updated_at`（默认）/`name`/`-name`。
 
 #### POST /api/v1/characters
 - Request：
@@ -347,31 +350,32 @@
     "name": "司空摘天",
     "names": [{ "kind": "alias", "value": "神逆" }],
     "description": null,
-    "faction_id": "01H...|null",
+    "faction_id": null,
     "system_refs": [{ "category_id": "01H...", "node_id": "01H..." }],
-    "location_links": [{ "location_id": "01H...", "note": "常驻" }]
+    "location_links": []
   }
   ```
-- Response `201`：`Character`。
-- Validation：名称必填/≤200；别名/称号 ≤20 软上限；`system_refs` 每类别至多 1，节点必须属于类别且类别启用；全部引用同作品。
-- Errors：`NAME_CONFLICT`、`CROSS_WORK_REFERENCE`、`CATEGORY_DISABLED`、`NODE_PARENT_MISMATCH`。
+- Response `201`：`Character`；`Location: /api/v1/characters/{id}`。
+- Validation：名称必填/≤200；别名/称号值 1–100 字符、每人至多 100 条（前端软上限 20）；`system_refs` 每类别至多 1，节点必须属于类别且类别启用；全部引用同作品；`faction_id` 非 `null` → 422；`location_links` 非空 → 422。
+- Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CROSS_WORK_REFERENCE`、`CATEGORY_DISABLED`、`NODE_PARENT_MISMATCH`、`PARENT_DELETED`。
 
 #### GET /api/v1/characters/{id}
-- Response：`Character`（含 `relations` 摘要：势力、地点、榜单、体系、大事记计数）。
+- Response：`Character`（含 `names[]`、`system_refs[]`、`location_links[]`（当前恒空）、`image`（当前恒 `null`）、`version`）。
 - Errors：`NOT_FOUND`。
 
 #### PATCH /api/v1/characters/{id}
 - Request：任意字段子集（`name`、`names`、`description`、`faction_id`、`system_refs`、`location_links`）；`If-Match` 必填。
 - Response：`Character`。
-- Behavior：`names` 为全量替换；`system_refs` 为全量替换；`location_links` 为全量替换。
-- Errors：`NAME_CONFLICT`、`VERSION_CONFLICT`、`CROSS_WORK_REFERENCE`。
+- Behavior：`names` 为全量替换；`system_refs` 为全量替换；`location_links` 为全量替换（当前仅接受空数组）。
+- Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`VERSION_CONFLICT`、`CROSS_WORK_REFERENCE`、`CATEGORY_DISABLED`、`NODE_PARENT_MISMATCH`。
 
 #### DELETE /api/v1/characters/{id}
-- Behavior：引用检查：被势力设为首领、被榜单占用 → 阻止并列出引用；人物自身的别名/称号、体系引用、地点关系、大事记、图片随人物软删除（不阻止）。
-- Response：`{ "deleted": true, "undo_token": "…" }`。
-- Errors：`REFERENCE_CONFLICT`（`details` 列出首领/席位）、`ALREADY_DELETED`。
+- Header：`If-Match: <version>` 必填；缺失或非数字 → 422，版本不一致 → 409 `VERSION_CONFLICT`。
+- Behavior：引用检查：被势力设为首领、被榜单占用 → 阻止并列出引用（当前入向检查器为空，CHG-006/008 接入）；人物自身的别名/称号、体系引用、地点关系、大事记、图片随人物软删除（不阻止）。
+- Response：`{ "deleted": true, "undo_token": "…" }`（8 秒一次性撤销令牌）。
+- Errors：`REFERENCE_CONFLICT`（`details` 列出首领/席位）、`ALREADY_DELETED`、`VERSION_CONFLICT`、`VALIDATION_ERROR`。
 
-#### POST /api/v1/characters/{id}/image
+#### POST /api/v1/characters/{id}/image（未实现，CHG-005）
 - Request：multipart `file`；jpg/png/webp，≤10MB。
 - Response `201`：`{ "asset_id", "url", "thumb_url", "width", "height", "byte_size" }`。
 - Behavior：校验 MIME + 魔数；按内容重编码；缩略图（最长边 320px）可异步生成，原图先返回。
@@ -770,3 +774,4 @@
 | 2026-11-07 | v1.1 | RT-23 | Host 白名单由 `APP_PORT`/`ALLOWED_HOSTS` 派生 | 改端口不再 403 |
 | 2026-11-07 | v1.1 | RT-05 | DELETE 人物/势力/地点按 §6.10 入向阻止矩阵统一；出向随删解除 | 四处删除规则不一致 |
 | 2026-11-07 | v1.1 | RT-14 | DELETE 地点：下级 `HAS_CHILDREN`、人物/势力关联 `REFERENCE_CONFLICT`，全部阻止不级联；删除问号句 | 原契约保留双规则与未决问号 |
+| 2026-11-11 | v1.2 | CHG-004 | `CharacterSummary` 增加 `names[]`/`version`；DELETE 人物要求 `If-Match`；`faction_id` 仅接受 `null`、`location_links` 仅接受空数组；别名/称号值上限 100；标注 `*/image` 未实现（CHG-005） | F10 回写人物 F1 裁决 D1/D2/D8 与实现差异 |

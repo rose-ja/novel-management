@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.1 |
-| 状态 | 修订（P5b，2026-11-07，待复审） |
-| 日期 | 2026-11-07 |
+| 文档版本 | v1.2 |
+| 状态 | 修订（F10 回写 CHG-004，2026-11-11） |
+| 日期 | 2026-11-11 |
 | 数据库 | PostgreSQL 16（UTF-8；`pg_trgm` 扩展；`timezone=UTC`） |
 | ORM / 迁移 | gorm v1.25+（postgres driver）+ goose v3（嵌入式 SQL 迁移） |
 | 上游 | [requirements.md](file:///d:/Project/novel-management/project/requirements.md) §6、[architecture.md](file:///d:/Project/novel-management/project/architecture.md)、[tech-stack.md](file:///d:/Project/novel-management/project/tech-stack.md) |
@@ -87,17 +87,20 @@ erDiagram
 | Field | Type | Nullable | Default | Constraint | Description |
 |---|---|---|---|---|---|
 | id | TEXT(26) | No | — | PK | ULID |
-| work_id | TEXT(26) | No | — | FK → works.id `ON DELETE RESTRICT`；索引 | 所属作品 |
+| work_id | TEXT(26) | No | — | FK → works.id `ON DELETE CASCADE`；索引 | 所属作品 |
 | name | TEXT | No | — | 1–200 | 主名称 |
 | name_key | TEXT | No | — | 部分唯一 `(work_id, name_key)` | 规范化名称 |
 | description | TEXT | Yes | NULL | ≤20,000 | 简介；纯文本 |
-| faction_id | TEXT(26) | Yes | NULL | FK → factions.id `ON DELETE RESTRICT` | 所属势力/分支 0..1 |
+| faction_id | TEXT(26) | Yes | NULL | 无 FK（CHG-006 补 `factions` 外键）；API 本轮仅接受 `null` | 所属势力/分支 0..1 |
 | review_status | TEXT | No | `reviewed` | `reviewed` / `pending`（API 映射 `confirmed`/`pending`） | 导入后为 pending |
 | reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
-| reviewed_by | TEXT | Yes | NULL | 默认 `local-author` | 校对者；本版无用户表（P5b RT-04） |
+| reviewed_by | TEXT | Yes | NULL | 无默认值（P5b 曾计划默认 `local-author`，实现未落）；本版无用户表 | 校对者 |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 | version | INTEGER | No | 1 | ≥1 | 乐观锁 |
 | deleted_at / deleted_root_id / deleted_by_action | TIMESTAMPTZ / TEXT / TEXT | Yes | NULL | CHECK 同步 | 软删除 |
+
+> 实现（`0004_characters.sql`）另含 `image_path` 内部占位列，未暴露 API；CHG-005 接入 `media_assets` 时清理或迁移。
+> `work_id` 使用 `ON DELETE CASCADE`（与父作品物理删除一致），而非早期设计的 `RESTRICT`；软删除仍由 `deleted_root_id` 控制。
 
 ### 3.3 character_names（别名 / 称号）
 
@@ -107,7 +110,7 @@ erDiagram
 | character_id | TEXT(26) | No | — | FK → characters.id `ON DELETE CASCADE` | 随人物物理删除 |
 | work_id | TEXT(26) | No | — | 冗余，用于检索与隔离 | — |
 | kind | TEXT | No | — | CHECK `alias` / `title` | 别名或称号 |
-| value | TEXT | No | — | 1–200 | 原文 |
+| value | TEXT | No | — | 1–100 | 原文（实现上限 100，非 200） |
 | value_key | TEXT | No | — | 唯一 `(character_id, kind, value_key)` | 同一人物内去重 |
 | sort_order | INTEGER | No | 0 | — | 展示顺序 |
 
@@ -500,6 +503,7 @@ name_key = NFKC(value).casefold().strip()
 - **种子数据**：内置「境界」类别不通过全局迁移创建，而是在创建工作作品时由 `WorkService` 创建（每作品独立，FR-01）。
 - **检索重建**：`goose` 只建表与扩展；`cmd/cli reindex` 重建 `search_documents`。
 - **测试要求**：空库 `goose up` → 校验表/索引/扩展；再执行 `goose down-to 0`（若迁移支持）验证可逆；迁移在真实数据集副本上演练。
+- **CHG-004 迁移说明**：`0004_characters.sql` Up 在补 `character_system_refs.character_id` 外键前清空该骨架表（0003 阶段无生产数据）；Down 先删外键、再次清空引用表，再删 `character_names`/`characters`，避免回滚残留。`TestMigrationRoundTrip` 已用播种数据覆盖。
 
 ---
 
@@ -585,5 +589,6 @@ name_key = NFKC(value).casefold().strip()
 | 2026-11-07 | v1.1 | RT-11 | 排序补充 `id ASC` 稳定键；权重与切片语义对齐检索契约 | 分页稳定性与命中解释 |
 | 2026-11-07 | v1.1 | RT-17 | 快照触发对齐 FR-55 | 修正“仅 CLI 全量恢复”字面 |
 | 2026-11-07 | v1.1 | RT-22 | CLI `migrate` 获取同一 advisory lock，锁不可用退出 `APP_RUNNING` | 避免迁移与在线写入并发 |
+| 2026-11-11 | v1.2 | CHG-004 | `characters.work_id` 为 `ON DELETE CASCADE`；`faction_id` 暂不建 FK（CHG-006）；`reviewed_by` 无默认值；`character_names.value` 上限 100；补 `image_path` 占位与 0004 回滚说明 | F10 回写审查 C-14 的三处文档漂移与实际迁移 |
 
 > 已确认项：C-01~C-07 均已确认（2026-11-07）；D-02 检索方案已确认，V-01 待执行；P5b 修订项（RT-04/06/07/08/09/10/11/17/22）待复审。

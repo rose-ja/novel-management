@@ -104,9 +104,9 @@
 | RG-01 | 既有 E2E 全量通过（含作品/体系/回收站/设置/壳层） | F6 回归 `npx playwright test`：63 passed（47.2s） | ☑ |
 | RG-02 | 后端 `go vet`、单测、集成全绿 | gofmt/vet/build 0；`go test ./...` ok；65 集成用例 PASS | ☑ |
 | RG-03 | `npm run lint/typecheck/test/build` 全绿 | typecheck/lint 0；43 单测通过；build 成功 | ☑ |
-| DOC-01 | Spec 状态与缺口在 F10 更新（CHAR-001～005/008、WORK-001、SYS-002/005、TRASH-002/003/004） | `project/specs/*` | ☐ |
-| DOC-02 | `api-contract.md` 回写 `CharacterSummary.names[]/version`、DELETE `If-Match`、`location_id` 未开放 | `project/api-contract.md` | ☐ |
-| DOC-03 | `data-model.md` 记录 `faction_id` 无 FK 的实施差异 | `project/data-model.md` | ☐ |
+| DOC-01 | Spec 状态与缺口在 F10 更新（CHAR-001～005/008、WORK-001、SYS-002/005、TRASH-002/003/004） | `project/specs/{characters,works,systems,trash}/specs.md`（2026-11-11 已回写） | ☑ |
+| DOC-02 | `api-contract.md` 回写 `CharacterSummary.names[]/version`、DELETE `If-Match`、`faction_id`/`location_links` 未开放、别名长度 100 | `project/api-contract.md` v1.2 §3.3 与变更记录 | ☑ |
+| DOC-03 | `data-model.md` 记录 `faction_id` 无 FK、`work_id` 级联、`reviewed_by` 无默认值、`character_names.value` 1–100 | `project/data-model.md` v1.2 §3.2/§3.3/§7 与变更记录 | ☑ |
 | DOC-04 | `verification.md` 记录门禁、性能与 E2E 证据 | `verification.md` §1～§3、§7 | ☑ |
 
 ## 9. 明确延后（不计入本轮失败）

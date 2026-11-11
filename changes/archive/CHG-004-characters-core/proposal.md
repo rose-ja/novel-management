@@ -6,7 +6,7 @@
 - 关联 Spec：SPEC-CHAR-001～005、SPEC-CHAR-008、SPEC-WORK-001（跨作品隔离收口）、SPEC-SYS-002/005（引用计数与 `in_trash` 收口）、SPEC-TRASH-002/003/004（新增「人物」根）
 - 关联 Page Spec：PG-02（人物列表）、PG-03（人物详情）、PG-12（回收站类型筛选）
 - 关联需求/验收：FR-04～FR-08、FR-44、FR-47、FR-48、FR-66、FR-67；AC-01、AC-02、AC-03、AC-14、AC-16、AC-17、AC-24；EX-04、EX-06、EX-07、EX-08、EX-21、EX-22
-- 复杂度：L；状态：`approved`（F1 已获人工批准，2026-11-09）
+- 复杂度：L；状态：`archived`（F1 于 2026-11-09 批准；F7 于 2026-11-11 ACCEPT；F9 本地合并；F10 归档）
 
 ## 1. 目标与用户价值
 

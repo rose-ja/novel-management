@@ -1,13 +1,13 @@
 # characters — 人物档案、图片与大事记
 
-- 域状态：`planned`（P6，2026-11-07）
+- 域状态：`implemented-partial`（2026-11-11，CHG-004 交付人物 CRUD、列表/搜索/筛选/排序/分页、详情内联编辑、乐观锁、软删除与撤销、回收站人物根；主图/大事记见 CHG-005，势力/地点/榜单引用见 CHG-006～008，校对确认见 CHG-011）
 - 目标行为：每本作品内维护权威人物档案，关系用引用表达，支持检索、双向跳转与安全删除。
 - 关联页面：PG-02、PG-03；关联验收：AC-02、AC-03、AC-09、AC-14、AC-16、AC-33。
-- 说明：本文件中的 Spec 均为待实现目标，不代表当前系统能力。
+- 说明：Spec 状态为 `implemented-partial` 的部分仅表示已交付并验收的范围；未列出的行为仍为 `planned`。
 
 ## SPEC-CHAR-001 人物字段、动态体系字段与新建入口
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-004 交付主名称必填/唯一（`lower(trim)`，`Sword`/`sword` 判重）、别名/称号多值、按启用类别动态渲染体系字段、新建 Drawer、保存后进入详情、重复提交禁用；字段级错误定位、主图与势力/地点字段仍为 `planned`，见 CHG-005～007）
 - 来源：FR-04、FR-05、FR-47；US-002；PG-02、PG-03 §4；API `POST /api/v1/characters`、`GET /api/v1/meta`；Data `characters`、`character_system_refs`、`system_categories`；AC-02、AC-17
 - 行为：
   - 人物字段：主名称（必填、同作品唯一）、别名/称号（多值）、每类体系 0..1 节点（两级类别通过选择具体节点表达主层级/子层级）、所属势力/分支 0..1、1 张主图、简介、大事记。
@@ -23,11 +23,11 @@
   2. Given 主名称为空或与同作品人物重名，When 保存，Then 阻止保存并定位字段；`Sword` 与 `sword` 被判重（AC-17）。
   3. Given 保存成功，When 查看详情，Then 主名称、别名/称号、境界、所属势力、主图首屏可见（AC-02）。
   4. Given 连续点击保存两次，When 请求完成，Then 只产生一条人物记录，按钮提交期间禁用（EX-04）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-11 — CHG-004 交付人物字段、动态体系字段与新建 Drawer，状态转 `implemented-partial`（字段级错误定位、主图与势力/地点见 CHG-005～007）。
 
 ## SPEC-CHAR-002 别名、称号与名称唯一性
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-004 交付别名/称号多值、同人物 `kind + value_key` 去重、稳定排序、前端 20 条软上限提示、列表 chip；跨实体检索命中与高亮见 CHG-009）
 - 来源：FR-04、FR-08、FR-48；US-002；PG-02 §4、PG-03 §4；API 人物 DTO 的 `aliases[]/titles[]`；Data `character_names`；AC-03、AC-17
 - 行为：
   - 别名与称号均为多值、可重复（跨人物允许重复），同一人物内按 `kind + value_key` 去重。
@@ -39,11 +39,11 @@
   1. Given 两个人物都有别名「小圣」，When 分别保存，Then 均成功，检索返回两条并用主名称与所属势力区分（AC-03）。
   2. Given 同一人物别名重复添加，When 保存，Then 去重后只保留一条，不报错。
   3. Given 用别名或称号检索，When 命中，Then 结果显示命中字段标签并高亮对应文本（AC-02）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-11 — CHG-004 交付别名/称号多值、去重与排序，状态转 `implemented-partial`（跨实体检索见 CHG-009）。
 
 ## SPEC-CHAR-003 人物列表、筛选、排序、分页与校对提示
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-004 交付列表、`q` 搜索主名称/别名/称号、境界筛选、待校对筛选、排序、分页、空/错/加载态与 1000 人 P95 基线；势力/地点/榜单筛选与缩略图懒加载见 CHG-005～008，活跃筛选 chip 与表头排序未实现）
 - 来源：FR-44、FR-66；US-002、US-009；PG-02；API `GET /api/v1/characters`（`q/faction_id/system_node_id/location_id/review_status/sort/page/page_size`）；Data `characters` + 关联；AC-02、AC-24
 - 行为：
   - 列表展示主名称、别名/称号、所属势力、境界、所在榜单、待校对标记与缩略图。
@@ -58,11 +58,11 @@
   2. Given 按势力与境界组合筛选，When 应用，Then 结果同时满足两个条件，筛选 chip 可见（FR-32 语义）。
   3. Given 导入后人物为 pending，When 查看列表，Then 显示待校对 Badge，可筛选 pending（AC-21）。
   4. Given 请求失败，When 列表加载，Then 显示「加载失败，请重试」并保留筛选条件（EX-03）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-11 — CHG-004 交付列表搜索/筛选/排序/分页与状态，状态转 `implemented-partial`（势力/地点/榜单筛选、缩略图与完整列表交互见 CHG-005～008 及后续 UI 变更）。
 
 ## SPEC-CHAR-004 人物详情、关系区与双向跳转
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-004 交付详情首屏姓名/别名/称号/体系引用与势力/地点/榜单空态占位、关系区体系分组；势力/地点/榜单真实关系与双向跳转见 CHG-006～008，主图见 CHG-005）
 - 来源：FR-06、FR-34、FR-35、FR-36；US-002、US-008；PG-03；API `GET /api/v1/characters/{id}`；Data 全部引用列/关系表；AC-02、AC-09
 - 行为：
   - 首屏回答「是谁、属于哪、境界、在哪些榜单」；详情展示主名称、别名/称号、境界、所属势力、主图。
@@ -77,11 +77,11 @@
   2. Given 修改人物所属势力，When 返回势力详情，Then 成员列表同步变化，人物页显示新势力（FR-36）。
   3. Given 关系目标在回收站，When 打开引用对话框，Then 标注「回收站中」并提供定位入口（RT-13）。
   4. Given 关系链接目标被永久删除，When 打开详情，Then 链接显示不可用，不出现 404 堆栈（EX-26）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-11 — CHG-004 交付详情首屏与体系关系区，状态转 `implemented-partial`（势力/地点/榜单关系与双向跳转见 CHG-006～008）。
 
 ## SPEC-CHAR-005 内联编辑、未保存离开与并发冲突
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-004 交付详情内联编辑、保存/取消、未保存离开守卫、`If-Match` + 409 固定文案、保存后刷新；独立 ConflictDialog 与字段级错误定位未实现，列为后续 UI 变更）
 - 来源：FR-67；US-002、US-012；PG-03 §6；API `PATCH /api/v1/characters/{id}`（`If-Match` + `version`）；Data `characters.version`；AC-16、EX-07、EX-08
 - 行为：
   - 编辑在详情页内联展开，不跳独立编辑页；保存/取消明确，取消恢复原值。
@@ -93,7 +93,7 @@
   1. Given 两个标签页打开同一人物，When 后保存者提交，Then 收到「数据已被其他页面修改，请刷新后重试」，无静默覆盖（AC-16）。
   2. Given 编辑未保存，When 点击返回列表，Then 弹窗确认；选择取消则保留编辑并停留（EX-08）。
   3. Given 保存中断网，When 请求失败，Then 未保存输入保留，显示重试入口（EX-06）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-11 — CHG-004 交付内联编辑、未保存守卫与乐观锁冲突提示，状态转 `implemented-partial`（ConflictDialog、字段级错误见后续 UI 变更）。
 
 ## SPEC-CHAR-006 人物图片、缩略图与懒加载
 
@@ -130,7 +130,7 @@
 
 ## SPEC-CHAR-008 人物删除与引用阻断
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-004 交付软删除 + 8 秒撤销、出向引用随删解除、回收站恢复/永久删除、跨作品隔离；势力首领/榜单席位的入向引用检查器当前为空，待 CHG-006/008 接入真实引用）
 - 来源：FR-07、FR-37、FR-38；US-002、US-011；PG-03 §6.3、PG-12；API `DELETE /api/v1/characters/{id}`；Data 引用列；AC-14
 - 行为：
   - 仅两类入向引用阻止删除：人物是势力首领、人物占据榜单席位；阻止时列出引用位置并可跳转（含回收站中的记录）。
@@ -143,4 +143,4 @@
   2. Given 人物占据榜单席位，When 删除，Then 阻止并显示榜单/席位；若榜单在回收站，标注「回收站中」并定位（E2E-15）。
   3. Given 人物仅为普通成员且有关联地点/体系引用，When 删除，Then 成功进入回收站，出向关系被解除（AC-14）。
   4. Given 删除后点击撤销，When 请求 undo，Then 人物及出向关系恢复原状（FR-59）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-11 — CHG-004 交付软删除、撤销、出向解除与回收站恢复，状态转 `implemented-partial`（入向引用检查器待 CHG-006/008 接入）。
