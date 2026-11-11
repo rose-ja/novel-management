@@ -1,10 +1,13 @@
 # Verification Report
 
 - Change ID: CHG-004-characters-core
-- Commit: 功能分支 `feat/chg-004-characters-core`（T1～T14）
+- Commit: 功能分支 `feat/chg-004-characters-core`（T1～T14 + F3/F4/F5/F6/F7/F8 文档，19 个提交）；F9 快进合并至 `main` @ `9dc06c0`
 - Environment: Windows + PowerShell 5.1；Go 1.27.3（交叉编译 linux/amd64）；Node.js 22；PostgreSQL 16（容器 `novel-management-db-1`）；应用容器 `novel-management-app-1` @ `http://127.0.0.1:17860`
 - Tester: Agent（F2 实施；F3 自测）
-- Date: 2026-11-09
+- Date: 2026-11-09（F9 合并与 Smoke：2026-11-11）
+- 验收：ACCEPT（`acceptance.md`，2026-11-11）
+- 发布状态：未发布到远程/公网（本地 main 已合并，未推送 origin）
+- 归档：F10 归档至 `changes/archive/CHG-004-characters-core/`
 
 ## 1. Static Checks
 
@@ -93,9 +96,26 @@
 
 ## 8. Conclusion
 
-READY FOR HUMAN ACCEPTANCE（F6 完成，等待验收人选择 ACCEPT / REWORK / REPLAN）
+ACCEPTED（F7 人工验收 ACCEPT，2026-11-11；进入 F8/F9/F10）
 
 - F3/F5/F6 门禁全绿：gofmt / vet / build / 单测 / 65 个集成用例 / 前端 typecheck / lint / 43 单测 / Node 22 生产构建 / 全量 E2E 63 passed。
 - F5 修复 S1（Purge 竞态）及 C-02/C-05/C-10/C-11/C-13；F6 修复 R-01（锁序）、UI-03（错误态互斥）、UI-06（Drawer 焦点归还）。
 - 遗留 S2：C-03 对话框、C-04 列表完整交互、C-06 删除入口、C-07 倒计时、C-08 字段级错误、C-09 停用类别编辑态、C-12 回收站 N+1、C-14 文档漂移（F10）、C-11/C-01 真实并发测试，均在 `review.md`/`checklist.md` 如实记录。
 - 人工验收脚本见 `acceptance.md`。
+
+## 9. F9 合并与发布记录
+
+| 项目 | 内容 |
+|---|---|
+| 版本 / Commit | `main` @ `9dc06c0`（功能分支 `feat/chg-004-characters-core`，19 个提交，`2852a35..9dc06c0` 快进合并） |
+| 环境 | 本机（Windows + Docker Desktop 单用户本地）；`http://127.0.0.1:17860` |
+| 时间 | 2026-11-11（Asia/Shanghai） |
+| 操作者 | Agent（发布协调） |
+| 审批 | 用户：F7 结论 **ACCEPT** + 明确授权「本地合并，不推送」 |
+| 部署步骤 | 未执行生产部署变更：容器 `novel-management-app-1` 已在 F6 由同一功能代码构建并运行（healthy）；合并后新增提交仅为文档，镜像无需重建。数据库已迁移至版本 4。 |
+| Smoke Test | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke.ps1` → `SMOKE OK: version=0.1.0 db=ok cache=ok`；`GET /api/v1/works` 返回 200；`GET /characters` 返回 200 |
+| 异常 | 无。工作区干净；`docker compose ps` 中 app/db/cache 均 healthy |
+| 远程状态 | **未推送** `origin/main`（本地 main 领先 origin/main 34 个提交；按授权不推送、不创建远程 PR） |
+| 回滚结果 | 未触发回滚。如需回退：`git reset --hard 2852a35`（本地）或 revert 合并提交；若已迁移，执行 0004 Down（先清 `character_system_refs`）。 |
+
+**发布结论**：本地集成通过，未发布到远程/公网；符合 `project/deployment.md`「未获批准不得发布到公网或修改部署拓扑」。
