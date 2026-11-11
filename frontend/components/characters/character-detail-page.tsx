@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CharacterDeleteDialog } from "@/components/characters/character-delete-dialog";
+import { CharacterImage } from "@/components/characters/character-image";
+import { ChronicleSection } from "@/components/characters/chronicle-section";
+import { ImageUploader } from "@/components/characters/image-uploader";
 import {
   CharacterFormFields,
   createCharacterFormValues,
@@ -25,6 +28,7 @@ import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
 import { isApiCode, toUserMessage } from "@/lib/api/errors";
 import { getCharacter, updateCharacter, type CharacterDetail, type CharacterSystemRef } from "@/lib/api/characters";
+import { deleteCharacterImage, uploadCharacterImage } from "@/lib/api/media";
 import { undoTrash } from "@/lib/api/trash";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 
@@ -77,11 +81,17 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
   const [hasConflict, setHasConflict] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imagePercent, setImagePercent] = useState(0);
 
   const formDirty = useMemo(
     () => Boolean(initialValues) && JSON.stringify(values) !== JSON.stringify(initialValues),
     [values, initialValues],
   );
+  const imageDirty = Boolean(imageFile) || imageRemoved;
 
   const { categories, status: systemStatus } = useCharacterSystemFields(
     detail?.work_id ?? null,
@@ -115,8 +125,8 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
   }, [characterID, reloadTick]);
 
   useEffect(() => {
-    markDirty(editing && formDirty);
-  }, [editing, formDirty, markDirty]);
+    markDirty(editing && (formDirty || imageDirty));
+  }, [editing, formDirty, imageDirty, markDirty]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -159,6 +169,10 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
     setValues(next);
     setFormError(null);
     setHasConflict(false);
+    setImageFile(null);
+    setImageRemoved(false);
+    setImageError(null);
+    setImagePercent(0);
     setEditing(true);
   }, [detail]);
 
@@ -167,6 +181,10 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
     setInitialValues(null);
     setFormError(null);
     setHasConflict(false);
+    setImageFile(null);
+    setImageRemoved(false);
+    setImageError(null);
+    setImagePercent(0);
     reset();
   }
 
@@ -199,9 +217,43 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
         systemRefs: toCharacterSystemRefs(values),
         version: detail.version,
       });
-      setDetail(updated);
+      let nextImage = updated.image;
+      let imageFailure = false;
+      if (imageFile) {
+        setImageUploading(true);
+        setImagePercent(0);
+        setImageError(null);
+        try {
+          nextImage = await uploadCharacterImage(detail.id, imageFile, setImagePercent);
+        } catch (cause) {
+          imageFailure = true;
+          setImageError(toUserMessage(cause, messages.characterImageUploadFailed));
+        } finally {
+          setImageUploading(false);
+        }
+      } else if (imageRemoved && detail.image) {
+        setImageError(null);
+        try {
+          await deleteCharacterImage(detail.id);
+          nextImage = null;
+        } catch (cause) {
+          imageFailure = true;
+          setImageError(toUserMessage(cause, messages.characterImageUploadFailed));
+        }
+      }
+      setDetail({ ...updated, image: nextImage });
+      if (imageFailure) {
+        // 文字已保存：保留图片选择供重试，并同步表单基线，避免再次保存触发版本冲突。
+        setInitialValues(values);
+        setFormError(messages.characterImageSavedButFailed);
+        return;
+      }
       setEditing(false);
       setInitialValues(null);
+      setImageFile(null);
+      setImageRemoved(false);
+      setImageError(null);
+      setImagePercent(0);
       reset();
       showToast({ tone: "success", message: messages.characterUpdated(updated.name) });
     } catch (cause) {
@@ -337,6 +389,28 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
             categories={categories}
             systemStatus={systemStatus}
           />
+          <ImageUploader
+            name={values.name || detail.name}
+            current={detail.image}
+            selected={imageFile}
+            removed={imageRemoved}
+            uploading={imageUploading}
+            percent={imagePercent}
+            error={imageError}
+            disabled={saving}
+            onSelect={(file) => {
+              setImageFile(file);
+              setImageRemoved(false);
+              setImageError(null);
+            }}
+            onInvalid={setImageError}
+            onRemove={() => {
+              setImageFile(null);
+              setImageRemoved(true);
+              setImageError(null);
+            }}
+            onCancelRemove={() => setImageRemoved(false)}
+          />
           <div className="character-edit-actions">
             <Button
               variant="secondary"
@@ -345,7 +419,11 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
             >
               {messages.cancel}
             </Button>
-            <Button onClick={save} loading={saving} disabled={!formDirty || !values.name.trim()}>
+            <Button
+              onClick={save}
+              loading={saving}
+              disabled={(!formDirty && !imageDirty) || !values.name.trim()}
+            >
               {messages.characterSaveSubmit}
             </Button>
           </div>
@@ -355,7 +433,9 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
           <div className="character-detail__main">
             <section className="character-detail__card" aria-labelledby="character-identity-title">
               <div className="character-detail__identity">
-                <div className="character-detail__title-row">
+                <CharacterImage name={detail.name} image={detail.image} size="lg" />
+                <div className="character-detail__identity-body">
+                  <div className="character-detail__title-row">
                   <h2 id="character-identity-title" className="character-detail__title">
                     {detail.name}
                   </h2>
@@ -370,6 +450,7 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                   )}
                 </div>
                 <CharacterNameChips names={detail.names} />
+                </div>
               </div>
 
               <dl className="character-detail__facts">
@@ -390,10 +471,6 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                   <dd>{messages.characterNoValue}</dd>
                 </div>
               </dl>
-
-              <div className="character-image-placeholder" role="img" aria-label={messages.characterImagePlaceholder}>
-                {messages.characterImagePlaceholder}
-              </div>
             </section>
 
             <section className="character-detail__card" aria-labelledby="character-relations-title">
@@ -432,12 +509,20 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                 </div>
               </div>
             </section>
+
+            <ChronicleSection characterID={detail.id} />
           </div>
 
           <aside className="character-detail__aside" aria-labelledby="character-archive-title">
             <h2 id="character-archive-title" className="character-detail__section-title">
               {messages.characterArchiveTitle}
             </h2>
+            <div className="character-archive-block">
+              <h3 className="character-relation-group__title">{messages.characterImageTitle}</h3>
+              <p className="character-description-body">
+                {detail.image ? messages.characterImageUploaded : messages.characterImageNotUploaded}
+              </p>
+            </div>
             <div className="character-archive-block">
               <h3 className="character-relation-group__title">{messages.characterDescriptionLabel}</h3>
               <p className="character-description-body">

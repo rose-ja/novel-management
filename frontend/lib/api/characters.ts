@@ -36,12 +36,14 @@ export type CharacterLocationLink = {
   note: string | null;
 };
 
-/** 主图占位；CHG-005 前恒为 null。 */
+/** 人物主图；CHG-005 起返回真实资产信息。 */
 export type CharacterImage = {
   asset_id: string;
   url: string;
+  thumb_url?: string;
   width: number;
   height: number;
+  byte_size?: number;
 };
 
 export type CharacterSummary = {

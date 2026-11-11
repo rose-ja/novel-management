@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { CharacterImage } from "@/components/characters/character-image";
 import { CharacterNameChips } from "@/components/characters/character-name-chips";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import type { CharacterSummary } from "@/lib/api/characters";
 import { messages } from "@/lib/messages";
 
 const columns: TableColumn[] = [
+  { key: "image", label: messages.characterColumnImage, width: "56px" },
   { key: "name", label: messages.characterColumnName },
   { key: "names", label: messages.characterColumnNames },
   { key: "realm", label: messages.characterColumnRealm },
@@ -44,6 +46,13 @@ export function CharacterTable({
   onClearFilters,
 }: CharacterTableProps) {
   const rows = items.map((item) => [
+    <CharacterImage
+      key="image"
+      name={item.name}
+      image={item.image_thumb_url ? { asset_id: item.id, url: item.image_thumb_url, width: 40, height: 40 } : null}
+      size="sm"
+      thumb
+    />,
     <Link key="name" className="character-name-link" href={`/characters?id=${encodeURIComponent(item.id)}`}>
       {item.name}
     </Link>,
