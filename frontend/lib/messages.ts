@@ -496,6 +496,7 @@ export const messages = {
   chronicleDeleteTitle: "删除这条大事记？",
   chronicleDeleteDescription: "删除后 8 秒内可撤销。",
   chronicleDeleted: "已删除大事记",
+  chronicleUndone: "已撤销删除",
   chronicleLoadFailed: "大事记加载失败",
   chronicleSaveFailed: "大事记保存失败，请重试",
   chronicleDeleteFailed: "大事记删除失败，请重试",

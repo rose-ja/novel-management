@@ -81,13 +81,13 @@ func serveMediaHandler(svc *service.Media) gin.HandlerFunc {
 		}
 		etag := `"` + asset.SHA256 + "-" + variant + `"`
 		c.Header("ETag", etag)
+		c.Header("Cache-Control", "private, max-age=31536000, immutable")
+		c.Header("Content-Disposition", `inline; filename="image"`)
+		c.Header("X-Content-Type-Options", "nosniff")
 		if match := c.GetHeader("If-None-Match"); match == etag {
 			c.Status(http.StatusNotModified)
 			return
 		}
-		c.Header("Cache-Control", "private, max-age=31536000, immutable")
-		c.Header("Content-Disposition", `inline; filename="image"`)
-		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("Content-Type", asset.Mime)
 		http.ServeContent(c.Writer, c.Request, "", info.ModTime(), file)
 	}

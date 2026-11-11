@@ -62,7 +62,7 @@ test.describe("人物主图与大事记", () => {
     await page.getByRole("dialog").getByRole("button", { name: "移除" }).click();
     await page.getByRole("button", { name: "保存修改" }).click();
     await expect(page.locator(".ui-toast").filter({ hasText: "已保存人物" })).toBeVisible();
-    await expect(page.getByRole("img", { name: `主图：${character.name}` })).toBeVisible();
+    await expect(page.getByRole("img", { name: `人物主图：${character.name}` })).toBeVisible();
     await expect(page.getByText("未上传").first()).toBeVisible();
   });
 

@@ -110,6 +110,14 @@ func (s *Media) UploadCharacterImage(ctx context.Context, characterID string, re
 
 	var old []model.MediaAsset
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 锁住人物行，避免与人物删除/作品整组删除并发时产生「已删人物下的活跃主图」。
+		locked, err := repository.NewCharacters(tx).GetForUpdate(ctx, characterID)
+		if err != nil {
+			return err
+		}
+		if locked.WorkID != character.WorkID {
+			return model.ErrNotFound
+		}
 		repo := repository.NewMedia(tx)
 		if previous, err := repo.GetActiveForUpdate(ctx, model.MediaEntityCharacter, character.ID); err == nil {
 			old = append(old, *previous)

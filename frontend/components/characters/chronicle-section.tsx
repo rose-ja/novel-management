@@ -136,7 +136,7 @@ export function ChronicleSection({ characterID }: ChronicleSectionProps) {
           try {
             await undoTrash(result.undo_token);
             await load();
-            showToast({ tone: "success", message: messages.undo });
+            showToast({ tone: "success", message: messages.chronicleUndone });
           } catch (cause) {
             showToast({ tone: "error", message: toUserMessage(cause, messages.chronicleDeleteFailed) });
           }

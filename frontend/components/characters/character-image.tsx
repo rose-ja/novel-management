@@ -21,7 +21,7 @@ function initial(name: string): string {
 /** 人物主图；缺失或加载失败时显示姓名首字占位（PG-03 §4.1）。 */
 export function CharacterImage({ name, image, size = "lg", thumb = false }: CharacterImageProps) {
   const [failed, setFailed] = useState(false);
-  const label = `${messages.characterImageTitle}：${name}`;
+  const label = `人物主图：${name}`;
   const src = thumb ? image?.thumb_url ?? image?.url : image?.url;
 
   if (!image || !src || failed) {
