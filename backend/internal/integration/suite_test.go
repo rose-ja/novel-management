@@ -165,11 +165,13 @@ func newHarness(t *testing.T) *harness {
 	}
 
 	snapshots := service.NewSnapshot(tx, cfg, discardLogger(), dumper)
+	media := service.NewMedia(tx, dataDir, discardLogger())
+	chronicles := service.NewChronicles(tx)
 	works := service.NewWorks(tx, snapshots)
-	trash := service.NewTrash(tx, snapshots)
+	trash := service.NewTrash(tx, snapshots, media)
 	settings := service.NewSettings(tx)
 	system := service.NewSystem(tx)
-	characters := service.NewCharacters(tx)
+	characters := service.NewCharacters(tx, media)
 	engine := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    discardLogger(),
@@ -184,6 +186,8 @@ func newHarness(t *testing.T) *harness {
 		Settings:   settings,
 		System:     system,
 		Characters: characters,
+		Media:      media,
+		Chronicles: chronicles,
 	})
 
 	return &harness{

@@ -225,7 +225,7 @@ func TestCharacterPurgeSkipsRestoredRoot(t *testing.T) {
 		t.Fatalf("恢复人物失败（status=%d）：%s", restore.Code, restore.Body.String())
 	}
 
-	rows, err := repository.NewCharacters(h.tx).Purge(context.Background(), character.ID)
+	rows, _, err := repository.NewCharacters(h.tx).Purge(context.Background(), character.ID)
 	if err != nil {
 		t.Fatalf("清理已恢复人物返回错误：%v", err)
 	}
