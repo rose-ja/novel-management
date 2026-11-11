@@ -337,6 +337,73 @@ func TestChronicleCRUDAndUndo(t *testing.T) {
 	assertErrorCode(t, unknown, http.StatusNotFound, "NOT_FOUND")
 	unsupported := h.do(http.MethodGet, "/api/v1/chronicles?owner_type=faction&owner_id="+character.ID, nil, nil)
 	assertErrorCode(t, unsupported, http.StatusUnprocessableEntity, "VALIDATION_ERROR")
+
+	reserved := h.do(http.MethodGet, "/api/v1/trash?root_type=chronicle&page=1&page_size=10", nil, nil)
+	assertErrorCode(t, reserved, http.StatusUnprocessableEntity, "VALIDATION_ERROR")
+}
+
+func TestWorkLifecycleCoversMediaAndChronicles(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("联动作品组")
+	character := h.createCharacter(work.ID, "组内人物", nil, nil)
+	uploaded := h.uploadImage(character.ID, "avatar.png", makePNG(t, 120, 120))
+	if uploaded.Code != http.StatusCreated {
+		t.Fatalf("上传失败（status=%d）：%s", uploaded.Code, uploaded.Body.String())
+	}
+	view := decodeBody[mediaViewPayload](t, uploaded)
+	created := h.do(http.MethodPost, "/api/v1/chronicles", map[string]any{
+		"owner_type": "character", "owner_id": character.ID, "text": "作品组大事记",
+	}, nil)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("创建大事记失败（status=%d）：%s", created.Code, created.Body.String())
+	}
+
+	deleted := h.deleteWork(work.ID, work.Name, "1")
+	if deleted.Code != http.StatusOK {
+		t.Fatalf("删除作品失败（status=%d）：%s", deleted.Code, deleted.Body.String())
+	}
+	deletion := decodeBody[deletePayload](t, deleted)
+	if served := h.do(http.MethodGet, view.URL, nil, nil); served.Code != http.StatusNotFound {
+		t.Fatalf("作品删除后图片应 404，实际 %d", served.Code)
+	}
+
+	undo := h.do(http.MethodPost, "/api/v1/trash/undo", map[string]any{"undo_token": deletion.UndoToken}, nil)
+	if undo.Code != http.StatusOK {
+		t.Fatalf("撤销作品删除失败（status=%d）：%s", undo.Code, undo.Body.String())
+	}
+	if served := h.do(http.MethodGet, view.URL, nil, nil); served.Code != http.StatusOK {
+		t.Fatalf("恢复作品后图片应可读，实际 %d", served.Code)
+	}
+	var activeChronicles int64
+	if err := h.tx.Table("chronicles").Where("work_id = ? AND deleted_at IS NULL", work.ID).Count(&activeChronicles).Error; err != nil {
+		t.Fatalf("统计大事记失败：%v", err)
+	}
+	if activeChronicles != 1 {
+		t.Fatalf("恢复作品后大事记应回来，实际 %d", activeChronicles)
+	}
+
+	current := h.getWork(work.ID)
+	deletedAgain := h.deleteWork(work.ID, work.Name, fmt.Sprintf("%d", current.Version))
+	if deletedAgain.Code != http.StatusOK {
+		t.Fatalf("再次删除作品失败（status=%d）：%s", deletedAgain.Code, deletedAgain.Body.String())
+	}
+	purged := h.do(http.MethodDelete, "/api/v1/trash/work/"+work.ID, map[string]any{"confirm": true}, nil)
+	if purged.Code != http.StatusNoContent {
+		t.Fatalf("永久删除作品失败（status=%d）：%s", purged.Code, purged.Body.String())
+	}
+	var mediaRows, chronicleRows int64
+	if err := h.tx.Table("media_assets").Where("work_id = ?", work.ID).Count(&mediaRows).Error; err != nil {
+		t.Fatalf("统计媒体失败：%v", err)
+	}
+	if err := h.tx.Table("chronicles").Where("work_id = ?", work.ID).Count(&chronicleRows).Error; err != nil {
+		t.Fatalf("统计大事记失败：%v", err)
+	}
+	if mediaRows != 0 || chronicleRows != 0 {
+		t.Fatalf("永久删除作品后应无残留，media=%d chronicles=%d", mediaRows, chronicleRows)
+	}
+	if _, err := os.Stat(filepath.Join(h.dataDir, "images", work.ID, view.AssetID+".png")); !os.IsNotExist(err) {
+		t.Fatalf("永久删除作品后图片文件应清理，实际 err=%v", err)
+	}
 }
 
 func TestCharacterMediaAndChroniclesLifecycle(t *testing.T) {

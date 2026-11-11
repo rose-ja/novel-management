@@ -310,6 +310,15 @@ func (h *harness) createWork(name string) workPayload {
 	return decodeBody[workPayload](h.t, rec)
 }
 
+func (h *harness) getWork(id string) workPayload {
+	h.t.Helper()
+	rec := h.do(http.MethodGet, "/api/v1/works/"+id, nil, nil)
+	if rec.Code != http.StatusOK {
+		h.t.Fatalf("读取作品失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	return decodeBody[workPayload](h.t, rec)
+}
+
 func (h *harness) deleteWork(id string, confirmName string, version string) *httptest.ResponseRecorder {
 	h.t.Helper()
 	return h.do(http.MethodDelete, "/api/v1/works/"+id, map[string]any{"confirm_name": confirmName}, map[string]string{

@@ -1,0 +1,86 @@
+# Verification Report
+
+- Change ID：CHG-005-characters-media-chronicles
+- Commit：功能分支 `feat/chg-005-characters-media-chronicles`（F2 实施 + F3 自测）
+- Environment：Windows + PowerShell 5.1；Go 1.27.3（交叉编译 linux/amd64）；Node.js 22；PostgreSQL 16（容器 `novel-management-db-1`）；应用容器 `novel-management-app-1` @ `http://127.0.0.1:17860`
+- Tester：Agent（F2 实施；F3 自测）
+- Date：2026-11-11
+
+## 1. Static Checks
+
+| Command | Exit code | Result | Evidence |
+|---|---:|---|---|
+| `cd backend; gofmt -l .` | 0 | 无输出（仅 LF 副本检查） | — |
+| `cd backend; go vet ./...` | 0 | 无输出 | — |
+| `cd backend; go build ./...` | 0 | 无输出 | — |
+| `cd frontend; npm run typecheck` | 0 | 无输出 | `tsc --noEmit` |
+| `cd frontend; npm run lint` | 0 | 无告警 | ESLint |
+| `cd frontend; npx -y node@22 node_modules/next/dist/bin/next build` | 0 | 6 个静态路由导出成功（`/characters` 17.1 kB） | 构建输出 |
+
+## 2. Unit / Integration Tests
+
+| Command | Exit code | Result | Evidence |
+|---|---:|---|---|
+| `cd backend; go test ./...` | 0 | config/httpapi/model/service 全部 ok | 含 `service/media_test.go` |
+| `cd backend; go test ./internal/service/...` | 0 | 通过 | 魔数、重编码、缩略图 320、4096 上限、路径越界 |
+| `cd backend; go test -count=1 -v -tags=integration ./internal/integration/...` | 0 | **70 个顶层用例 PASS / 0 FAIL（7.223s）** | 见 §3 |
+| 其中 `TestMigrationRoundTrip` | 0 | 版本 5；0005 Down 删两表并恢复 `image_path`；0004 Down 清引用；重新 Up 成功 | 覆盖 DB-04/DB-05 |
+| 其中 `TestCharacterImageUploadAndServe` | 0 | 上传/缩略图/详情/列表/替换/移除/ETag/304 | 覆盖 IMG-01/05/06/07/08/09/10/11 |
+| 其中 `TestCharacterImageValidation` | 0 | 文本/损坏 PNG/GIF → `UNSUPPORTED_FILE_TYPE`；11MB → `FILE_TOO_LARGE`；无残留行 | 覆盖 IMG-02/03 |
+| 其中 `TestChronicleCRUDAndUndo` | 0 | 排序 0/1、版本冲突、2,001 字、撤销、owner 404、`root_type=chronicle` 422 | 覆盖 CHR-01～06 |
+| 其中 `TestCharacterMediaAndChroniclesLifecycle` | 0 | 人物删除隐藏、撤销恢复、永久删除清行与文件 | 覆盖 LIFE-01/02 |
+| 其中 `TestWorkLifecycleCoversMediaAndChronicles` | 0 | 作品删除隐藏、撤销恢复、永久删除清行与文件 | 覆盖 LIFE-03/04 |
+
+## 3. E2E Scenarios
+
+环境：`http://127.0.0.1:17860`，容器内迁移日志 `successfully migrated database to version: 5`。
+
+| Scenario | Steps | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| 主图上传 | 编辑 → 选择 PNG → 保存修改 | 详情 120px 显示、侧栏「已上传」 | 通过 | PASS | `characters-media.spec.ts`「上传、展示与移除主图」 |
+| 列表缩略图 | 返回列表 | 行内 40px 图片可见 | 通过 | PASS | 同上 |
+| 移除主图 | 编辑 → 移除主图 → 确认 → 保存 | 占位「主图：姓名」、未上传 | 通过 | PASS | 同上 |
+| 非法图片 | 选择文本伪装 PNG → 保存 | 字段级「仅支持 JPG、PNG 或 WebP 图片」；停留编辑态 | 通过 | PASS | 「非法图片在字段级被拒绝」 |
+| 大事记 | 添加 2 条 → 编辑 → 删除 → 撤销 | 01/02 顺序、修订可见、删除后 Toast 撤销恢复 | 通过 | PASS | 「大事记新增、编辑、删除与撤销」 |
+| 全量回归 | `npx playwright test` | 全部通过 | **66 passed（53.3s）** | PASS | 含 a11y/键盘/体系/回收站/作品/视觉 |
+| 视觉基线 · 人物详情 | 更新 `character-detail-1280` | 含主图区与大事记区 | 通过 | PASS | `visual.spec.ts-snapshots/character-detail-1280-chromium-win32.png` |
+
+## 4. Review Findings
+
+F4 独立审查尚未开始（F3 完成后进入 F4）。本报告不预判审查结论。
+
+## 5. Implementation Differences（对照 `design.md`）
+
+| 项 | 设计 | 实施 |
+|---|---|---|
+| WebP 落库 MIME | 输入支持 WebP | 重编码为 PNG，落库 `image/png`；HTML 显示不受影响 |
+| 缩略图 | 最长边 320 | 保持比例，最长边 320（800×600 → 320×240） |
+| 大事记回收站 | `root_type=chronicle` 保留 | 列表返回 422；仅撤销令牌使用该类型 |
+| 图片上传时机 | 保存时统一提交 | 已实现：先 PATCH，再上传/删除；失败保留编辑态 |
+| 409 冲突 | 人物文字 PATCH | 图片端点无 `If-Match`，最后写入生效（契约一致） |
+| 组件测试 | `image-uploader.test.tsx`、`chronicle-section.test.tsx` | 未落地：前端 vitest 仅配置 node 环境，无 jsdom/testing-library；以 E2E 覆盖交互（见 §6） |
+
+## 6. Known Limitations
+
+- 前端组件测试未接入（无 jsdom/testing-library 依赖），上传/大事记交互由 3 个 E2E 用例覆盖；单元层面仅覆盖 `validateImageFile`。
+- 慢网（图片延迟 2s）与 40MP 像素上限未单独自动化；上限逻辑由代码与 4096 尺寸用例间接覆盖。
+- 上传耗时未做基准；10MB 图片为重编码 + 双文件写入同步执行，低配机器可能超过 AC-26 的 1s 图片预算（AC-26 不含缩略图耗时）。
+- 图片 EXIF 方向未处理（PG03-Q5 非 Must）。
+- 人物新建 Drawer 内不提供上传，需创建后进入详情维护（F1 已确认的范围）。
+- 本机 Docker BuildKit 与本轮部署方式：交叉编译 + `docker cp`，未重建镜像；Dockerfile 未改动。
+- 全站 `/favicon.ico` 404 为 CHG-004 之前既有问题，不在本变更范围。
+
+## 7. Rollback Verification
+
+- `TestMigrationRoundTrip` 覆盖 0005 Down：删除 `media_assets`/`chronicles`，恢复 `characters.image_path`，人物与引用保留；再次 Up 成功。
+- 文件回滚：永久删除事务提交后才删文件；若需恢复，使用操作前快照（`images/` 目录随快照保留）。
+- 应用回滚：切回 CHG-004 提交并重新部署；0005 数据表保留但不被旧代码读取。
+
+## 8. Conclusion
+
+READY FOR INDEPENDENT REVIEW（F3 完成）
+
+- 后端门禁全绿：gofmt / vet / build / 单测 / 70 集成。
+- 前端门禁全绿：typecheck / lint / 46 单测 / Node 22 构建 / 66 E2E（含 3 个新用例）。
+- 容器已迁移至版本 5；主图与大事记端到端可用；生命周期与文件清理有集成证据。
+- 已知限制见 §6，未发现 S1 级阻塞问题。

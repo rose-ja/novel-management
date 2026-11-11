@@ -75,6 +75,20 @@ func TestEncodeImageRejectsInvalid(t *testing.T) {
 	}
 }
 
+func TestEncodeImageCapsDimension(t *testing.T) {
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, testImage(5000, 10)); err != nil {
+		t.Fatalf("生成测试图失败：%v", err)
+	}
+	original, _, err := encodeImage(buf.Bytes())
+	if err != nil {
+		t.Fatalf("encodeImage 失败：%v", err)
+	}
+	if original.width != model.MaxImageDimension {
+		t.Fatalf("最长边应缩到 %d，实际 %d", model.MaxImageDimension, original.width)
+	}
+}
+
 func TestSafePathRejectsEscape(t *testing.T) {
 	service := NewMedia(nil, t.TempDir(), nil)
 	if _, err := service.safePath("../secret"); err == nil {
