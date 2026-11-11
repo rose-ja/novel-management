@@ -43,6 +43,7 @@
 | 非法图片 | 选择文本伪装 PNG → 保存 | 字段级「仅支持 JPG、PNG 或 WebP 图片」；停留编辑态 | 通过 | PASS | 「非法图片在字段级被拒绝」 |
 | 大事记 | 添加 2 条 → 编辑 → 删除 → 撤销 | 01/02 顺序、修订可见、删除后 Toast 撤销恢复 | 通过 | PASS | 「大事记新增、编辑、删除与撤销」 |
 | 全量回归 | `npx playwright test` | 全部通过 | **66 passed（53.3s）** | PASS | 含 a11y/键盘/体系/回收站/作品/视觉 |
+| F6 回归（F5 修复后） | 全量集成 + 全量 E2E | 全部通过 | **70 集成 PASS；66 E2E passed（53.7s）** | PASS | F5 后重跑 |
 | 视觉基线 · 人物详情 | 更新 `character-detail-1280` | 含主图区与大事记区 | 通过 | PASS | `visual.spec.ts-snapshots/character-detail-1280-chromium-win32.png` |
 
 ## 4. Review Findings
@@ -94,9 +95,10 @@
 
 ## 8. Conclusion
 
-READY FOR INDEPENDENT REVIEW（F3 完成）
+READY FOR HUMAN ACCEPTANCE（F6 完成，等待 ACCEPT / REWORK / REPLAN）
 
-- 后端门禁全绿：gofmt / vet / build / 单测 / 70 集成。
-- 前端门禁全绿：typecheck / lint / 46 单测 / Node 22 构建 / 66 E2E（含 3 个新用例）。
+- 后端门禁全绿：gofmt / vet / build / 单测 / 70 集成（F5 后重跑）。
+- 前端门禁全绿：typecheck / lint / 46 单测 / Node 22 构建 / 66 E2E（F5 后重跑）。
+- F4 审查 PASS（无 S1，8 项 S2）；R-01/R-08 已修复，其余登记。
 - 容器已迁移至版本 5；主图与大事记端到端可用；生命周期与文件清理有集成证据。
-- 已知限制见 §6，未发现 S1 级阻塞问题。
+- 已知限制见 §6，未发现 S1 级阻塞问题。人工验收脚本见 `acceptance.md`（待编写/执行）。
