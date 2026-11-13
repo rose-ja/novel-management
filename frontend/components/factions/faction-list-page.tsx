@@ -37,6 +37,7 @@ export function FactionListPage() {
   const [status, setStatus] = useState<ListStatus>("idle");
   const [error, setError] = useState<Error | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
+  const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [pendingOnly, setPendingOnly] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -63,6 +64,7 @@ export function FactionListPage() {
   }, [workID]);
 
   useEffect(() => {
+    setQueryInput("");
     setQuery("");
     setPendingOnly(false);
     setExpanded(new Set());
@@ -103,6 +105,12 @@ export function FactionListPage() {
     };
   }, [workID, reloadTick]);
 
+  // 本地过滤做 300ms 防抖，避免逐键重建树（PG-04）。
+  useEffect(() => {
+    const handle = window.setTimeout(() => setQuery(queryInput), 300);
+    return () => window.clearTimeout(handle);
+  }, [queryInput]);
+
   const index = useMemo(
     () => indexFactions(items, { query, pendingOnly }),
     [items, query, pendingOnly],
@@ -138,6 +146,7 @@ export function FactionListPage() {
   }, []);
 
   const resetFilters = useCallback(() => {
+    setQueryInput("");
     setQuery("");
     setPendingOnly(false);
   }, []);
@@ -225,11 +234,11 @@ export function FactionListPage() {
           <FilterBar onReset={resetFilters} activeCount={activeCount} label={messages.factionTitle}>
             <div className="page-toolbar__search">
               <Input
-                value={query}
+                value={queryInput}
                 maxLength={100}
                 placeholder={messages.factionSearchPlaceholder}
                 aria-label={messages.factionSearchLabel}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => setQueryInput(event.target.value)}
               />
             </div>
             <div className="character-filter-toggle">

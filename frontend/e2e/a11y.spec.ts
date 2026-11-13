@@ -5,6 +5,7 @@ const pages = [
   { path: "/", name: "概览" },
   { path: "/system", name: "体系" },
   { path: "/characters", name: "人物" },
+  { path: "/factions", name: "势力" },
   { path: "/settings", name: "设置" },
   { path: "/trash", name: "回收站" },
   { path: "/no-such-page", name: "404" },

@@ -89,7 +89,7 @@ export async function listWorks(request: APIRequestContext): Promise<WorkJson[]>
 
 export async function listTrash(
   request: APIRequestContext,
-  rootType?: "work" | "system_category" | "system_node" | "character",
+  rootType?: "work" | "system_category" | "system_node" | "character" | "faction",
 ): Promise<TrashItemJson[]> {
   const search = new URLSearchParams({ page: "1", page_size: "100" });
   if (rootType) search.set("root_type", rootType);
@@ -226,6 +226,7 @@ export type CharacterJson = {
 export type CreateCharacterOptions = {
   names?: CharacterNameJson[];
   description?: string | null;
+  factionID?: string | null;
   systemRefs?: { category_id: string; node_id: string }[];
 };
 
@@ -241,6 +242,7 @@ export async function createCharacter(
       name,
       names: options.names ?? [],
       description: options.description ?? null,
+      faction_id: options.factionID ?? null,
       system_refs: options.systemRefs ?? [],
       location_links: [],
     },
@@ -286,6 +288,71 @@ export async function listCharacters(
   await ensure(res, "读取人物列表");
   const body = (await res.json()) as { items: CharacterJson[] };
   return body.items;
+}
+
+export type FactionJson = {
+  id: string;
+  work_id: string;
+  name: string;
+  parent: { id: string; name: string } | null;
+  leader: { id: string; name: string } | null;
+  description: string | null;
+  review_status: "confirmed" | "pending";
+  children_count: number;
+  member_count: number;
+  version: number;
+  relations?: {
+    children: { id: string; name: string }[];
+    chronicle_count: number;
+    subtree_member_count: number;
+  };
+};
+
+export type CreateFactionOptions = {
+  parentID?: string | null;
+  leaderID?: string | null;
+  description?: string | null;
+};
+
+export async function createFaction(
+  request: APIRequestContext,
+  workID: string,
+  name: string,
+  options: CreateFactionOptions = {},
+): Promise<FactionJson> {
+  const res = await request.post("/api/v1/factions", {
+    data: {
+      work_id: workID,
+      name,
+      parent_id: options.parentID ?? null,
+      leader_character_id: options.leaderID ?? null,
+      description: options.description ?? null,
+    },
+    headers: JSON_HEADERS,
+  });
+  await ensure(res, `创建势力「${name}」`);
+  return (await res.json()) as FactionJson;
+}
+
+export async function listFactions(
+  request: APIRequestContext,
+  workID: string,
+): Promise<FactionJson[]> {
+  const res = await request.get(`/api/v1/factions?work_id=${encodeURIComponent(workID)}`);
+  await ensure(res, "读取势力列表");
+  const body = (await res.json()) as { items: FactionJson[] };
+  return body.items;
+}
+
+export async function deleteFaction(
+  request: APIRequestContext,
+  faction: Pick<FactionJson, "id" | "version">,
+): Promise<{ undo_token: string }> {
+  const res = await request.delete(`/api/v1/factions/${faction.id}`, {
+    headers: { ...JSON_HEADERS, "If-Match": `"${faction.version}"` },
+  });
+  await ensure(res, `删除势力「${faction.id}」`);
+  return (await res.json()) as { undo_token: string };
 }
 
 /**

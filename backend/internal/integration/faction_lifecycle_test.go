@@ -138,6 +138,50 @@ func TestFactionTrashUndoRestorePurge(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("带历史成员的势力永久删除失败（status=%d）：%s", rec.Code, rec.Body.String())
 	}
+
+	// 势力永久删除后，原首领人物可正常删除（首领为出向引用）。
+	leaderCharacter := h.seedCharacter(work.ID, "待删首领")
+	leaderFaction := h.createFaction(work.ID, "首领势力", nil, &leaderCharacter)
+	rec = h.do(http.MethodDelete, "/api/v1/factions/"+leaderFaction.ID, nil, map[string]string{
+		"If-Match": `"` + itoa(leaderFaction.Version) + `"`,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除首领势力失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	rec = h.do(http.MethodDelete, "/api/v1/trash/faction/"+leaderFaction.ID, map[string]any{"confirm": true}, nil)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("永久删除首领势力失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	rec = h.do(http.MethodDelete, "/api/v1/characters/"+leaderCharacter, nil, map[string]string{"If-Match": `"1"`})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("势力永久删除后首领人物应可删除（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPurgeAllIncludesFactions(t *testing.T) {
+	h := newHarness(t)
+	work := h.createWork("清空回收站势力")
+	faction := h.createFaction(work.ID, "待清空势力", nil, nil)
+	if rec := h.do(http.MethodDelete, "/api/v1/factions/"+faction.ID, nil, map[string]string{
+		"If-Match": `"` + itoa(faction.Version) + `"`,
+	}); rec.Code != http.StatusOK {
+		t.Fatalf("删除势力失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+
+	rec := h.do(http.MethodDelete, "/api/v1/trash", map[string]any{"confirm": "PURGE_ALL"}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("清空回收站失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	if payload := decodeBody[purgeAllPayload](t, rec); payload.Purged < 1 {
+		t.Fatalf("清空回收站应包含势力根，实际 purged=%d", payload.Purged)
+	}
+	var left int64
+	if err := h.tx.Raw("SELECT count(*) FROM factions WHERE id = ?", faction.ID).Scan(&left).Error; err != nil {
+		t.Fatalf("统计势力失败：%v", err)
+	}
+	if left != 0 {
+		t.Fatalf("清空回收站后势力应删除，实际 %d 行", left)
+	}
 }
 
 func TestFactionRestoreBlockedByDeletedParent(t *testing.T) {
@@ -167,7 +211,11 @@ func TestFactionRestoreBlockedByDeletedParent(t *testing.T) {
 func TestWorkLifecycleCoversFactions(t *testing.T) {
 	h := newHarness(t)
 	work := h.createWork("势力作品组")
-	faction := h.createFaction(work.ID, "妖族", nil, nil)
+	leader := h.seedCharacter(work.ID, "作品首领")
+	faction := h.createFaction(work.ID, "妖族", nil, &leader)
+	if faction.Leader == nil || faction.Leader.ID != leader {
+		t.Fatalf("势力应引用作品首领：%+v", faction.Leader)
+	}
 	created := h.do(http.MethodPost, "/api/v1/chronicles", map[string]any{
 		"owner_type": "faction", "owner_id": faction.ID, "text": "作品组势力大事记",
 	}, nil)

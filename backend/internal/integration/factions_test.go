@@ -160,9 +160,16 @@ func TestFactionNameAndReferenceValidation(t *testing.T) {
 	assertErrorCode(t, rec, http.StatusUnprocessableEntity, "CROSS_WORK_REFERENCE")
 
 	leaderID := h.seedCharacter(work.ID, "首领甲")
-	leader := h.createFaction(work.ID, "有首领", nil, &leaderID)
-	if leader.Leader == nil || leader.Leader.ID != leaderID || leader.Leader.Name != "首领甲" {
-		t.Fatalf("首领摘要不正确：%+v", leader.Leader)
+	leaderFaction := h.createFaction(work.ID, "有首领", nil, &leaderID)
+	if leaderFaction.Leader == nil || leaderFaction.Leader.ID != leaderID || leaderFaction.Leader.Name != "首领甲" {
+		t.Fatalf("首领摘要不正确：%+v", leaderFaction.Leader)
+	}
+	// 人物改名后首领展示同步。
+	if err := h.tx.Exec("UPDATE characters SET name = ?, name_key = ? WHERE id = ?", "新首领", "新首领", leaderID).Error; err != nil {
+		t.Fatalf("更新首领姓名失败：%v", err)
+	}
+	if detail := h.getFaction(leaderFaction.ID); detail.Leader == nil || detail.Leader.Name != "新首领" {
+		t.Fatalf("首领改名后展示应同步：%+v", detail.Leader)
 	}
 	otherLeader := h.seedCharacter(other.ID, "他族首领")
 	rec = h.do(http.MethodPost, "/api/v1/factions", map[string]any{
@@ -175,6 +182,17 @@ func TestFactionNameAndReferenceValidation(t *testing.T) {
 	if added.Name != "灵族" {
 		t.Fatalf("名称应去除首尾空白，实际 %q", added.Name)
 	}
+
+	// 进入回收站后可以新建同名势力。
+	h.createFaction(work.ID, "同名者", nil, nil)
+	reusable := h.createFaction(work.ID, "Reusable", nil, nil)
+	rec = h.do(http.MethodDelete, "/api/v1/factions/"+reusable.ID, nil, map[string]string{
+		"If-Match": `"` + itoa(reusable.Version) + `"`,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("删除可复用名称势力失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	h.createFaction(work.ID, "reusable", nil, nil)
 }
 
 func TestFactionMoveCycleAndVersion(t *testing.T) {

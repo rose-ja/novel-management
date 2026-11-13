@@ -372,6 +372,10 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, []string, error) {
 		if err := tx.Exec("DELETE FROM character_names WHERE " + scope).Error; err != nil {
 			return err
 		}
+		// 势力首领外键同样 RESTRICT；先解除引用，再删人物，最后删势力。
+		if err := tx.Exec("UPDATE factions SET leader_character_id = NULL WHERE " + scope).Error; err != nil {
+			return err
+		}
 		if err := tx.Exec("DELETE FROM characters WHERE " + scope).Error; err != nil {
 			return err
 		}
@@ -411,6 +415,10 @@ func purgeWorkChildren(ctx context.Context, tx *gorm.DB, workID string) ([]strin
 		return nil, err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM character_names WHERE work_id = ?", workID).Error; err != nil {
+		return nil, err
+	}
+	// 势力首领外键同样 RESTRICT；先解除引用，再删人物，最后删势力。
+	if err := tx.WithContext(ctx).Exec("UPDATE factions SET leader_character_id = NULL WHERE work_id = ?", workID).Error; err != nil {
 		return nil, err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM characters WHERE work_id = ?", workID).Error; err != nil {

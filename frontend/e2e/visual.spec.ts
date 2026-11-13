@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   cleanupE2E,
   createCharacter,
+  createFaction,
   createSystemCategory,
   createSystemNode,
   createWork,
@@ -137,6 +138,55 @@ test.describe("视觉基线 · 人物", () => {
     await expect(page.getByRole("heading", { name: "E2E-视觉陆沉", level: 1 })).toBeVisible();
 
     await expect(page).toHaveScreenshot("character-detail-1280.png", {
+      fullPage: true,
+      mask: [page.locator(".character-archive-meta")],
+    });
+  });
+});
+
+test.describe("视觉基线 · 势力", () => {
+  const WORK_NAME = "E2E-视觉势力";
+
+  test.beforeEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  for (const { width, height } of [
+    { width: 1280, height: 900 },
+    { width: 1024, height: 800 },
+  ]) {
+    test(`势力树 ${width}`, async ({ page, request }) => {
+      const work = await createWork(request, WORK_NAME);
+      const wan = await createFaction(request, work.id, "E2E-视觉万族");
+      await createFaction(request, work.id, "E2E-视觉妖族", { parentID: wan.id });
+      await createFaction(request, work.id, "E2E-视觉人族");
+
+      await page.setViewportSize({ width, height });
+      await page.goto("/factions");
+      await expect(page.getByRole("heading", { name: "势力", level: 1 })).toBeVisible();
+      await expect(page.locator(".faction-tree__row")).toHaveCount(3);
+
+      await expect(page).toHaveScreenshot(`factions-${width}.png`, { fullPage: true });
+    });
+  }
+
+  test("势力详情 1280", async ({ page, request }) => {
+    const work = await createWork(request, WORK_NAME);
+    const wan = await createFaction(request, work.id, "E2E-视觉万族");
+    const yao = await createFaction(request, work.id, "E2E-视觉妖族", {
+      parentID: wan.id,
+      description: "E2E 固定势力简介，用于视觉基线。",
+    });
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/factions?id=${yao.id}`);
+    await expect(page.getByRole("heading", { name: "E2E-视觉妖族", level: 1 })).toBeVisible();
+
+    await expect(page).toHaveScreenshot("faction-detail-1280.png", {
       fullPage: true,
       mask: [page.locator(".character-archive-meta")],
     });
