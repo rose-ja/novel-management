@@ -6,11 +6,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CharacterDeleteDialog } from "@/components/characters/character-delete-dialog";
 import { CharacterImage } from "@/components/characters/character-image";
-import { ChronicleSection } from "@/components/characters/chronicle-section";
+import { ChronicleSection } from "@/components/chronicles/chronicle-section";
 import { ImageUploader } from "@/components/characters/image-uploader";
 import {
   CharacterFormFields,
   createCharacterFormValues,
+  toCharacterFactionID,
   toCharacterNameInputs,
   toCharacterSystemRefs,
   useCharacterSystemFields,
@@ -28,6 +29,8 @@ import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
 import { isApiCode, toUserMessage } from "@/lib/api/errors";
 import { getCharacter, updateCharacter, type CharacterDetail, type CharacterSystemRef } from "@/lib/api/characters";
+import { listFactions } from "@/lib/api/factions";
+import { toFactionOptions } from "@/lib/factions-tree";
 import { deleteCharacterImage, uploadCharacterImage } from "@/lib/api/media";
 import { undoTrash } from "@/lib/api/trash";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
@@ -43,6 +46,7 @@ function detailToForm(detail: CharacterDetail): CharacterFormValues {
     name: detail.name,
     names: detail.names.map((name) => ({ kind: name.kind, value: name.value })),
     description: detail.description ?? "",
+    factionID: detail.faction?.id ?? "",
     systemRefs: Object.fromEntries(
       detail.system_refs.map((ref) => [ref.category_id, ref.node.id]),
     ),
@@ -79,6 +83,7 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [hasConflict, setHasConflict] = useState(false);
+  const [factionOptions, setFactionOptions] = useState<{ value: string; label: string }[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -162,6 +167,26 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
     return detail.system_refs.find((ref) => ref.category_id === builtin.id) ?? null;
   }, [detail, categories]);
 
+  const workID = detail?.work_id ?? null;
+
+  useEffect(() => {
+    if (!workID) {
+      setFactionOptions([]);
+      return;
+    }
+    let active = true;
+    listFactions({ workID })
+      .then((result) => {
+        if (active) setFactionOptions(toFactionOptions(result.items));
+      })
+      .catch(() => {
+        if (active) setFactionOptions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [workID]);
+
   const startEdit = useCallback(() => {
     if (!detail) return;
     const next = detailToForm(detail);
@@ -214,6 +239,7 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
         name,
         names: toCharacterNameInputs(values),
         description: values.description.trim() ? values.description : null,
+        factionID: toCharacterFactionID(values),
         systemRefs: toCharacterSystemRefs(values),
         version: detail.version,
       });
@@ -388,6 +414,7 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
             disabled={saving}
             categories={categories}
             systemStatus={systemStatus}
+            factionOptions={factionOptions}
           />
           <ImageUploader
             name={values.name || detail.name}
@@ -460,7 +487,19 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                 </div>
                 <div className="character-detail__fact">
                   <dt>{messages.characterColumnFaction}</dt>
-                  <dd>{messages.characterNoValue}</dd>
+                  <dd>
+                    {detail.faction ? (
+                      <Link
+                        className="character-name-link"
+                        href={`/factions?id=${encodeURIComponent(detail.faction.id)}`}
+                        aria-label={messages.characterFactionLink(detail.faction.name)}
+                      >
+                        {detail.faction.name}
+                      </Link>
+                    ) : (
+                      messages.characterNoValue
+                    )}
+                  </dd>
                 </div>
                 <div className="character-detail__fact">
                   <dt>{messages.characterColumnRanking}</dt>
@@ -497,7 +536,20 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
               <div className="character-relation-grid">
                 <div className="character-relation-group">
                   <h3 className="character-relation-group__title">{messages.characterFactionTitle}</h3>
-                  <p className="character-relation-empty">{messages.characterFactionEmpty}</p>
+                  {detail.faction ? (
+                    <ul className="character-relation-list">
+                      <li className="character-relation-item">
+                        <Link
+                          className="character-name-link"
+                          href={`/factions?id=${encodeURIComponent(detail.faction.id)}`}
+                        >
+                          {detail.faction.name}
+                        </Link>
+                      </li>
+                    </ul>
+                  ) : (
+                    <p className="character-relation-empty">{messages.characterFactionEmpty}</p>
+                  )}
                 </div>
                 <div className="character-relation-group">
                   <h3 className="character-relation-group__title">{messages.characterLocationTitle}</h3>
@@ -510,7 +562,7 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
               </div>
             </section>
 
-            <ChronicleSection characterID={detail.id} />
+            <ChronicleSection ownerType="character" ownerID={detail.id} />
           </div>
 
           <aside className="character-detail__aside" aria-labelledby="character-archive-title">

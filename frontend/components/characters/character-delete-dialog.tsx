@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { referenceConflictItems } from "@/components/system/reference-dialog";
@@ -25,7 +26,9 @@ export function CharacterDeleteDialog({
   onVersionConflict,
 }: CharacterDeleteDialogProps) {
   const [error, setError] = useState<string | null>(null);
-  const [references, setReferences] = useState<{ id: string; name: string; inTrash: boolean }[]>([]);
+  const [references, setReferences] = useState<
+    { id: string; name: string; inTrash: boolean; type: string }[]
+  >([]);
   const [versionConflict, setVersionConflict] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,6 +48,7 @@ export function CharacterDeleteDialog({
             id: item.entity_id,
             name: item.name ?? messages.systemReferenceUnnamed,
             inTrash: item.in_trash,
+            type: item.type,
           })),
         );
         setError(messages.characterDeleteReferenceTitle);
@@ -102,8 +106,17 @@ export function CharacterDeleteDialog({
       {references.length > 0 ? (
         <ul className="character-reference-list">
           {references.map((item) => (
-            <li key={item.id}>
-              <span>{item.name}</span>
+            <li key={`${item.type}-${item.id}`}>
+              {item.type === "faction_leader" ? (
+                <>
+                  <span>{messages.characterFactionLeaderPrefix}</span>
+                  <Link className="character-name-link" href={`/factions?id=${encodeURIComponent(item.id)}`}>
+                    {item.name}
+                  </Link>
+                </>
+              ) : (
+                <span>{item.name}</span>
+              )}
               {item.inTrash ? <span className="character-muted">（回收站）</span> : null}
             </li>
           ))}

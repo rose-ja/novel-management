@@ -12,6 +12,7 @@ import { messages } from "@/lib/messages";
 export type CharacterFilterValues = {
   q: string;
   systemNodeID: string;
+  factionID: string;
   pendingOnly: boolean;
   sort: CharacterSort;
   pageSize: number;
@@ -20,6 +21,7 @@ export type CharacterFilterValues = {
 export type CharacterFiltersProps = {
   values: CharacterFilterValues;
   realmOptions: { value: string; label: string }[];
+  factionOptions: { value: string; label: string }[];
   onChange: (patch: Partial<CharacterFilterValues>) => void;
   onReset: () => void;
   activeCount: number;
@@ -42,6 +44,7 @@ const pageSizeOptions = [
 export function CharacterFilters({
   values,
   realmOptions,
+  factionOptions,
   onChange,
   onReset,
   activeCount,
@@ -78,6 +81,16 @@ export function CharacterFilters({
           placeholder={messages.characterFilterRealmAll}
           options={realmOptions}
           onChange={(event) => onChange({ systemNodeID: event.target.value })}
+        />
+      </FormField>
+      <FormField id="character-faction-filter" label={messages.characterColumnFaction}>
+        <Select
+          id="character-faction-filter"
+          className="page-toolbar__select"
+          value={values.factionID}
+          placeholder={messages.characterFilterFactionAll}
+          options={factionOptions}
+          onChange={(event) => onChange({ factionID: event.target.value })}
         />
       </FormField>
       <div className="character-filter-toggle">

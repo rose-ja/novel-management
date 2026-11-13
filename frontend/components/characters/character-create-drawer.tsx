@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   CharacterFormFields,
   createCharacterFormValues,
+  toCharacterFactionID,
   toCharacterNameInputs,
   toCharacterSystemRefs,
   useCharacterSystemFields,
@@ -16,6 +17,8 @@ import { Drawer } from "@/components/ui/drawer";
 import { useToast } from "@/components/ui/toast";
 import { createCharacter } from "@/lib/api/characters";
 import { toUserMessage } from "@/lib/api/errors";
+import { listFactions } from "@/lib/api/factions";
+import { toFactionOptions } from "@/lib/factions-tree";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 
@@ -32,6 +35,7 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
   const guard = useUnsavedGuard();
   const { categories, status: systemStatus } = useCharacterSystemFields(workID, open);
   const [values, setValues] = useState(createCharacterFormValues);
+  const [factionOptions, setFactionOptions] = useState<{ value: string; label: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const resetGuard = guard.reset;
@@ -42,6 +46,21 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
     setError(null);
     resetGuard();
   }, [open, resetGuard]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    listFactions({ workID })
+      .then((result) => {
+        if (active) setFactionOptions(toFactionOptions(result.items));
+      })
+      .catch(() => {
+        if (active) setFactionOptions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, workID]);
 
   async function submit() {
     const name = values.name.trim();
@@ -61,6 +80,7 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
         name,
         names: toCharacterNameInputs(values),
         description: values.description.trim() ? values.description : null,
+        factionID: toCharacterFactionID(values),
         systemRefs: toCharacterSystemRefs(values),
       });
       guard.reset();
@@ -109,6 +129,7 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
           disabled={submitting}
           categories={categories}
           systemStatus={systemStatus}
+          factionOptions={factionOptions}
         />
       </Drawer>
       <Dialog

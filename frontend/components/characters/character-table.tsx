@@ -58,9 +58,20 @@ export function CharacterTable({
     </Link>,
     <CharacterNameChips key="names" names={item.names} max={3} />,
     <span key="realm">{item.system_summary ?? messages.characterNoValue}</span>,
-    <span key="faction" className="character-muted">
-      {messages.characterNoValue}
-    </span>,
+    item.faction ? (
+      <Link
+        key="faction"
+        className="character-name-link"
+        href={`/factions?id=${encodeURIComponent(item.faction.id)}`}
+        aria-label={messages.characterFactionLink(item.faction.name)}
+      >
+        {item.faction.name}
+      </Link>
+    ) : (
+      <span key="faction" className="character-muted">
+        {messages.characterNoValue}
+      </span>
+    ),
     <span key="ranking" className="character-muted">
       {messages.characterNoValue}
     </span>,

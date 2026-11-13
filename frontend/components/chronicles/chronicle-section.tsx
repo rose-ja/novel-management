@@ -13,20 +13,25 @@ import {
   listChronicles,
   updateChronicle,
   type Chronicle,
+  type ChronicleOwnerType,
 } from "@/lib/api/chronicles";
 import { undoTrash } from "@/lib/api/trash";
 import { messages } from "@/lib/messages";
 
 const maxLength = 2000;
 
-type ChronicleSectionProps = {
-  characterID: string;
+export type ChronicleSectionProps = {
+  ownerType: ChronicleOwnerType;
+  ownerID: string;
+  /** 默认按归属类型选择「大事记 / 势力大事记」。 */
+  title?: string;
+  emptyDescription?: string;
 };
 
 type Status = "loading" | "ready" | "error";
 
-/** 人物大事记：时间线、行内增改、删除轻确认与 8 秒撤销（PG-03 §4.3）。 */
-export function ChronicleSection({ characterID }: ChronicleSectionProps) {
+/** 通用大事记：时间线、行内增改、删除轻确认与 8 秒撤销（人物/势力复用）。 */
+export function ChronicleSection({ ownerType, ownerID, title, emptyDescription }: ChronicleSectionProps) {
   const { showToast } = useToast();
   const [status, setStatus] = useState<Status>("loading");
   const [items, setItems] = useState<Chronicle[]>([]);
@@ -43,17 +48,22 @@ export function ChronicleSection({ characterID }: ChronicleSectionProps) {
   const [confirmID, setConfirmID] = useState<string | null>(null);
   const [busyID, setBusyID] = useState<string | null>(null);
 
+  const heading = title ?? (ownerType === "faction" ? messages.factionChronicleTitle : messages.chronicleTitle);
+  const emptyHint =
+    emptyDescription ??
+    (ownerType === "faction" ? messages.factionChronicleEmptyDescription : messages.chronicleEmptyDescription);
+
   const load = useCallback(async () => {
     setStatus("loading");
     setLoadError(null);
     try {
-      setItems(await listChronicles("character", characterID));
+      setItems(await listChronicles(ownerType, ownerID));
       setStatus("ready");
     } catch (cause) {
       setLoadError(toUserMessage(cause, messages.chronicleLoadFailed));
       setStatus("error");
     }
-  }, [characterID]);
+  }, [ownerType, ownerID]);
 
   useEffect(() => {
     void load();
@@ -75,8 +85,8 @@ export function ChronicleSection({ characterID }: ChronicleSectionProps) {
     setDraftError(null);
     try {
       await createChronicle({
-        ownerType: "character",
-        ownerID: characterID,
+        ownerType,
+        ownerID,
         text: draftText.trim(),
         timeLabel: draftTime.trim() || null,
       });
@@ -151,10 +161,10 @@ export function ChronicleSection({ characterID }: ChronicleSectionProps) {
   }
 
   return (
-    <section className="character-detail__card chronicle" aria-labelledby="chronicle-title">
+    <section className="character-detail__card chronicle" aria-labelledby={`chronicle-title-${ownerType}`}>
       <div className="chronicle__header">
-        <h2 id="chronicle-title" className="character-detail__section-title">
-          {messages.chronicleTitle}
+        <h2 id={`chronicle-title-${ownerType}`} className="character-detail__section-title">
+          {heading}
         </h2>
         {!adding && status === "ready" && items.length > 0 ? (
           <Button variant="secondary" size="sm" onClick={() => setAdding(true)}>
@@ -163,7 +173,7 @@ export function ChronicleSection({ characterID }: ChronicleSectionProps) {
         ) : null}
       </div>
 
-      {status === "loading" ? <Skeleton variant="lines" lines={3} label={messages.chronicleTitle} /> : null}
+      {status === "loading" ? <Skeleton variant="lines" lines={3} label={heading} /> : null}
 
       {status === "error" ? (
         <Alert
@@ -180,7 +190,7 @@ export function ChronicleSection({ characterID }: ChronicleSectionProps) {
       {status === "ready" && items.length === 0 && !adding ? (
         <div className="chronicle__empty">
           <h3>{messages.chronicleEmptyTitle}</h3>
-          <p>{messages.chronicleEmptyDescription}</p>
+          <p>{emptyHint}</p>
           <Button variant="secondary" size="sm" onClick={() => setAdding(true)}>
             {messages.chronicleAddFirst}
           </Button>

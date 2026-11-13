@@ -20,6 +20,8 @@ export type CharacterFormValues = {
   name: string;
   names: CharacterNameInput[];
   description: string;
+  /** 空字符串表示未选择势力。 */
+  factionID: string;
   /** categoryID → nodeID；空字符串表示未选择。 */
   systemRefs: Record<string, string>;
 };
@@ -35,7 +37,7 @@ export type CharacterCategoryField = {
 export type SystemFieldsStatus = "idle" | "loading" | "ready" | "error";
 
 export function createCharacterFormValues(): CharacterFormValues {
-  return { name: "", names: [], description: "", systemRefs: {} };
+  return { name: "", names: [], description: "", factionID: "", systemRefs: {} };
 }
 
 /** 把节点树压平为下拉选项；子节点显示「父 · 子」。 */
@@ -109,12 +111,20 @@ export function toCharacterSystemRefs(values: CharacterFormValues): CharacterSys
     .map(([categoryID, nodeID]) => ({ category_id: categoryID, node_id: nodeID }));
 }
 
+/** 空字符串表示清空势力，提交为 null。 */
+export function toCharacterFactionID(values: CharacterFormValues): string | null {
+  const id = values.factionID.trim();
+  return id === "" ? null : id;
+}
+
 export type CharacterFormFieldsProps = {
   values: CharacterFormValues;
   onChange: (next: CharacterFormValues) => void;
   disabled?: boolean;
   categories: CharacterCategoryField[];
   systemStatus: SystemFieldsStatus;
+  /** 当前作品的活跃势力，供所属势力下拉使用。 */
+  factionOptions?: { value: string; label: string }[];
 };
 
 /** 创建与编辑共用的人物字段；体系字段按当前作品的启用类别动态渲染。 */
@@ -124,6 +134,7 @@ export function CharacterFormFields({
   disabled = false,
   categories,
   systemStatus,
+  factionOptions = [],
 }: CharacterFormFieldsProps) {
   function updateName(index: number, patch: Partial<CharacterNameInput>) {
     onChange({
@@ -226,6 +237,17 @@ export function CharacterFormFields({
       <p className="character-description-count">
         {messages.characterDescriptionCount(values.description.length)}
       </p>
+
+      <FormField id="character-faction" label={messages.characterFactionLabel} hint={messages.characterFactionHint}>
+        <Select
+          id="character-faction"
+          value={values.factionID}
+          placeholder={messages.characterFactionPlaceholder}
+          disabled={disabled}
+          options={factionOptions}
+          onChange={(event) => onChange({ ...values, factionID: event.target.value })}
+        />
+      </FormField>
 
       <section className="character-form-section" aria-labelledby="character-system-title">
         <h3 id="character-system-title" className="character-form-section__title">
