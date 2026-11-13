@@ -105,14 +105,28 @@ func (r *Chronicles) SoftDelete(ctx context.Context, id, rootID, action string, 
 
 // MarkOwnerDeleted 软删除某人物下全部活跃大事记。
 func (r *Chronicles) MarkOwnerDeleted(ctx context.Context, ownerID, rootID, action string, now time.Time) error {
+	return r.MarkOwnerDeletedByType(ctx, model.ChronicleOwnerCharacter, ownerID, rootID, action, now)
+}
+
+// MarkOwnerDeletedByType 软删除指定归属类型下全部活跃大事记（人物/势力随根删除）。
+func (r *Chronicles) MarkOwnerDeletedByType(ctx context.Context, ownerType, ownerID, rootID, action string, now time.Time) error {
 	return r.DB.WithContext(ctx).Model(&model.Chronicle{}).
-		Where("owner_type = ? AND owner_id = ? AND deleted_at IS NULL", model.ChronicleOwnerCharacter, ownerID).
+		Where("owner_type = ? AND owner_id = ? AND deleted_at IS NULL", ownerType, ownerID).
 		Updates(map[string]any{
 			"deleted_at":        now,
 			"deleted_root_id":   rootID,
 			"deleted_by_action": action,
 			"updated_at":        now,
 		}).Error
+}
+
+// CountActive 返回某归属实体的未删除大事记数量。
+func (r *Chronicles) CountActive(ctx context.Context, ownerType, ownerID string) (int64, error) {
+	var total int64
+	err := r.DB.WithContext(ctx).Model(&model.Chronicle{}).
+		Where("owner_type = ? AND owner_id = ? AND deleted_at IS NULL", ownerType, ownerID).
+		Count(&total).Error
+	return total, err
 }
 
 // MarkWorkDeleted 软删除作品下全部活跃大事记。
