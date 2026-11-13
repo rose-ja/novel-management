@@ -102,3 +102,20 @@ ACCEPTED（F7 人工验收 2026-11-13；F8 待授权推送/合并）
 - F4 审查 PASS（无 S1，8 项 S2）；R-01/R-08 已修复，其余登记。
 - 容器已迁移至版本 5；主图与大事记端到端可用；生命周期与文件清理有集成证据。
 - 已知限制见 §6，未发现 S1 级阻塞问题。人工验收见 `acceptance.md`，PR 描述见 `pr.md`。
+
+## 9. F9 合并与发布记录
+
+| 项目 | 内容 |
+|---|---|
+| 版本 / Commit | `main` @ `2dade22`（功能分支 `feat/chg-005-characters-media-chronicles`，9 个提交，`bff1947..2dade22` 快进合并） |
+| 环境 | 本机（Windows + Docker Desktop 单用户本地）；`http://127.0.0.1:17860` |
+| 时间 | 2026-11-13（Asia/Shanghai） |
+| 操作者 | Agent（发布协调） |
+| 审批 | 用户：F7 结论 **ACCEPT** + 明确授权「本地合并，不推送」 |
+| 部署步骤 | 未变更镜像：容器 `novel-management-app-1` 已运行 F5 修复后的同一功能代码；合并后新增提交仅为文档与测试基线。Docker Desktop 重新启动后 `docker compose ps` 三容器 healthy。数据库已迁移至版本 5。 |
+| Smoke Test | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke.ps1` → `SMOKE OK: version=0.1.0 db=ok cache=ok`；`GET /api/v1/works` 200；`GET /characters` 200；日志 `successfully migrated database to version: 5` |
+| 异常 | 首次 Smoke 失败：Docker Desktop 未运行（`npipe ... The system cannot find the file specified`）。启动 Docker Desktop 并等待引擎就绪后重试通过，无代码/数据问题。 |
+| 远程状态 | **未推送** `origin/main`（本地 main 领先 64 个提交；按授权不推送、不创建远程 PR） |
+| 回滚结果 | 未触发回滚。如需回退：`git reset --hard bff1947`（本地）或 revert；若已迁移，执行 0005 Down（图片文件保留但不可见）。 |
+
+**发布结论**：本地集成通过，未发布到远程/公网；符合 `project/deployment.md`「未获批准不得发布到公网或修改部署拓扑」。
