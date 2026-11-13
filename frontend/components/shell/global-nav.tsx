@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Layers, Settings, Trash2, Users } from "lucide-react";
+import { LayoutDashboard, Layers, Network, Settings, Trash2, Users } from "lucide-react";
 
 import { useSettings } from "@/components/providers/settings-provider";
 
@@ -16,6 +16,7 @@ const navGroups = [
       { href: "/", label: "概览", icon: LayoutDashboard },
       { href: "/system", label: "体系", icon: Layers },
       { href: "/characters", label: "人物", icon: Users },
+      { href: "/factions", label: "势力", icon: Network },
     ],
   },
   {

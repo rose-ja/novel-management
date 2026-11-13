@@ -48,6 +48,8 @@ export function RestoreTrashDialog({ item, onClose, onChanged }: Callbacks & { i
             ? `${conflicts.map((conflictItem) => `「${conflictItem.name}」`).join("、")}已存在，请修改恢复后名称`
             : toUserMessage(cause, messages.saveFailed),
         );
+      } else if (isApiCode(cause, "PARENT_DELETED") && item.root_type === "faction") {
+        setError(messages.trashFactionParentDeleted);
       } else {
         setError(toUserMessage(cause, messages.saveFailed));
       }
