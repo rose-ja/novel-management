@@ -44,7 +44,7 @@ func TestMigrationRoundTrip(t *testing.T) {
 
 	tables := []string{
 		"works", "system_categories", "system_nodes", "character_system_refs",
-		"characters", "character_names", "media_assets", "chronicles",
+		"characters", "character_names", "media_assets", "chronicles", "factions",
 		"app_settings", "snapshots", "undo_tokens",
 	}
 	for _, table := range tables {
@@ -60,8 +60,8 @@ func TestMigrationRoundTrip(t *testing.T) {
 	if err := testDB.Raw("SELECT max(version_id) FROM goose_db_version").Scan(&version).Error; err != nil {
 		t.Fatalf("读取 goose_db_version 失败：%v", err)
 	}
-	if version != 5 {
-		t.Fatalf("迁移版本应为 5，实际 %d", version)
+	if version != 6 {
+		t.Fatalf("迁移版本应为 6，实际 %d", version)
 	}
 
 	seed := []string{
@@ -72,11 +72,42 @@ func TestMigrationRoundTrip(t *testing.T) {
 		`INSERT INTO character_system_refs (id, work_id, character_id, category_id, node_id) VALUES ('MIGREF', 'MIGWORK', 'MIGCHAR', 'MIGCAT', 'MIGNODE')`,
 		`INSERT INTO media_assets (id, work_id, entity_type, entity_id, original_path, mime, byte_size, sha256) VALUES ('MIGMEDIA', 'MIGWORK', 'character', 'MIGCHAR', 'images/MIGWORK/MIGMEDIA.jpg', 'image/jpeg', 1, repeat('a', 64))`,
 		`INSERT INTO chronicles (id, work_id, owner_type, owner_id, text) VALUES ('MIGCHRON', 'MIGWORK', 'character', 'MIGCHAR', '迁移大事记')`,
+		`INSERT INTO factions (id, work_id, name, name_key) VALUES ('MIGFAC', 'MIGWORK', '迁移势力', '迁移势力')`,
+		`UPDATE characters SET faction_id = 'MIGFAC' WHERE id = 'MIGCHAR'`,
+		`INSERT INTO chronicles (id, work_id, owner_type, owner_id, text) VALUES ('MIGFACHRON', 'MIGWORK', 'faction', 'MIGFAC', '迁移势力大事记')`,
 	}
 	for _, statement := range seed {
 		if err := testDB.Exec(statement).Error; err != nil {
 			t.Fatalf("播种迁移回滚数据失败：%v", err)
 		}
+	}
+
+	// 0006 Down：删除势力与势力大事记，恢复 chronicles 仅 character，人物 faction_id 列值保留。
+	if err := migrations.Down(ctx, sqlDB); err != nil {
+		t.Fatalf("回滚 0006 失败：%v", err)
+	}
+	if tableExists(t, "factions") {
+		t.Fatal("回滚 0006 后表 factions 仍然存在")
+	}
+	if !columnExists(t, "characters", "faction_id") {
+		t.Fatal("回滚 0006 不应删除 characters.faction_id")
+	}
+	var keptFactionID string
+	if err := testDB.Raw("SELECT faction_id FROM characters WHERE id = 'MIGCHAR'").Scan(&keptFactionID).Error; err != nil {
+		t.Fatalf("读取 characters.faction_id 失败：%v", err)
+	}
+	if keptFactionID != "MIGFAC" {
+		t.Fatalf("回滚 0006 后人物 faction_id 应保留 MIGFAC，实际 %q", keptFactionID)
+	}
+	var factionChronicles int64
+	if err := testDB.Raw("SELECT count(*) FROM chronicles WHERE owner_type = 'faction'").Scan(&factionChronicles).Error; err != nil {
+		t.Fatalf("统计势力大事记失败：%v", err)
+	}
+	if factionChronicles != 0 {
+		t.Fatalf("回滚 0006 后势力大事记应清空，实际 %d 行", factionChronicles)
+	}
+	if err := testDB.Exec(`INSERT INTO chronicles (id, work_id, owner_type, owner_id, text) VALUES ('MIGFACHRON2', 'MIGWORK', 'faction', 'MIGFAC', '不应写入')`).Error; err == nil {
+		t.Fatal("回滚 0006 后 chronicles.owner_type 应恢复为仅 character")
 	}
 
 	// 0005 Down：删除图片/大事记表，恢复 characters.image_path，人物与引用保留。

@@ -22,6 +22,7 @@ const (
 	ActionWorkDelete      = "work_delete"
 
 	ChronicleOwnerCharacter = "character"
+	ChronicleOwnerFaction   = "faction"
 	MaxChronicleRunes       = 2000
 	MaxChronicleTimeLabel   = 200
 	ChronicleActionDelete   = "chronicle_delete"

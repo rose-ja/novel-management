@@ -26,7 +26,15 @@ var (
 	ErrFileTooLarge              = errors.New("图片不能超过 10MB")
 	ErrImageTooLarge             = errors.New("图片尺寸过大")
 	ErrChronicleOwnerUnsupported = errors.New("暂不支持该大事记归属类型")
+	ErrCycleDetected             = errors.New("上级不能是自身或其后代")
 )
+
+// CycleDetectedError 表示移动势力/地点时形成环，details 携带字段名。
+type CycleDetectedError struct {
+	Field string `json:"field"`
+}
+
+func (e *CycleDetectedError) Error() string { return "上级不能是自身或其后代" }
 
 // NameConflictError 表示同名冲突，details.items 列出冲突记录。
 type NameConflictError struct {
