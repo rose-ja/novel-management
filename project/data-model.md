@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.2 |
-| 状态 | 修订（F10 回写 CHG-004，2026-11-11） |
-| 日期 | 2026-11-11 |
+| 文档版本 | v1.3 |
+| 状态 | 修订（F10 回写 CHG-005，2026-11-13） |
+| 日期 | 2026-11-13 |
 | 数据库 | PostgreSQL 16（UTF-8；`pg_trgm` 扩展；`timezone=UTC`） |
 | ORM / 迁移 | gorm v1.25+（postgres driver）+ goose v3（嵌入式 SQL 迁移） |
 | 上游 | [requirements.md](file:///d:/Project/novel-management/project/requirements.md) §6、[architecture.md](file:///d:/Project/novel-management/project/architecture.md)、[tech-stack.md](file:///d:/Project/novel-management/project/tech-stack.md) |
@@ -99,7 +99,7 @@ erDiagram
 | version | INTEGER | No | 1 | ≥1 | 乐观锁 |
 | deleted_at / deleted_root_id / deleted_by_action | TIMESTAMPTZ / TEXT / TEXT | Yes | NULL | CHECK 同步 | 软删除 |
 
-> 实现（`0004_characters.sql`）另含 `image_path` 内部占位列，未暴露 API；CHG-005 接入 `media_assets` 时清理或迁移。
+> 实现（`0004_characters.sql`）曾在 0004 中含 `image_path` 内部占位列；`0005_characters_media_chronicles.sql` 已删除该列，改由 `media_assets` 承载主图，Down 时恢复该列。
 > `work_id` 使用 `ON DELETE CASCADE`（与父作品物理删除一致），而非早期设计的 `RESTRICT`；软删除仍由 `deleted_root_id` 控制。
 
 ### 3.3 character_names（别名 / 称号）
@@ -264,15 +264,17 @@ erDiagram
 |---|---|---|---|---|---|
 | id | TEXT(26) | No | — | PK | — |
 | work_id | TEXT(26) | No | — | FK → works.id | — |
-| owner_type | TEXT | No | — | CHECK `character` / `faction` | 归属实体类型 |
+| owner_type | TEXT | No | — | CHECK 本期仅 `character` | 归属实体类型（`faction` 未启用） |
 | owner_id | TEXT(26) | No | — | 多态引用（应用层校验） | 归属实体 |
 | text | TEXT | No | — | 1–2000 | 正文 |
 | time_label | TEXT | Yes | NULL | ≤200 | 自由文本时间标签 |
 | sort_order | INTEGER | No | 0 | — | 手工顺序 |
+| version | INTEGER | No | 1 | ≥1 | 乐观锁（`If-Match`） |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 | deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 随实体同根软删除 |
 
-> 本版地点不做大事记（FR-16 未要求）。多态引用无法用 FK，删除/恢复由 service 维护。
+> 本版地点/势力不做大事记（FR-16 未要求；`owner_type` CHECK 仅 `character`）。多态引用无法用 FK，删除/恢复由 service 维护。
+> 单条删除使用 `undo_tokens.root_type='chronicle'` 的 8 秒撤销，不进入回收站列表、不产生快照。
 
 ### 3.14 media_assets（图片资产）
 
@@ -284,14 +286,15 @@ erDiagram
 | entity_id | TEXT(26) | No | — | 应用层校验 | 人物 ID |
 | original_path | TEXT | No | — | 相对 `DATA_DIR`，禁止绝对路径与 `..` | 原图 |
 | thumb_path | TEXT | Yes | NULL | 相对路径 | 缩略图 |
-| mime | TEXT | No | — | CHECK `image/jpeg` / `image/png` / `image/webp` | — |
-| byte_size | BIGINT | No | — | ≤10 MB | — |
-| width / height | INTEGER | Yes | NULL | — | 像素尺寸 |
+| mime | TEXT | No | — | CHECK `image/jpeg` / `image/png` | 重编码后仅这两种（WebP 转 PNG） |
+| byte_size | BIGINT | No | — | 1 – 10485760 | — |
+| width / height | INTEGER | Yes | NULL | — | 重编码后像素尺寸（最长边 ≤4096） |
 | sha256 | CHAR(64) | No | — | — | 去重与完整性 |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
-| deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 软删除 |
+| deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | CHECK 同步 | 软删除 |
 
 唯一：`(entity_type, entity_id) WHERE deleted_at IS NULL` —— 每个人物 1 张主图。
+> 上传校验：MIME + 魔数 + ≤10MB + ≤40MP；按内容重编码（JPEG→JPEG、PNG→PNG、WebP→PNG），因此落库 `mime` 只会是 jpeg/png。`original_path`/`thumb_path` 均为相对 `DATA_DIR` 的路径，禁止绝对路径与 `..`。
 
 ### 3.15 search_documents（检索文档）
 
@@ -590,5 +593,6 @@ name_key = NFKC(value).casefold().strip()
 | 2026-11-07 | v1.1 | RT-17 | 快照触发对齐 FR-55 | 修正“仅 CLI 全量恢复”字面 |
 | 2026-11-07 | v1.1 | RT-22 | CLI `migrate` 获取同一 advisory lock，锁不可用退出 `APP_RUNNING` | 避免迁移与在线写入并发 |
 | 2026-11-11 | v1.2 | CHG-004 | `characters.work_id` 为 `ON DELETE CASCADE`；`faction_id` 暂不建 FK（CHG-006）；`reviewed_by` 无默认值；`character_names.value` 上限 100；补 `image_path` 占位与 0004 回滚说明 | F10 回写审查 C-14 的三处文档漂移与实际迁移 |
+| 2026-11-13 | v1.3 | CHG-005 | 0005 删除 `characters.image_path`；`chronicles` 增加 `version` 且 `owner_type` 仅 `character`；`media_assets.mime` 实际仅 jpeg/png、`byte_size` 1–10485760、`width/height` 为重编码后尺寸；软删除 CHECK 与活跃唯一索引 | F10 回写图片/大事记实现与迁移 v5 |
 
 > 已确认项：C-01~C-07 均已确认（2026-11-07）；D-02 检索方案已确认，V-01 待执行；P5b 修订项（RT-04/06/07/08/09/10/11/17/22）待复审。

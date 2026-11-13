@@ -5,6 +5,7 @@
 - 验收环境：`http://127.0.0.1:17860`（容器 `novel-management-app-1`）；数据库迁移至 0005
 - 验收日期：2026-11-13
 - 验收人：项目负责人
+- 归档：2026-11-13 本地合并 `main`（未推送）；目录已移至 `changes/archive/CHG-005-characters-media-chronicles/`
 
 ## 1. 前置条件
 

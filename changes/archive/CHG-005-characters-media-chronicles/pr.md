@@ -1,7 +1,7 @@
 # PR/MR 描述 — CHG-005 人物图片与大事记
 
-> 状态：本地分支已就绪，**未推送、未创建远程 PR、未合并**（按 F8 规则等待用户明确授权）。
-> 分支：`feat/chg-005-characters-media-chronicles` → 目标 `main`；提交范围 `b85521f..HEAD`（8 个提交）。
+> 状态：已归档（2026-11-13）。本地快进合并至 `main`（`bff1947..2dade22`），**未推送远程、未创建远程 PR**。
+> 分支：`feat/chg-005-characters-media-chronicles` → 目标 `main`；提交范围 `b85521f..2dade22`（9 个提交）。
 > 门禁：F3 自测、F4 独立审查 PASS（无 S1 / 8 项 S2）、F5 修复+复审 PASS、F6 回归/E2E PASS、F7 人工验收 **ACCEPT**（2026-11-13）。
 
 ## 1. 标题与目标

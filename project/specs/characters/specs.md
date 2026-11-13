@@ -1,13 +1,13 @@
 # characters — 人物档案、图片与大事记
 
-- 域状态：`implemented-partial`（2026-11-11，CHG-004 交付人物 CRUD、列表/搜索/筛选/排序/分页、详情内联编辑、乐观锁、软删除与撤销、回收站人物根；主图/大事记见 CHG-005，势力/地点/榜单引用见 CHG-006～008，校对确认见 CHG-011）
+- 域状态：`implemented-partial`（2026-11-11，CHG-004 交付人物 CRUD、列表/搜索/筛选/排序/分页、详情内联编辑、乐观锁、软删除与撤销、回收站人物根；2026-11-13，CHG-005 交付主图与大事记；势力/地点/榜单引用见 CHG-006～008，校对确认见 CHG-011）
 - 目标行为：每本作品内维护权威人物档案，关系用引用表达，支持检索、双向跳转与安全删除。
 - 关联页面：PG-02、PG-03；关联验收：AC-02、AC-03、AC-09、AC-14、AC-16、AC-33。
 - 说明：Spec 状态为 `implemented-partial` 的部分仅表示已交付并验收的范围；未列出的行为仍为 `planned`。
 
 ## SPEC-CHAR-001 人物字段、动态体系字段与新建入口
 
-- 状态：`implemented-partial`（CHG-004 交付主名称必填/唯一（`lower(trim)`，`Sword`/`sword` 判重）、别名/称号多值、按启用类别动态渲染体系字段、新建 Drawer、保存后进入详情、重复提交禁用；字段级错误定位、主图与势力/地点字段仍为 `planned`，见 CHG-005～007）
+- 状态：`implemented-partial`（CHG-004 交付主名称必填/唯一（`lower(trim)`，`Sword`/`sword` 判重）、别名/称号多值、按启用类别动态渲染体系字段、新建 Drawer、保存后进入详情、重复提交禁用；CHG-005 交付主图；字段级错误定位、势力/地点字段仍为 `planned`，见 CHG-006～007）
 - 来源：FR-04、FR-05、FR-47；US-002；PG-02、PG-03 §4；API `POST /api/v1/characters`、`GET /api/v1/meta`；Data `characters`、`character_system_refs`、`system_categories`；AC-02、AC-17
 - 行为：
   - 人物字段：主名称（必填、同作品唯一）、别名/称号（多值）、每类体系 0..1 节点（两级类别通过选择具体节点表达主层级/子层级）、所属势力/分支 0..1、1 张主图、简介、大事记。
@@ -43,7 +43,7 @@
 
 ## SPEC-CHAR-003 人物列表、筛选、排序、分页与校对提示
 
-- 状态：`implemented-partial`（CHG-004 交付列表、`q` 搜索主名称/别名/称号、境界筛选、待校对筛选、排序、分页、空/错/加载态与 1000 人 P95 基线；势力/地点/榜单筛选与缩略图懒加载见 CHG-005～008，活跃筛选 chip 与表头排序未实现）
+- 状态：`implemented-partial`（CHG-004 交付列表、`q` 搜索主名称/别名/称号、境界筛选、待校对筛选、排序、分页、空/错/加载态与 1000 人 P95 基线；CHG-005 交付 40px 缩略图与懒加载；势力/地点/榜单筛选见 CHG-006～008，活跃筛选 chip 与表头排序未实现）
 - 来源：FR-44、FR-66；US-002、US-009；PG-02；API `GET /api/v1/characters`（`q/faction_id/system_node_id/location_id/review_status/sort/page/page_size`）；Data `characters` + 关联；AC-02、AC-24
 - 行为：
   - 列表展示主名称、别名/称号、所属势力、境界、所在榜单、待校对标记与缩略图。
@@ -62,7 +62,7 @@
 
 ## SPEC-CHAR-004 人物详情、关系区与双向跳转
 
-- 状态：`implemented-partial`（CHG-004 交付详情首屏姓名/别名/称号/体系引用与势力/地点/榜单空态占位、关系区体系分组；势力/地点/榜单真实关系与双向跳转见 CHG-006～008，主图见 CHG-005）
+- 状态：`implemented-partial`（CHG-004 交付详情首屏姓名/别名/称号/体系引用与势力/地点/榜单空态占位、关系区体系分组；CHG-005 交付主图与大事记；势力/地点/榜单真实关系与双向跳转见 CHG-006～008）
 - 来源：FR-06、FR-34、FR-35、FR-36；US-002、US-008；PG-03；API `GET /api/v1/characters/{id}`；Data 全部引用列/关系表；AC-02、AC-09
 - 行为：
   - 首屏回答「是谁、属于哪、境界、在哪些榜单」；详情展示主名称、别名/称号、境界、所属势力、主图。
@@ -97,7 +97,7 @@
 
 ## SPEC-CHAR-006 人物图片、缩略图与懒加载
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-005 交付主图上传/替换/移除、MIME+魔数+像素校验、重编码、320 缩略图、`ETag`/304 与私有长缓存、列表 40px 懒加载缩略图、详情 120px 主图；EXIF 方向、裁剪/多图相册、图片失败仅重试、列表带图视觉基线仍未实现）
 - 来源：FR-04、FR-67；US-002；PG-02、PG-03；API `POST/DELETE /api/v1/characters/{id}/image`、`GET /api/v1/media/{asset_id}?variant=thumb`；Data `media_assets`；AC-02、AC-33、AC-26
 - 行为：
   - 每个人物最多 1 张主图；支持 jpg/png/webp、单图 ≤10MB；上传后预览、可替换/移除。
@@ -110,11 +110,11 @@
   2. Given 上传 15MB 或不支持格式，When 提交，Then 阻止保存并提示限制，不写入残缺图片（EX-22）。
   3. Given 列表慢速加载，When 打开人物列表，Then 名称与文字先渲染，缩略图懒加载不阻塞（AC-33）。
   4. Given 移除主图，When 保存，Then 人物保留但图片为空，不产生悬空文件引用。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-13 — CHG-005 交付主图上传/替换/移除、重编码与缩略图、缓存与懒加载，状态转 `implemented-partial`（EXIF、裁剪/相册、仅重试图片见后续变更）。
 
 ## SPEC-CHAR-007 大事记 CRUD 与 2,000 字上限
 
-- 状态：`planned`
+- 状态：`implemented-partial`（CHG-005 交付按序新增/编辑/删除、2,000 字与时间标签校验、`If-Match` + `version` 冲突、8 秒撤销、人物/作品生命周期联动；`root_type=chronicle` 进回收站列表保留未启用，每实体 100 条软上限与时间线可视化未实现）
 - 来源：FR-04、FR-67；US-002；PG-03 §6.4；API `GET/POST/PATCH/DELETE /api/v1/chronicles`；Data `chronicles`；AC-02、AC-17
 - 行为：
   - 大事记按顺序展示，支持新增、编辑、删除；时间标签自由文本可空，内容必填。
@@ -126,11 +126,11 @@
   1. Given 人物详情，When 新增两条大事记，Then 按顺序展示，可编辑与删除（E2E-02）。
   2. Given 内容超过 2,000 字，When 保存，Then 字段级错误并阻止保存（AC-17）。
   3. Given 删除一条大事记，When 点击撤销，Then 条目在 8 秒内恢复（FR-59 语义）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-13 — CHG-005 交付大事记 CRUD、顺序、2,000 字、版本冲突与 8 秒撤销，状态转 `implemented-partial`（100 条软上限、时间线可视化见后续变更）。
 
 ## SPEC-CHAR-008 人物删除与引用阻断
 
-- 状态：`implemented-partial`（CHG-004 交付软删除 + 8 秒撤销、出向引用随删解除、回收站恢复/永久删除、跨作品隔离；势力首领/榜单席位的入向引用检查器当前为空，待 CHG-006/008 接入真实引用）
+- 状态：`implemented-partial`（CHG-004 交付软删除 + 8 秒撤销、出向引用随删解除、回收站恢复/永久删除、跨作品隔离；CHG-005 追加主图与大事记随根隐藏/恢复/清理；势力首领/榜单席位的入向引用检查器当前为空，待 CHG-006/008 接入真实引用）
 - 来源：FR-07、FR-37、FR-38；US-002、US-011；PG-03 §6.3、PG-12；API `DELETE /api/v1/characters/{id}`；Data 引用列；AC-14
 - 行为：
   - 仅两类入向引用阻止删除：人物是势力首领、人物占据榜单席位；阻止时列出引用位置并可跳转（含回收站中的记录）。

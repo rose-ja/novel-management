@@ -43,7 +43,7 @@
 
 ## SPEC-WORK-003 删除整本作品
 
-- 状态：`implemented-partial`（CHG-002 交付 `confirm_name` 删除、删除前快照（失败 503 `SNAPSHOT_FAILED` 阻止）、整本软删除与 8 秒一次性撤销；删除当前作品后仅清空 `current_work_id`，自动切换见 CHG-003；检索/关系隐藏随 CHG-004+/CHG-009）
+- 状态：`implemented-partial`（CHG-002 交付 `confirm_name` 删除、删除前快照（失败 503 `SNAPSHOT_FAILED` 阻止）、整本软删除与 8 秒一次性撤销；CHG-005 交付图片与大事记随作品根隐藏/恢复/永久删除清理；删除当前作品后仅清空 `current_work_id`，自动切换见 CHG-003；检索/关系隐藏随 CHG-004+/CHG-009）
 - 来源：FR-02、FR-55、FR-57、FR-60；US-001、US-011；PG-00 §6、PG-12；API `DELETE /api/v1/works/{work_id}`、`POST /api/v1/trash/undo`；Data `works` + 全部实体 `deleted_at/deleted_root_id`；AC-13
 - 行为：
   - 删除前生成快照（`reason=work_delete`）；快照失败则阻止删除并提示。
@@ -58,11 +58,11 @@
   2. Given 快照创建失败，When 确认删除，Then 不执行删除，提示「快照创建失败，未执行删除」并可重试（EX-23）。
   3. Given 输入名称不匹配，When 查看主按钮，Then「删除作品」禁用且提示「请输入完整作品名称」。
   4. Given 删除后 8 秒内点击撤销，When 请求 undo，Then 整本作品及全部子实体回到原状态并重新出现在列表中（FR-59）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付名称确认删除、删除前快照、整本软删除与 8 秒撤销，状态转 `implemented-partial`（删后自动切换作品见 CHG-003、检索/关系隐藏见 CHG-004+/CHG-009）。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付名称确认删除、删除前快照、整本软删除与 8 秒撤销，状态转 `implemented-partial`（删后自动切换作品见 CHG-003、检索/关系隐藏见 CHG-004+/CHG-009）；2026-11-13 — CHG-005 交付图片与大事记随作品根联动与文件清理。
 
 ## SPEC-WORK-004 整本作品恢复
 
-- 状态：`implemented-partial`（CHG-002 交付作品根整组原子恢复、名称冲突 `422 RESTORE_CONFLICT` + `details.items` 与单名 `new_name` 改名；`renames[]` 子项改名与父级/子实体冲突校验见 CHG-003+，检索/关系重建见 CHG-009）
+- 状态：`implemented-partial`（CHG-002 交付作品根整组原子恢复、名称冲突 `422 RESTORE_CONFLICT` + `details.items` 与单名 `new_name` 改名；CHG-005 交付图片与大事记随根恢复；`renames[]` 子项改名与父级/子实体冲突校验见 CHG-003+，检索/关系重建见 CHG-009）
 - 来源：FR-02、FR-60、FR-61；US-001、US-011；PG-12 §6；API `POST /api/v1/trash/work/{root_id}/restore`（`new_name`、`renames[]`）；Data `works` + 子实体；AC-13
 - 行为：
   - 恢复必须以整本为单位原子执行；任一步失败则整组不恢复，不出现半恢复状态。
@@ -76,4 +76,4 @@
   1. Given 作品含 3 个与现存实体同名的人物，When 恢复时只解决其中 2 个改名，Then 整组恢复失败、无任何实体被写回，并返回冲突清单（AC-13）。
   2. Given 所有冲突均已提供新名，When 提交恢复，Then 作品与全部子实体原子恢复，父级关系与图片可用（E2E-01）。
   3. Given 子实体父级已永久删除，When 恢复，Then 阻止并提示先恢复父级或提供可解决路径（EX-15）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付作品根整组原子恢复、`RESTORE_CONFLICT` 与单名 `new_name` 改名，状态转 `implemented-partial`（`renames[]` 与子实体/父级冲突校验见 CHG-003+、检索/关系重建见 CHG-009）。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 交付作品根整组原子恢复、`RESTORE_CONFLICT` 与单名 `new_name` 改名，状态转 `implemented-partial`（`renames[]` 与子实体/父级冲突校验见 CHG-003+、检索/关系重建见 CHG-009）；2026-11-13 — CHG-005 交付图片与大事记随根恢复。

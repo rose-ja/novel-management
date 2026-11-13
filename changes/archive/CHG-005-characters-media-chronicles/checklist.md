@@ -89,8 +89,8 @@
 
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
-| DOC-01 | SPEC-CHAR-006/007 状态与缺口在 F10 更新 | `project/specs/characters/specs.md` | ☐ |
-| DOC-02 | `api-contract.md` 回写图片/大事记最终行为（MIME、`root_type=chronicle` 保留、version） | `project/api-contract.md` | ☐ |
-| DOC-03 | `data-model.md` 回写 `chronicles.version`、`media_assets.mime` 实际值、移除 `image_path` | `project/data-model.md` | ☐ |
-| DOC-04 | verification/review/acceptance 齐全并含证据 | `changes/CHG-005-.../`（verification、review、acceptance、pr） | ☑ |
+| DOC-01 | SPEC-CHAR-006/007 状态与缺口在 F10 更新 | `project/specs/characters/specs.md`（均转 `implemented-partial` 并记录缺口） | ☑ |
+| DOC-02 | `api-contract.md` 回写图片/大事记最终行为（MIME、`root_type=chronicle` 保留、version） | `project/api-contract.md` v1.3 | ☑ |
+| DOC-03 | `data-model.md` 回写 `chronicles.version`、`media_assets.mime` 实际值、移除 `image_path` | `project/data-model.md` v1.3 | ☑ |
+| DOC-04 | verification/review/acceptance 齐全并含证据 | `changes/archive/CHG-005-.../`（verification、review、acceptance、pr） | ☑ |
 

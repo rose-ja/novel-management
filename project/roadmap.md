@@ -4,7 +4,7 @@
 - 状态：已确认（2026-11-07，见 §9）
 - 上游基线：requirements v1.0、product-brief、user-stories、mvp-scope、architecture v1.2、data-model、api-contract、design-system v1.0、P5 审查结论
 - Spec 目录：[project/specs](file:///d:/Project/novel-management/project/specs/README.md)
-- 说明：CHG-001～004 已交付并本地合并（截至 2026-11-11），其余变更仍为「计划」状态；计划不代表已实现。
+- 说明：CHG-001～005 已交付并本地合并（截至 2026-11-13），其余变更仍为「计划」状态；计划不代表已实现。
 
 ---
 
@@ -52,7 +52,7 @@ P6 启动时按 [00-operating-manual.md](file:///d:/Project/novel-management/wor
 
 **交付策略（2026-11-07 已确认）**：一次性按拓扑序推进 `CHG-001~012`，不在批次之间设置人工闸门。`CHG-001~004` 仍作为首个可用里程碑：完成后系统可启动、创建多作品、配置体系、维护人物档案并使用回收站恢复，可先进行真实试用；后续变更在其上连续叠加。「批次」列只表示建议节奏，不作为开工前置条件。
 
-**进度（2026-11-11）**：CHG-001、CHG-002、CHG-003、CHG-004 已完成并归档；下一个变更为 CHG-005（人物图片与大事记）。
+**进度（2026-11-13）**：CHG-001、CHG-002、CHG-003、CHG-004、CHG-005 已完成并归档；下一个变更为 CHG-006（势力树、首领与成员）。
 
 ---
 

@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.2 |
-| 状态 | 修订（F10 回写 CHG-004，2026-11-11） |
-| 日期 | 2026-11-11 |
+| 文档版本 | v1.3 |
+| 状态 | 修订（F10 回写 CHG-005，2026-11-13） |
+| 日期 | 2026-11-13 |
 | 实现技术栈 | Go 1.26 + gin + gorm；PostgreSQL 16；Redis 7（仅缓存） |
 | 基础路径 | `/api/v1` |
 | 协议 | HTTP/1.1，JSON（`application/json`）；上传 `multipart/form-data` |
@@ -186,7 +186,7 @@
   "location_links": [
     { "location_id": "01H...", "name": "东海", "note": "常驻" }
   ],
-  "image": { "asset_id": "01H...", "url": "/api/v1/media/01H...?variant=thumb", "width": 800, "height": 1200 },
+  "image": { "asset_id": "01H...", "url": "/api/v1/media/01H...?variant=original", "thumb_url": "/api/v1/media/01H...?variant=thumb", "width": 800, "height": 1200, "byte_size": 123456 },
   "review_status": "confirmed",
   "reviewed_at": "2026-11-07T02:15:30Z|null",
   "reviewed_by": "local-author|null",
@@ -334,7 +334,7 @@
 
 ### 3.3 人物 Characters（FR-04~08）
 
-> 实现状态（2026-11-11，CHG-004）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根。`faction_id` 本轮仅接受 `null`（无 FK，CHG-006 补真实势力）；`location_links` 仅接受空数组（CHG-007 开放）；`*/image` 端点与主图字段尚未实现（CHG-005）；`review_status` 只读返回，校对确认端点延后 CHG-011。
+> 实现状态（2026-11-13，CHG-005）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根、主图上传/替换/移除、媒体读取与大事记。`faction_id` 仅接受 `null`（无 FK，CHG-006 补真实势力）；`location_links` 仅接受空数组（CHG-007 开放）；`review_status` 只读返回，校对确认端点延后 CHG-011。
 
 #### GET /api/v1/characters
 - Query：`work_id`（必填）、`q`、`faction_id`、`system_node_id`、`location_id`、`review_status`、`sort`、`page`、`page_size`。
@@ -360,7 +360,8 @@
 - Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CROSS_WORK_REFERENCE`、`CATEGORY_DISABLED`、`NODE_PARENT_MISMATCH`、`PARENT_DELETED`。
 
 #### GET /api/v1/characters/{id}
-- Response：`Character`（含 `names[]`、`system_refs[]`、`location_links[]`（当前恒空）、`image`（当前恒 `null`）、`version`）。
+- Response：`Character`（含 `names[]`、`system_refs[]`、`location_links[]`（当前恒空）、`image`（`MediaView|null`）、`version`）。
+- `MediaView`：`{ asset_id, url, thumb_url, width, height, byte_size }`；无主图时 `image` 为 `null`。
 - Errors：`NOT_FOUND`。
 
 #### PATCH /api/v1/characters/{id}
@@ -375,20 +376,20 @@
 - Response：`{ "deleted": true, "undo_token": "…" }`（8 秒一次性撤销令牌）。
 - Errors：`REFERENCE_CONFLICT`（`details` 列出首领/席位）、`ALREADY_DELETED`、`VERSION_CONFLICT`、`VALIDATION_ERROR`。
 
-#### POST /api/v1/characters/{id}/image（未实现，CHG-005）
-- Request：multipart `file`；jpg/png/webp，≤10MB。
+#### POST /api/v1/characters/{id}/image（CHG-005）
+- Request：multipart `file`；jpg/png/webp，≤10MB（超过 `Content-Length` 预判直接 422 `FILE_TOO_LARGE`）。
 - Response `201`：`{ "asset_id", "url", "thumb_url", "width", "height", "byte_size" }`。
-- Behavior：校验 MIME + 魔数；按内容重编码；缩略图（最长边 320px）可异步生成，原图先返回。
-- Errors：`UNSUPPORTED_FILE_TYPE`、`FILE_TOO_LARGE`、`VALIDATION_ERROR`。
-- Idempotency：重复上传替换旧图（旧资产软删除）。
+- Behavior：校验 MIME + 魔数；像素上限 40MP、最长边 4096（超出等比缩小）；按内容重编码（JPEG→JPEG、PNG→PNG、WebP→PNG）；缩略图最长边 320px 同步生成；替换时旧资产软删除并在事务提交后删除旧文件。
+- Errors：`UNSUPPORTED_FILE_TYPE`、`FILE_TOO_LARGE`、`IMAGE_TOO_LARGE`、`VALIDATION_ERROR`、`NOT_FOUND`。
+- Idempotency：重复上传替换旧图（旧资产软删除）；图片端点不带 `If-Match`，并发以最后写入生效。
 
 #### DELETE /api/v1/characters/{id}/image
 - Response `204`；无图返回 `404 NOT_FOUND`。
 
 #### GET /api/v1/media/{asset_id}
-- Query：`variant=thumb|original`（默认 `thumb`）。
-- Response：二进制图片；`Cache-Control: private, max-age=31536000, immutable`；`ETag`。
-- 安全：仅未删除资产；`Content-Disposition: inline`；`nosniff`。
+- Query：`variant=thumb|original`（默认 `thumb`；其他值 422）。
+- Response：二进制图片；`Cache-Control: private, max-age=31536000, immutable`；`ETag: "<sha256>-<variant>"`；`If-None-Match` 命中返回 `304`（同样带缓存与安全头）。
+- 安全：仅未删除资产；`Content-Disposition: inline`；`nosniff`；`Content-Type` 仅 `image/jpeg` 或 `image/png`。
 
 ### 3.4 势力 Factions（FR-09~12）
 
@@ -545,21 +546,27 @@
 
 ### 3.8 大事记 Chronicles（FR-04/11）
 
+> 实现状态（2026-11-13，CHG-005）：已实现人物大事记 CRUD、顺序、版本冲突与 8 秒撤销。`owner_type` 当前仅接受 `character`，其他值返回 422 `CHRONICLE_OWNER_UNSUPPORTED`；`root_type=chronicle` 为撤销令牌内部值，不进入回收站列表（列表请求该类型返回 422）。
+
 #### GET /api/v1/chronicles
-- Query：`owner_type=character|faction`、`owner_id`。
-- Response：`Chronicle[]`，按 `sort_order`。
+- Query：`owner_type=character`（必填）、`owner_id`（必填）；缺失 422。
+- Response：`{ "items": Chronicle[] }`，按 `sort_order, id`；无条目返回空数组。
+- Errors：`NOT_FOUND`（owner 不存在）、`PARENT_DELETED`（owner 已删除）。
 
 #### POST /api/v1/chronicles
-- Request：`{ "owner_type", "owner_id", "text", "time_label": null }`；`sort_order` 追加末尾。
-- Response `201`；文本来空 `VALIDATION_ERROR`。
-- Errors：`NOT_FOUND`（owner 不存在/已删）。
+- Request：`{ "owner_type": "character", "owner_id", "text", "time_label": null }`；`sort_order` 追加末尾。
+- Validation：`text` 必填 1–2,000 字；`time_label` 可空、≤200 字。
+- Response `201`：`Chronicle`（含 `version`）；`Location: /api/v1/chronicles/{id}`。
+- Errors：`VALIDATION_ERROR`、`NOT_FOUND`、`PARENT_DELETED`、`CHRONICLE_OWNER_UNSUPPORTED`。
 
 #### PATCH /api/v1/chronicles/{id}
-- Request：`text`、`time_label`、`sort_order`；`If-Match`。
-- Errors：`VALIDATION_ERROR`、`VERSION_CONFLICT`。
+- Request：`text`、`time_label`、`sort_order` 子集；`If-Match: <version>` 必填；显式 `time_label: null` 清空。
+- Response：`Chronicle`（`version` 递增）。
+- Errors：`VALIDATION_ERROR`、`VERSION_CONFLICT`、`NOT_FOUND`。
 
 #### DELETE /api/v1/chronicles/{id}
-- 软删除单条，返回 `{ "deleted": true, "undo_token": "…" }`。
+- 软删除单条，返回 `{ "deleted": true, "undo_token": "…" }`（8 秒一次性令牌）；不进入回收站列表，不触发快照。
+- Errors：`NOT_FOUND`、`ALREADY_DELETED`。
 
 ### 3.9 检索 Search（FR-27~33）
 
@@ -775,3 +782,4 @@
 | 2026-11-07 | v1.1 | RT-05 | DELETE 人物/势力/地点按 §6.10 入向阻止矩阵统一；出向随删解除 | 四处删除规则不一致 |
 | 2026-11-07 | v1.1 | RT-14 | DELETE 地点：下级 `HAS_CHILDREN`、人物/势力关联 `REFERENCE_CONFLICT`，全部阻止不级联；删除问号句 | 原契约保留双规则与未决问号 |
 | 2026-11-11 | v1.2 | CHG-004 | `CharacterSummary` 增加 `names[]`/`version`；DELETE 人物要求 `If-Match`；`faction_id` 仅接受 `null`、`location_links` 仅接受空数组；别名/称号值上限 100；标注 `*/image` 未实现（CHG-005） | F10 回写人物 F1 裁决 D1/D2/D8 与实现差异 |
+| 2026-11-13 | v1.3 | CHG-005 | `Character.image` 改为 `MediaView|null`（含 `thumb_url`/`byte_size`）；图片端点生效并明确 MIME/像素/尺寸与错误码；媒体 `ETag`/304 与缓存头；大事记 `owner_type` 仅 `character`、`version` + `If-Match`、`{items:[]}` 包装、`root_type=chronicle` 保留不进回收站 | F10 回写图片与大事记最终实现 |
