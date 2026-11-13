@@ -2294,3 +2294,196 @@
   border-radius: var(--radius-md);
   background: var(--color-surface-sunken);
 }
+
+/* ===== CHG-006 势力 ===== */
+.faction-tree {
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  padding: var(--space-2) 0;
+  overflow-x: auto;
+}
+
+.faction-tree__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.faction-tree__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  padding-left: calc(var(--space-4) + var(--faction-depth, 0) * var(--space-6));
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.faction-tree__row:last-child {
+  border-bottom: 0;
+}
+
+.faction-tree__row:hover {
+  background: var(--color-surface-hover);
+}
+
+.faction-tree__row--selected,
+.faction-tree__row[data-match="true"] {
+  background: var(--color-surface-selected);
+}
+
+.faction-tree__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.faction-tree__toggle:hover {
+  background: var(--color-border-subtle);
+}
+
+.faction-tree__toggle--empty {
+  cursor: default;
+}
+
+.faction-tree__name {
+  color: var(--color-text-primary);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.faction-tree__name:hover {
+  text-decoration: underline;
+}
+
+.faction-tree__mark {
+  background: var(--color-warning-subtle);
+  color: inherit;
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+}
+
+.faction-tree__meta,
+.faction-tree__count {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-small);
+  white-space: nowrap;
+}
+
+.faction-tree__count {
+  margin-left: auto;
+}
+
+.faction-tree__count + .faction-tree__count {
+  margin-left: 0;
+}
+
+.faction-tree__add {
+  flex-shrink: 0;
+}
+
+.faction-inline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-dashed) var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+.faction-inline__title {
+  margin: 0;
+  font-size: var(--text-subtitle);
+}
+
+.faction-inline__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.faction-inline__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.faction-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--text-small);
+}
+
+.faction-breadcrumb a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.faction-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.faction-breadcrumb__item {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.faction-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.faction-summary__item {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.faction-summary__item dt {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-caption);
+}
+
+.faction-summary__item dd {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-subtitle);
+}
+
+.faction-members__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.faction-members__scope {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+@media (max-width: 1024px) {
+  .faction-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .faction-inline__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
