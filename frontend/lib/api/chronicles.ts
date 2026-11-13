@@ -1,8 +1,10 @@
 import { requestJson } from "./client";
 
+export type ChronicleOwnerType = "character" | "faction";
+
 export type Chronicle = {
   id: string;
-  owner_type: "character";
+  owner_type: ChronicleOwnerType;
   owner_id: string;
   text: string;
   time_label: string | null;
@@ -13,7 +15,7 @@ export type Chronicle = {
 };
 
 export type ChronicleInput = {
-  ownerType: "character";
+  ownerType: ChronicleOwnerType;
   ownerID: string;
   text: string;
   timeLabel?: string | null;
@@ -33,7 +35,10 @@ export type DeleteChronicleResult = {
   expires_at: string;
 };
 
-export async function listChronicles(ownerType: "character", ownerID: string): Promise<Chronicle[]> {
+export async function listChronicles(
+  ownerType: ChronicleOwnerType,
+  ownerID: string,
+): Promise<Chronicle[]> {
   const result = await requestJson<{ items: Chronicle[] }>(
     `/api/v1/chronicles?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerID)}`,
   );

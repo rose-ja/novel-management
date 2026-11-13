@@ -9,7 +9,7 @@ export type CharacterName = {
   value: string;
 };
 
-/** 势力摘要占位；CHG-006 前恒为 null。 */
+/** 势力摘要；首领人物在回收站时 name 仍用于展示。 */
 export type FactionBrief = {
   id: string;
   name: string;
@@ -92,6 +92,7 @@ export type ListCharactersOptions = {
   workID: string;
   q?: string;
   systemNodeID?: string;
+  factionID?: string;
   reviewStatus?: ReviewStatus;
   sort?: CharacterSort;
   page?: number;
@@ -118,7 +119,7 @@ export type CreateCharacterInput = {
   name: string;
   names?: CharacterNameInput[];
   description?: string | null;
-  /** 势力暂未开放，仅接受 null。 */
+  /** 所属势力；null 表示不属于任何势力。 */
   factionID?: string | null;
   systemRefs?: CharacterSystemRefInput[];
   locationLinks?: CharacterLocationLinkInput[];
@@ -151,6 +152,7 @@ function listQuery(options: ListCharactersOptions): string {
   search.set("work_id", options.workID);
   if (options.q) search.set("q", options.q);
   if (options.systemNodeID) search.set("system_node_id", options.systemNodeID);
+  if (options.factionID) search.set("faction_id", options.factionID);
   if (options.reviewStatus) search.set("review_status", options.reviewStatus);
   if (options.sort) search.set("sort", options.sort);
   if (options.page) search.set("page", String(options.page));

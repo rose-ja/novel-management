@@ -9,6 +9,8 @@ function trashTypeLabel(rootType: string): string {
       return "体系节点";
     case "character":
       return "人物";
+    case "faction":
+      return "势力";
     default:
       return "未知类型";
   }
@@ -61,6 +63,7 @@ export const messages = {
     HAS_CHILDREN: "仍有下级节点，无法删除",
     PARENT_DELETED: "上级或类别仍在回收站",
     REFERENCE_CONFLICT: "仍被其他记录引用，无法删除",
+    CYCLE_DETECTED: "上级不能是自身或其后代",
     NOT_FOUND: "资源不存在",
     FORBIDDEN_ORIGIN: "请求来源校验失败，请从本机页面操作",
     INTERNAL_ERROR: "服务内部错误，请稍后重试",
@@ -115,6 +118,8 @@ export const messages = {
   trashTypeSystemCategory: "体系类别",
   trashTypeSystemNode: "体系节点",
   trashTypeCharacter: "人物",
+  trashTypeFaction: "势力",
+  trashFactionParentDeleted: "请先恢复上级势力",
   trashTypeUnknown: "未知类型",
   trashTypeLabel,
   trashDisplayName,
@@ -136,6 +141,8 @@ export const messages = {
         return `共 ${count > 0 ? count : 1} 项`;
       case "character":
         return `共 ${count > 0 ? count : 1} 项`;
+      case "faction":
+        return `共 ${count > 0 ? count : 1} 项（势力与大事记）`;
       default:
         return `共 ${count} 项`;
     }
@@ -151,6 +158,8 @@ export const messages = {
         return `恢复节点「${name}」？`;
       case "character":
         return `恢复人物「${name}」？`;
+      case "faction":
+        return `恢复势力「${name}」？`;
       default:
         return `恢复「${name}」？`;
     }
@@ -165,6 +174,8 @@ export const messages = {
         return "恢复节点；如与现有记录重名，可改名后恢复。";
       case "character":
         return "恢复人物及其别名与体系引用；如与现有记录重名，可改名后恢复。";
+      case "faction":
+        return "恢复势力及其势力大事记；如上级势力仍在回收站，请先恢复上级。";
       default:
         return "将整组恢复到原位置；如与现有记录重名，可改名后恢复。";
     }
@@ -190,6 +201,8 @@ export const messages = {
         return `永久删除体系节点「${name}」？`;
       case "character":
         return `永久删除人物「${name}」？`;
+      case "faction":
+        return `永久删除势力「${name}」？`;
       default:
         return `永久删除「${name}」？`;
     }
@@ -202,6 +215,8 @@ export const messages = {
         return "节点将永久删除，不可恢复。删除前会自动创建快照。";
       case "character":
         return "人物及别名、体系引用将永久删除，不可恢复。删除前会自动创建快照。";
+      case "faction":
+        return "势力及其势力大事记将永久删除，不可恢复。删除前会自动创建快照。";
       default:
         return "此操作不可撤销。删除前会自动创建快照。";
     }
@@ -501,6 +516,101 @@ export const messages = {
   chronicleSaveFailed: "大事记保存失败，请重试",
   chronicleDeleteFailed: "大事记删除失败，请重试",
   chronicleCount: (current: number, max: number) => `${current}/${max}`,
+
+  factionTitle: "势力",
+  factionWorkFallback: "当前作品",
+  factionDescription: (workName: string) => `《${workName}》 · 势力树`,
+  factionAdd: "新建势力",
+  factionTotal: (count: number) => `共 ${count} 个势力节点`,
+  factionSearchLabel: "搜索势力",
+  factionSearchPlaceholder: "搜索势力名称…",
+  factionFilterPending: "仅看待校对",
+  factionExpandAll: "展开全部",
+  factionCollapseAll: "收起全部",
+  factionEmptyTitle: "还没有势力节点",
+  factionEmptyDescription: "新建第一个势力后，可用树形结构维护层级与成员。",
+  factionFilterEmptyTitle: "没有匹配的势力节点",
+  factionFilterEmptyDescription: "调整或清除筛选条件后再试。",
+  factionClearFilter: "清除筛选",
+  factionTreeAria: "势力树",
+  factionExpandNode: (name: string) => `展开势力：${name}`,
+  factionCollapseNode: (name: string) => `收起势力：${name}`,
+  factionLeaderLabel: "首领",
+  factionChildrenLabel: (count: number) => `${count} 个下级`,
+  factionMembersLabel: (count: number) => `${count} 名成员`,
+  factionNoValue: "—",
+  factionInlineCreateTitle: "新建势力节点",
+  factionParentLabel: "上级势力",
+  factionParentPlaceholder: "不设上级（顶层）",
+  factionNameLabel: "势力名称",
+  factionNameHint: "必填，1–200 字符；同作品内不可重名，英文不区分大小写。",
+  factionNameRequired: "请输入势力名称",
+  factionDescriptionLabel: "简介",
+  factionDescriptionHint: "可选，最多 20,000 字符。",
+  factionCreateSubmit: "创建势力",
+  factionCreated: (name: string) => `已创建势力「${name}」`,
+  factionInlineDiscardConfirm: "放弃未保存的势力输入？",
+  factionAddChild: (name: string) => `新增下级势力：${name}`,
+  factionDetailDescription: "查看势力层级、成员与势力大事记。",
+  factionNotFoundTitle: "势力不存在或已删除",
+  factionNotFoundDescription: "该势力可能已被删除，或不属于当前作品。",
+  factionBackToList: "返回势力列表",
+  factionEditTitle: "编辑势力",
+  factionSaveSubmit: "保存修改",
+  factionUpdated: (name: string) => `已保存势力「${name}」`,
+  factionVersionConflict: "数据已被其他页面修改，请刷新后重试",
+  factionRefresh: "刷新最新内容",
+  factionCycleDetected: "上级不能是自身或其后代",
+  factionDelete: "删除势力",
+  factionDeleteTitle: (name: string) => `删除势力「${name}」？`,
+  factionDeleteDescription: "势力将移入回收站，8 秒内可撤销；下级与成员会阻止删除。",
+  factionDeleteSubmit: "删除势力",
+  factionDeleteHasChildren: "仍有下级势力，无法删除",
+  factionDeleteReference: "势力仍有成员，无法删除",
+  factionLeaderInTrash: "首领人物在回收站",
+  factionMovedToTrash: (name: string) => `势力「${name}」已移入回收站，8 秒内可撤销`,
+  factionUndone: (name: string) => `已撤销删除势力「${name}」`,
+  factionDeletedTitle: "势力已移入回收站",
+  factionDeletedDescription: "可在 8 秒内撤销，或稍后前往回收站恢复。",
+  factionGoTrash: "前往回收站",
+  factionSummaryLeader: "首领",
+  factionSummaryDirect: "直属成员",
+  factionSummarySubtree: "含下级成员",
+  factionSummaryChildren: "下级分支",
+  factionRelationsTitle: "关系",
+  factionChildrenTitle: "下级势力",
+  factionChildrenEmpty: "暂无下级势力",
+  factionMembersTitle: "成员",
+  factionMembersDirect: "仅直属",
+  factionMembersSubtree: "含下级",
+  factionMembersEmptyDirect: "暂无直属成员",
+  factionMembersEmptySubtree: "暂无下级成员",
+  factionMembersEmptyHint: "在人物详情中选择所属势力后，会自动出现在这里。",
+  factionMembersLoadFailed: "成员加载失败，请重试",
+  factionLocationsTitle: "关联地点",
+  factionLocationsEmpty: "暂无地点关联",
+  factionChronicleTitle: "势力大事记",
+  factionChronicleEmptyDescription: "按时间记录势力的关键事件。",
+  factionArchiveTitle: "档案",
+  factionDescriptionEmpty: "暂无简介",
+  factionCreatedAt: "创建时间",
+  factionUpdatedAt: "更新时间",
+  factionParentValue: (name: string) => `上级：${name}`,
+  factionColumnName: "势力名称",
+  factionColumnLeader: "首领",
+  factionColumnMembers: "成员",
+  factionColumnChildren: "下级",
+  factionColumnReview: "校对",
+  factionColumnActions: "操作",
+  factionTableCaption: "势力树",
+  factionMemberCountColumn: "直属成员",
+  factionChildrenCountColumn: "下级",
+  characterFactionLabel: "所属势力",
+  characterFactionPlaceholder: "未选择势力",
+  characterFactionHint: "可选；只能选择当前作品的活跃势力。",
+  characterFactionLink: (name: string) => `查看势力「${name}」`,
+  characterFactionLeaderPrefix: "担任首领：",
+  characterFilterFactionAll: "全部势力",
 } as const;
 
 export type MessageCode = keyof typeof messages;
