@@ -129,6 +129,24 @@ func (r *Chronicles) CountActive(ctx context.Context, ownerType, ownerID string)
 	return total, err
 }
 
+// CountByOwner 返回某归属实体的全部大事记数量（含随根删除），用于回收站影响条数。
+func (r *Chronicles) CountByOwner(ctx context.Context, ownerType, ownerID string) (int64, error) {
+	var total int64
+	err := r.DB.WithContext(ctx).Model(&model.Chronicle{}).
+		Where("owner_type = ? AND owner_id = ?", ownerType, ownerID).
+		Count(&total).Error
+	return total, err
+}
+
+// CountByRoot 返回随指定根删除的大事件数量，用于恢复结果计数。
+func (r *Chronicles) CountByRoot(ctx context.Context, rootID, action string) (int64, error) {
+	var total int64
+	err := r.DB.WithContext(ctx).Model(&model.Chronicle{}).
+		Where("deleted_root_id = ? AND deleted_by_action = ?", rootID, action).
+		Count(&total).Error
+	return total, err
+}
+
 // MarkWorkDeleted 软删除作品下全部活跃大事记。
 func (r *Chronicles) MarkWorkDeleted(ctx context.Context, workID, rootID, action string, now time.Time) error {
 	return r.DB.WithContext(ctx).Model(&model.Chronicle{}).

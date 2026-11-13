@@ -157,6 +157,17 @@ func (r *Works) SoftDeleteGroup(ctx context.Context, id, action string, now time
 		if _, err := NewMedia(tx).MarkWorkDeleted(ctx, id, id, model.ActionWorkDelete, now); err != nil {
 			return err
 		}
+		if err := tx.Table("factions").
+			Where("work_id = ? AND deleted_at IS NULL", id).
+			Updates(map[string]any{
+				"deleted_at":        now,
+				"deleted_root_id":   id,
+				"deleted_by_action": action,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
 		return NewChronicles(tx).MarkWorkDeleted(ctx, id, id, model.ActionWorkDelete, now)
 	})
 }
@@ -217,6 +228,17 @@ func (r *Works) RestoreGroup(ctx context.Context, id string, now time.Time) erro
 		if err := NewMedia(tx).RestoreByWork(ctx, id, model.ActionWorkDelete, now); err != nil {
 			return err
 		}
+		if err := tx.Table("factions").
+			Where("work_id = ? AND deleted_root_id = ?", id, id).
+			Updates(map[string]any{
+				"deleted_at":        nil,
+				"deleted_root_id":   nil,
+				"deleted_by_action": nil,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
 		return NewChronicles(tx).RestoreByWork(ctx, id, model.ActionWorkDelete, now)
 	})
 }
@@ -245,7 +267,7 @@ func (r *Works) ListDeletedRoots(ctx context.Context) ([]model.Work, error) {
 	return items, err
 }
 
-// CountDeletedChildren 返回该作品根下被软删除的类别与节点数量。
+// CountDeletedChildren 返回该作品根下被软删除的类别、节点与势力数量。
 func (r *Works) CountDeletedChildren(ctx context.Context, rootID string) (int64, error) {
 	var total int64
 	if err := r.DB.WithContext(ctx).Model(&model.SystemCategory{}).
@@ -259,7 +281,13 @@ func (r *Works) CountDeletedChildren(ctx context.Context, rootID string) (int64,
 		Count(&nodes).Error; err != nil {
 		return 0, err
 	}
-	return total + nodes, nil
+	var factions int64
+	if err := r.DB.WithContext(ctx).Model(&model.Faction{}).
+		Where("deleted_root_id = ?", rootID).
+		Count(&factions).Error; err != nil {
+		return 0, err
+	}
+	return total + nodes + factions, nil
 }
 
 // CountDeletedByRoot 一次性统计各回收站作品根下的类别与节点数量，避免列表 N+1 查询。
@@ -355,6 +383,9 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, []string, error) {
 		if err := tx.Exec("DELETE FROM chronicles WHERE " + scope).Error; err != nil {
 			return err
 		}
+		if err := NewFactions(tx).PurgeByDeletedWorks(ctx); err != nil {
+			return err
+		}
 		if err := tx.Exec("DELETE FROM system_nodes WHERE " + scope).Error; err != nil {
 			return err
 		}
@@ -390,6 +421,10 @@ func purgeWorkChildren(ctx context.Context, tx *gorm.DB, workID string) ([]strin
 		return nil, err
 	}
 	if err := NewChronicles(tx).PurgeByWork(ctx, workID); err != nil {
+		return nil, err
+	}
+	// 人物已先删除，势力按深度倒序删除不会触发 FK RESTRICT。
+	if err := NewFactions(tx).PurgeByWork(ctx, workID); err != nil {
 		return nil, err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM system_nodes WHERE work_id = ?", workID).Error; err != nil {

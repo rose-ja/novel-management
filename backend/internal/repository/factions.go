@@ -516,6 +516,12 @@ func (r *Factions) Purge(ctx context.Context, id string) (int64, error) {
 		if err := purgeFactionChronicles(ctx, tx, id); err != nil {
 			return err
 		}
+		// 已软删除的人物仍可能引用该势力（外键 RESTRICT），永久删除前解除出向引用。
+		if err := tx.WithContext(ctx).Exec(
+			"UPDATE characters SET faction_id = NULL WHERE faction_id = ? AND deleted_at IS NOT NULL", id,
+		).Error; err != nil {
+			return err
+		}
 		res := tx.WithContext(ctx).Where("id = ?", id).Delete(&model.Faction{})
 		affected = res.RowsAffected
 		return res.Error

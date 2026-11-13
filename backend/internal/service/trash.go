@@ -69,22 +69,24 @@ type PurgeAllResult struct {
 	SnapshotID string `json:"snapshot_id"`
 }
 
-// List 汇总四类回收站根，按删除时间倒序后在内存分页。
+// List 汇总五类回收站根，按删除时间倒序后在内存分页。
 func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (*TrashPage, error) {
 	page, pageSize = normalizePage(page, pageSize)
 	switch rootType {
-	case "", RootTypeWork, RootTypeSystemCategory, RootTypeSystemNode, RootTypeCharacter:
+	case "", RootTypeWork, RootTypeSystemCategory, RootTypeSystemNode, RootTypeCharacter, RootTypeFaction:
 	default:
 		return nil, model.ErrInvalidRootType
 	}
 
 	worksRepo := repository.NewWorks(s.db)
 	systemRepo := repository.NewSystem(s.db)
+	chroniclesRepo := repository.NewChronicles(s.db)
 
 	works := []model.Work{}
 	categories := []model.SystemCategory{}
 	nodes := []model.SystemNode{}
 	characters := []model.Character{}
+	factions := []model.Faction{}
 	var err error
 	if rootType == "" || rootType == RootTypeWork {
 		if works, err = worksRepo.ListDeletedRoots(ctx); err != nil {
@@ -106,6 +108,11 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 			return nil, err
 		}
 	}
+	if rootType == "" || rootType == RootTypeFaction {
+		if factions, err = repository.NewFactions(s.db).ListDeletedRoots(ctx); err != nil {
+			return nil, err
+		}
+	}
 
 	workCounts, err := worksRepo.CountDeletedByRoot(ctx)
 	if err != nil {
@@ -115,8 +122,24 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 	if err != nil {
 		return nil, err
 	}
+	factionParentIDs := make([]string, 0, len(factions))
+	for _, faction := range factions {
+		if faction.ParentID != nil {
+			factionParentIDs = append(factionParentIDs, *faction.ParentID)
+		}
+	}
+	factionParents := make(map[string]string)
+	if len(factionParentIDs) > 0 {
+		briefs, err := repository.NewFactions(s.db).Briefs(ctx, factionParentIDs)
+		if err != nil {
+			return nil, err
+		}
+		for id, brief := range briefs {
+			factionParents[id] = brief.Name
+		}
+	}
 
-	items := make([]TrashItem, 0, len(works)+len(categories)+len(nodes)+len(characters))
+	items := make([]TrashItem, 0, len(works)+len(categories)+len(nodes)+len(characters)+len(factions))
 	for _, work := range works {
 		items = append(items, TrashItem{
 			RootType:      RootTypeWork,
@@ -167,6 +190,31 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 			AffectedCount: 1,
 		})
 	}
+	for _, faction := range factions {
+		var parent *string
+		if faction.ParentID != nil {
+			if name, ok := factionParents[*faction.ParentID]; ok {
+				parent = &name
+			}
+		}
+		if parent == nil {
+			if name, err := worksRepo.Name(ctx, faction.WorkID); err == nil {
+				parent = &name
+			}
+		}
+		chronicleCount, err := chroniclesRepo.CountByOwner(ctx, model.ChronicleOwnerFaction, faction.ID)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, TrashItem{
+			RootType:      RootTypeFaction,
+			RootID:        faction.ID,
+			Name:          faction.Name,
+			ParentName:    parent,
+			DeletedAt:     faction.DeletedAt,
+			AffectedCount: chronicleCount + 1,
+		})
+	}
 
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].DeletedAt.Equal(*items[j].DeletedAt) {
@@ -215,6 +263,12 @@ func (s *Trash) Restore(ctx context.Context, rootType, rootID string, in Restore
 		run = func(tx *gorm.DB) error {
 			var err error
 			result, err = s.restoreCharacter(ctx, tx, rootID, in, now)
+			return err
+		}
+	case RootTypeFaction:
+		run = func(tx *gorm.DB) error {
+			var err error
+			result, err = s.restoreFaction(ctx, tx, rootID, in, now)
 			return err
 		}
 	default:
@@ -534,6 +588,67 @@ func (s *Trash) restoreCharacter(ctx context.Context, tx *gorm.DB, rootID string
 	}, nil
 }
 
+// restoreFaction 恢复势力根；作品或父级仍在回收站时阻断，同名时支持 new_name。
+func (s *Trash) restoreFaction(ctx context.Context, tx *gorm.DB, rootID string, in RestoreInput, now time.Time) (*RestoreResult, error) {
+	repo := repository.NewFactions(tx)
+	item, err := repo.GetDeleted(ctx, rootID)
+	if err != nil {
+		return nil, alreadyDeleted(err)
+	}
+	if _, err := repository.NewWorks(tx).GetForUpdate(ctx, item.WorkID); err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, model.ErrParentDeleted
+		}
+		return nil, err
+	}
+	if item.ParentID != nil {
+		if _, err := repo.Get(ctx, *item.ParentID); err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return nil, model.ErrParentDeleted
+			}
+			return nil, err
+		}
+	}
+
+	name, nameKey := item.Name, item.NameKey
+	if in.NewName != nil {
+		name, nameKey, err = model.NormalizeFactionName(*in.NewName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	taken, err := repo.NameTaken(ctx, item.WorkID, nameKey, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	if taken {
+		return nil, &model.RestoreConflictError{Items: []model.ConflictItem{{
+			ID:         item.ID,
+			Name:       name,
+			EntityType: RootTypeFaction,
+		}}}
+	}
+
+	if name != item.Name || nameKey != item.NameKey {
+		if err := repo.RenameDeleted(ctx, item.ID, name, nameKey, now); err != nil {
+			return nil, alreadyDeleted(err)
+		}
+	}
+	chronicles, err := repository.NewChronicles(tx).CountByRoot(ctx, item.ID, model.FactionActionDelete)
+	if err != nil {
+		return nil, err
+	}
+	if err := repo.Restore(ctx, item.ID, now); err != nil {
+		return nil, alreadyDeleted(err)
+	}
+	return &RestoreResult{
+		RootType:      RootTypeFaction,
+		RootID:        item.ID,
+		Name:          name,
+		RestoredCount: 1 + chronicles,
+	}, nil
+}
+
 // Purge 永久删除单个根；先落 trash_purge 快照，失败即阻止；
 // 引用检查与物理删除共用同一事务，避免 TOCTOU。
 func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
@@ -631,6 +746,23 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 		}
 		s.removeMedia(paths)
 		return nil
+	case RootTypeFaction:
+		if _, err := repository.NewFactions(s.db).GetDeleted(ctx, rootID); err != nil {
+			return alreadyDeleted(err)
+		}
+		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
+			return err
+		}
+		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			rows, err := repository.NewFactions(tx).Purge(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if rows == 0 {
+				return model.ErrAlreadyDeleted
+			}
+			return nil
+		})
 	default:
 		return model.ErrInvalidRootType
 	}
@@ -659,11 +791,15 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	if err != nil {
 		return nil, err
 	}
-	if len(works)+len(categories)+len(nodes)+len(characters) == 0 {
+	factions, err := repository.NewFactions(s.db).ListDeletedRoots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(works)+len(categories)+len(nodes)+len(characters)+len(factions) == 0 {
 		return &PurgeAllResult{Purged: 0}, nil
 	}
 	nodes = orderNodeRootsForPurge(nodes)
-	total := int64(len(works) + len(categories) + len(nodes) + len(characters))
+	total := int64(len(works) + len(categories) + len(nodes) + len(characters) + len(factions))
 
 	// 先检查后快照：引用命中即中止，不落快照。
 	references, err := s.collectReferences(ctx, system, categories, nodes)
@@ -716,6 +852,13 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 				return err
 			}
 			purgePaths = append(purgePaths, paths...)
+		}
+		// 势力在人物之后删除，避免 characters.faction_id 外键阻止。
+		txFoundations := repository.NewFactions(tx)
+		for _, faction := range factions {
+			if _, err := txFoundations.Purge(ctx, faction.ID); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -922,6 +1065,41 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 				return err
 			}
 			return repo.RestoreDeleted(ctx, item.ID, now)
+		case RootTypeFaction:
+			repo := repository.NewFactions(tx)
+			item, err := repo.GetDeleted(ctx, record.RootID)
+			if err != nil {
+				return alreadyDeleted(err)
+			}
+			if _, err := repository.NewWorks(tx).Get(ctx, item.WorkID); err != nil {
+				if errors.Is(err, model.ErrNotFound) {
+					return model.ErrParentDeleted
+				}
+				return err
+			}
+			if item.ParentID != nil {
+				if _, err := repo.Get(ctx, *item.ParentID); err != nil {
+					if errors.Is(err, model.ErrNotFound) {
+						return model.ErrParentDeleted
+					}
+					return err
+				}
+			}
+			taken, err := repo.NameTaken(ctx, item.WorkID, item.NameKey, item.ID)
+			if err != nil {
+				return err
+			}
+			if taken {
+				return &model.RestoreConflictError{Items: []model.ConflictItem{{
+					ID:         item.ID,
+					Name:       item.Name,
+					EntityType: RootTypeFaction,
+				}}}
+			}
+			if err := repo.Restore(ctx, record.RootID, now); err != nil {
+				return alreadyDeleted(err)
+			}
+			return nil
 		default:
 			return model.ErrAlreadyDeleted
 		}
