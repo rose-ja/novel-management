@@ -95,10 +95,10 @@
 
 ## 8. Conclusion
 
-READY FOR HUMAN ACCEPTANCE（F6 完成，等待 ACCEPT / REWORK / REPLAN）
+ACCEPTED（F7 人工验收 2026-11-13；F8 待授权推送/合并）
 
 - 后端门禁全绿：gofmt / vet / build / 单测 / 70 集成（F5 后重跑）。
 - 前端门禁全绿：typecheck / lint / 46 单测 / Node 22 构建 / 66 E2E（F5 后重跑）。
 - F4 审查 PASS（无 S1，8 项 S2）；R-01/R-08 已修复，其余登记。
 - 容器已迁移至版本 5；主图与大事记端到端可用；生命周期与文件清理有集成证据。
-- 已知限制见 §6，未发现 S1 级阻塞问题。人工验收脚本见 `acceptance.md`（待编写/执行）。
+- 已知限制见 §6，未发现 S1 级阻塞问题。人工验收见 `acceptance.md`，PR 描述见 `pr.md`。
