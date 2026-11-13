@@ -9,7 +9,7 @@
 - 关联契约：`api-contract.md` §2.3、§3.4、§3.8 大事记、§6.10 删除矩阵；`data-model.md` §3.4 `factions`、§3.2 `characters.faction_id`、§3.13 `chronicles`
 - 依赖：CHG-004（人物）、CHG-005（大事记与缩略图）
 - 复杂度：M
-- 状态：`proposed`（F1，等待人工批准范围与任务计划）
+- 状态：`accepted`（F7 人工验收 ACCEPT，2026-11-13；待 F9 合并）
 
 ## 1. 用户价值
 

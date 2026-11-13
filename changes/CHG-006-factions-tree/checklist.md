@@ -110,4 +110,4 @@
 | DOC-01 | SPEC-FACTION-001～004 状态与缺口在 F10 更新 | 待 F10 | ☐ |
 | DOC-02 | `api-contract.md` 回写势力 CRUD/成员/错误码与人物势力字段 | 待 F10（含 `{items,total}` 形态说明） | ☐ |
 | DOC-03 | `data-model.md` 回写 `factions`、FK、`chronicles.owner_type` | 待 F10 | ☐ |
-| DOC-04 | verification/review/acceptance/pr 齐全并含证据 | verification、review（F4 FAIL → F5 复审 PASS）已生成；acceptance/pr 待 F7/F8 | ☐ |
+| DOC-04 | verification/review/acceptance/pr 齐全并含证据 | verification、review（F4 FAIL → F5 复审 PASS）、acceptance（ACCEPT，2026-11-13）、pr 已生成 | ☑ |
