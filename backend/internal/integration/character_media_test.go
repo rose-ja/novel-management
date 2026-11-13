@@ -335,7 +335,7 @@ func TestChronicleCRUDAndUndo(t *testing.T) {
 
 	unknown := h.do(http.MethodGet, "/api/v1/chronicles?owner_type=character&owner_id=missing", nil, nil)
 	assertErrorCode(t, unknown, http.StatusNotFound, "NOT_FOUND")
-	unsupported := h.do(http.MethodGet, "/api/v1/chronicles?owner_type=faction&owner_id="+character.ID, nil, nil)
+	unsupported := h.do(http.MethodGet, "/api/v1/chronicles?owner_type=location&owner_id="+character.ID, nil, nil)
 	assertErrorCode(t, unsupported, http.StatusUnprocessableEntity, "VALIDATION_ERROR")
 
 	reserved := h.do(http.MethodGet, "/api/v1/trash?root_type=chronicle&page=1&page_size=10", nil, nil)

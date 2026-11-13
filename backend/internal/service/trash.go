@@ -908,7 +908,14 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 			if err != nil {
 				return err
 			}
-			if _, err := repository.NewCharacters(tx).Get(ctx, item.OwnerID); err != nil {
+			if item.OwnerType == model.ChronicleOwnerFaction {
+				if _, err := repository.NewFactions(tx).Get(ctx, item.OwnerID); err != nil {
+					if errors.Is(err, model.ErrNotFound) {
+						return model.ErrParentDeleted
+					}
+					return err
+				}
+			} else if _, err := repository.NewCharacters(tx).Get(ctx, item.OwnerID); err != nil {
 				if errors.Is(err, model.ErrNotFound) {
 					return model.ErrParentDeleted
 				}

@@ -16,7 +16,7 @@ import (
 // RootTypeChronicle 仅用于撤销令牌；大事记不作为回收站根展示。
 const RootTypeChronicle = "chronicle"
 
-// Chronicles 负责人物大事记的校验、排序与轻撤销。
+// Chronicles 负责人物/势力大事记的校验、排序与轻撤销。
 type Chronicles struct {
 	db  *gorm.DB
 	now func() time.Time
@@ -48,7 +48,7 @@ type DeleteChronicleResult struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-// List 返回人物未删除的大事记。
+// List 返回归属实体未删除的大事记。
 func (s *Chronicles) List(ctx context.Context, ownerType, ownerID string) ([]model.Chronicle, error) {
 	if err := s.requireOwner(ctx, s.db, ownerType, ownerID); err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (s *Chronicles) List(ctx context.Context, ownerType, ownerID string) ([]mod
 	return items, nil
 }
 
-// Create 追加一条大事记到人物末尾。
+// Create 追加一条大事记到归属实体末尾。
 func (s *Chronicles) Create(ctx context.Context, in ChronicleInput) (*model.Chronicle, error) {
 	text, timeLabel, err := normalizeChronicle(in.Text, in.TimeLabel)
 	if err != nil {
@@ -72,15 +72,9 @@ func (s *Chronicles) Create(ctx context.Context, in ChronicleInput) (*model.Chro
 	now := s.now().UTC()
 	var created model.Chronicle
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		character, err := repository.NewCharacters(tx).GetForUpdate(ctx, in.OwnerID)
+		workID, err := s.ownerWorkID(ctx, tx, in.OwnerType, in.OwnerID)
 		if err != nil {
-			if errors.Is(err, model.ErrNotFound) {
-				return model.ErrNotFound
-			}
 			return err
-		}
-		if in.OwnerType != model.ChronicleOwnerCharacter {
-			return model.ErrChronicleOwnerUnsupported
 		}
 		repo := repository.NewChronicles(tx)
 		order, err := repo.NextSortOrder(ctx, in.OwnerType, in.OwnerID)
@@ -89,7 +83,7 @@ func (s *Chronicles) Create(ctx context.Context, in ChronicleInput) (*model.Chro
 		}
 		created = model.Chronicle{
 			ID:        model.NewID(),
-			WorkID:    character.WorkID,
+			WorkID:    workID,
 			OwnerType: in.OwnerType,
 			OwnerID:   in.OwnerID,
 			Text:      text,
@@ -105,6 +99,35 @@ func (s *Chronicles) Create(ctx context.Context, in ChronicleInput) (*model.Chro
 		return nil, err
 	}
 	return &created, nil
+}
+
+// ownerWorkID 锁定归属实体并返回其作品 ID；支持人物与势力。
+func (s *Chronicles) ownerWorkID(ctx context.Context, tx *gorm.DB, ownerType, ownerID string) (string, error) {
+	switch ownerType {
+	case model.ChronicleOwnerCharacter:
+		item, err := repository.NewCharacters(tx).GetForUpdate(ctx, ownerID)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return "", model.ErrNotFound
+			}
+			return "", err
+		}
+		return item.WorkID, nil
+	case model.ChronicleOwnerFaction:
+		item, err := repository.NewFactions(tx).GetForUpdate(ctx, ownerID)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				if _, anyErr := repository.NewFactions(tx).GetAny(ctx, ownerID); anyErr == nil {
+					return "", model.ErrParentDeleted
+				}
+				return "", model.ErrNotFound
+			}
+			return "", err
+		}
+		return item.WorkID, nil
+	default:
+		return "", model.ErrChronicleOwnerUnsupported
+	}
 }
 
 // Update 编辑文本/时间标签/顺序；If-Match 必填。
@@ -198,11 +221,23 @@ func (s *Chronicles) Delete(ctx context.Context, id string) (*DeleteChronicleRes
 }
 
 func (s *Chronicles) requireOwner(ctx context.Context, db *gorm.DB, ownerType, ownerID string) error {
-	if ownerType != model.ChronicleOwnerCharacter {
+	if ownerType != model.ChronicleOwnerCharacter && ownerType != model.ChronicleOwnerFaction {
 		return model.ErrChronicleOwnerUnsupported
 	}
 	if strings.TrimSpace(ownerID) == "" {
 		return &model.ValidationError{Field: "owner_id", Message: "owner_id 不能为空"}
+	}
+	if ownerType == model.ChronicleOwnerFaction {
+		if _, err := repository.NewFactions(db).Get(ctx, ownerID); err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				if _, anyErr := repository.NewFactions(db).GetAny(ctx, ownerID); anyErr == nil {
+					return model.ErrParentDeleted
+				}
+				return model.ErrNotFound
+			}
+			return err
+		}
+		return nil
 	}
 	if _, err := repository.NewCharacters(db).Get(ctx, ownerID); err != nil {
 		if errors.Is(err, model.ErrNotFound) {
