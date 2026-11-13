@@ -747,14 +747,36 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 		s.removeMedia(paths)
 		return nil
 	case RootTypeFaction:
-		if _, err := repository.NewFactions(s.db).GetDeleted(ctx, rootID); err != nil {
+		repo := repository.NewFactions(s.db)
+		faction, err := repo.GetDeleted(ctx, rootID)
+		if err != nil {
 			return alreadyDeleted(err)
+		}
+		// 恢复人物可能让活跃人物重新引用回收站势力；外键 RESTRICT 下必须先复核。
+		members, err := repo.ActiveMembers(ctx, rootID)
+		if err != nil {
+			return err
+		}
+		if len(members) > 0 {
+			return factionMemberReferenceConflict(faction.Name, members)
 		}
 		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
 			return err
 		}
 		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			rows, err := repository.NewFactions(tx).Purge(ctx, rootID)
+			txRepo := repository.NewFactions(tx)
+			locked, err := txRepo.GetDeletedForUpdate(ctx, rootID)
+			if err != nil {
+				return alreadyDeleted(err)
+			}
+			members, err := txRepo.ActiveMembers(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if len(members) > 0 {
+				return factionMemberReferenceConflict(locked.Name, members)
+			}
+			rows, err := txRepo.Purge(ctx, rootID)
 			if err != nil {
 				return err
 			}
@@ -854,9 +876,25 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 			purgePaths = append(purgePaths, paths...)
 		}
 		// 势力在人物之后删除，避免 characters.faction_id 外键阻止。
-		txFoundations := repository.NewFactions(tx)
+		txFactions := repository.NewFactions(tx)
 		for _, faction := range factions {
-			if _, err := txFoundations.Purge(ctx, faction.ID); err != nil {
+			locked, err := txFactions.GetDeletedForUpdate(ctx, faction.ID)
+			if err != nil {
+				if errors.Is(err, model.ErrNotFound) {
+					// 已随作品组或父级根物理删除，视为已处理。
+					continue
+				}
+				return err
+			}
+			// 恢复人物可能让活跃人物重新引用回收站势力，永久删除前复核。
+			members, err := txFactions.ActiveMembers(ctx, faction.ID)
+			if err != nil {
+				return err
+			}
+			if len(members) > 0 {
+				return factionMemberReferenceConflict(locked.Name, members)
+			}
+			if _, err := txFactions.Purge(ctx, faction.ID); err != nil {
 				return err
 			}
 		}

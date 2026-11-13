@@ -13,8 +13,9 @@ import (
 func itoa(value int) string { return strconv.Itoa(value) }
 
 type factionBrief struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	InTrash bool   `json:"in_trash"`
 }
 
 type factionPayload struct {

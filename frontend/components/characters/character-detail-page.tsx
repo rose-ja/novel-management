@@ -489,13 +489,20 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                   <dt>{messages.characterColumnFaction}</dt>
                   <dd>
                     {detail.faction ? (
-                      <Link
-                        className="character-name-link"
-                        href={`/factions?id=${encodeURIComponent(detail.faction.id)}`}
-                        aria-label={messages.characterFactionLink(detail.faction.name)}
-                      >
-                        {detail.faction.name}
-                      </Link>
+                      detail.faction.in_trash ? (
+                        <span className="character-muted">
+                          {detail.faction.name}
+                          {messages.inTrashSuffix}
+                        </span>
+                      ) : (
+                        <Link
+                          className="character-name-link"
+                          href={`/factions?id=${encodeURIComponent(detail.faction.id)}`}
+                          aria-label={messages.characterFactionLink(detail.faction.name)}
+                        >
+                          {detail.faction.name}
+                        </Link>
+                      )
                     ) : (
                       messages.characterNoValue
                     )}
@@ -539,12 +546,19 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                   {detail.faction ? (
                     <ul className="character-relation-list">
                       <li className="character-relation-item">
-                        <Link
-                          className="character-name-link"
-                          href={`/factions?id=${encodeURIComponent(detail.faction.id)}`}
-                        >
-                          {detail.faction.name}
-                        </Link>
+                        {detail.faction.in_trash ? (
+                          <span className="character-muted">
+                            {detail.faction.name}
+                            {messages.inTrashSuffix}
+                          </span>
+                        ) : (
+                          <Link
+                            className="character-name-link"
+                            href={`/factions?id=${encodeURIComponent(detail.faction.id)}`}
+                          >
+                            {detail.faction.name}
+                          </Link>
+                        )}
                       </li>
                     </ul>
                   ) : (

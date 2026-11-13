@@ -78,7 +78,9 @@ export function FactionTree({ index, expanded, query, selectedID, onToggle, onAd
                   {highlighted(node.name, query)}
                 </Link>
                 <span className="faction-tree__meta">
-                  {messages.factionLeaderLabel}：{node.leader?.name || messages.factionNoValue}
+                  {messages.factionLeaderLabel}：
+                  {node.leader?.name || messages.factionNoValue}
+                  {node.leader?.in_trash ? messages.factionLeaderTrashSuffix : null}
                 </span>
                 <span className="faction-tree__count">
                   {messages.factionMembersLabel(node.member_count)}

@@ -79,11 +79,12 @@ type HasChildrenError struct {
 
 func (e *HasChildrenError) Error() string { return "仍有下级节点，无法删除" }
 
-// ConflictItem 是恢复冲突的单项描述。
+// ConflictItem 是恢复/删除冲突的单项描述；InTrash 表示冲突项本身已在回收站。
 type ConflictItem struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	EntityType string `json:"entity_type,omitempty"`
+	InTrash    bool   `json:"in_trash,omitempty"`
 }
 
 // ReferenceItem 是一条引用阻断明细；0003 无人物表时 Name 为 null。

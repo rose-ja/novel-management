@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select, type SelectOption } from "@/components/ui/select";
+import { listCharacters } from "@/lib/api/characters";
 import { toUserMessage, isApiCode } from "@/lib/api/errors";
 import { updateFaction, type FactionDetail } from "@/lib/api/factions";
 import { messages } from "@/lib/messages";
@@ -36,11 +37,62 @@ export function FactionEditForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  const [leaderQuery, setLeaderQuery] = useState("");
+  const [searchOptions, setSearchOptions] = useState<SelectOption[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  const leaderUnavailable = Boolean(faction.leader?.in_trash);
+  const leaderChanged = leaderID !== (faction.leader?.id ?? "");
+
+  // 首领按名称服务端搜索（PG-05 §6.2.3），300ms 防抖避免逐键请求。
+  useEffect(() => {
+    const keyword = leaderQuery.trim();
+    if (!keyword) {
+      setSearchOptions(null);
+      setSearching(false);
+      return;
+    }
+    let active = true;
+    setSearching(true);
+    const handle = window.setTimeout(() => {
+      listCharacters({ workID: faction.work_id, q: keyword, pageSize: 20, sort: "name" })
+        .then((page) => {
+          if (active) setSearchOptions(page.items.map((item) => ({ value: item.id, label: item.name })));
+        })
+        .catch(() => {
+          if (active) setSearchOptions([]);
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 300);
+    return () => {
+      active = false;
+      window.clearTimeout(handle);
+    };
+  }, [leaderQuery, faction.work_id]);
+
+  // 当前首领不在搜索结果时补齐选项；回收站首领保留展示但禁用选择。
+  const leaderSelectOptions = useMemo(() => {
+    const base = searchOptions ?? leaderOptions;
+    const current = faction.leader;
+    if (!leaderID) return base;
+    const suffix = leaderUnavailable ? messages.factionLeaderTrashSuffix : "";
+    return base.map((option) =>
+      option.value === leaderID
+        ? { ...option, label: `${option.label}${suffix}`, disabled: leaderUnavailable }
+        : option,
+    ).concat(
+      current && current.id === leaderID && !base.some((option) => option.value === leaderID)
+        ? [{ value: leaderID, label: `${current.name}${suffix}`, disabled: leaderUnavailable }]
+        : [],
+    );
+  }, [searchOptions, leaderOptions, leaderID, faction.leader, leaderUnavailable]);
 
   const dirty =
     name.trim() !== faction.name ||
     parentID !== (faction.parent?.id ?? "") ||
-    leaderID !== (faction.leader?.id ?? "") ||
+    leaderChanged ||
     description.trim() !== (faction.description ?? "");
 
   function cancel() {
@@ -61,7 +113,8 @@ export function FactionEditForm({
       const updated = await updateFaction(faction.id, {
         name: trimmed,
         parentID: parentID || null,
-        leaderCharacterID: leaderID || null,
+        // 首领未变更时省略字段，避免把回收站中的首领再次提交而 409。
+        ...(leaderChanged ? { leaderCharacterID: leaderID || null } : {}),
         description: description.trim() ? description : null,
         version: faction.version,
       });
@@ -114,12 +167,31 @@ export function FactionEditForm({
           onChange={(event) => setParentID(event.target.value)}
         />
       </FormField>
-      <FormField id="faction-leader" label={messages.factionLeaderLabel}>
+      <FormField id="faction-leader-search" label={messages.factionLeaderSearchLabel}>
+        <Input
+          id="faction-leader-search"
+          value={leaderQuery}
+          placeholder={messages.factionLeaderSearchPlaceholder}
+          disabled={saving}
+          onChange={(event) => setLeaderQuery(event.target.value)}
+        />
+      </FormField>
+      <FormField
+        id="faction-leader"
+        label={messages.factionLeaderLabel}
+        hint={leaderUnavailable ? messages.factionLeaderUnavailable : undefined}
+      >
         <Select
           id="faction-leader"
           value={leaderID}
-          placeholder={messages.characterFactionPlaceholder}
-          options={leaderOptions}
+          placeholder={
+            searching
+              ? messages.characterLoading
+              : searchOptions?.length === 0
+                ? messages.factionLeaderSearchEmpty
+                : messages.characterFactionPlaceholder
+          }
+          options={leaderSelectOptions}
           disabled={saving}
           onChange={(event) => setLeaderID(event.target.value)}
         />

@@ -20,7 +20,7 @@ type BlockItem = {
 };
 
 type HasChildrenDetails = {
-  items?: { id?: string; name?: string }[];
+  items?: { id?: string; name?: string; in_trash?: boolean }[];
 };
 
 function hasChildrenItems(error: unknown): BlockItem[] {
@@ -28,11 +28,15 @@ function hasChildrenItems(error: unknown): BlockItem[] {
   const details = error.details as HasChildrenDetails;
   if (!Array.isArray(details.items)) return [];
   return details.items
-    .filter((item): item is { id: string; name: string } => Boolean(item.id && item.name))
+    .filter((item): item is { id: string; name: string; in_trash?: boolean } =>
+      Boolean(item.id && item.name),
+    )
     .map((item) => ({
       id: item.id,
       name: item.name,
-      href: `/factions?id=${encodeURIComponent(item.id)}`,
+      // 软删下级已不在活跃树，改为回收站定位，避免详情 404。
+      href: item.in_trash ? "/trash" : `/factions?id=${encodeURIComponent(item.id)}`,
+      inTrash: item.in_trash === true,
     }));
 }
 

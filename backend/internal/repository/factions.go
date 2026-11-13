@@ -41,16 +41,17 @@ func (r *Factions) Briefs(ctx context.Context, ids []string) (map[string]model.F
 		return out, nil
 	}
 	type row struct {
-		ID   string
-		Name string
+		ID      string
+		Name    string
+		InTrash bool
 	}
 	var rows []row
 	if err := r.DB.WithContext(ctx).Table("factions").
-		Select("id, name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		Select("id, name, deleted_at IS NOT NULL AS in_trash").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, item := range rows {
-		out[item.ID] = model.FactionBrief{ID: item.ID, Name: item.Name}
+		out[item.ID] = model.FactionBrief{ID: item.ID, Name: item.Name, InTrash: item.InTrash}
 	}
 	return out, nil
 }
@@ -130,6 +131,22 @@ func (r *Factions) GetForUpdate(ctx context.Context, id string) (*model.Faction,
 // GetDeleted 返回直接删除进回收站的势力根（不含随作品删除的势力）。
 func (r *Factions) GetDeleted(ctx context.Context, id string) (*model.Faction, error) {
 	return r.get(ctx, "id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id)
+}
+
+// GetDeletedForUpdate 在事务内锁定回收站势力根，供永久删除前复核。
+func (r *Factions) GetDeletedForUpdate(ctx context.Context, id string) (*model.Faction, error) {
+	var item model.Faction
+	err := r.DB.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id).
+		First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
 }
 
 // GetAny 返回任意状态（含软删）的势力，用于区分跨作品与已删引用。
@@ -345,23 +362,24 @@ func (r *Factions) ActiveMembers(ctx context.Context, factionID string) ([]Facti
 	return items, nil
 }
 
-// LeaderNames 返回首领人物名称（含回收站），供列表批量装配，避免 N+1。
-func (r *Factions) LeaderNames(ctx context.Context, ids []string) (map[string]string, error) {
-	out := make(map[string]string, len(ids))
+// LeaderBriefs 返回首领人物摘要（含回收站标记），供列表批量装配，避免 N+1。
+func (r *Factions) LeaderBriefs(ctx context.Context, ids []string) (map[string]model.FactionBrief, error) {
+	out := make(map[string]model.FactionBrief, len(ids))
 	if len(ids) == 0 {
 		return out, nil
 	}
 	type row struct {
-		ID   string
-		Name string
+		ID      string
+		Name    string
+		InTrash bool
 	}
 	var rows []row
 	if err := r.DB.WithContext(ctx).Table("characters").
-		Select("id, name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		Select("id, name, deleted_at IS NOT NULL AS in_trash").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, item := range rows {
-		out[item.ID] = item.Name
+		out[item.ID] = model.FactionBrief{ID: item.ID, Name: item.Name, InTrash: item.InTrash}
 	}
 	return out, nil
 }

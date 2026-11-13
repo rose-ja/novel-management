@@ -57,10 +57,12 @@ describe("indexFactions", () => {
     expect(firstMatchID(items, index.matches)).toBe("qingqiu");
   });
 
-  it("仅看待校对时不补祖先", () => {
+  it("仅看待校对时补齐祖先且只标记命中节点", () => {
     const index = indexFactions(items, { pendingOnly: true });
-    expect(index.visible).toEqual(new Set(["yao"]));
-    expect(index.roots).toHaveLength(0);
+    expect(index.matches).toEqual(new Set(["yao"]));
+    expect(index.visible).toEqual(new Set(["yao", "wan"]));
+    expect(index.roots.map((item) => item.id)).toEqual(["wan"]);
+    expect(index.children.get("wan")?.map((item) => item.id)).toEqual(["yao"]);
   });
 
   it("无匹配时返回空树", () => {

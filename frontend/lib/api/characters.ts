@@ -9,10 +9,11 @@ export type CharacterName = {
   value: string;
 };
 
-/** 势力摘要；首领人物在回收站时 name 仍用于展示。 */
+/** 势力/首领摘要；引用目标在回收站时 in_trash=true，name 仍用于展示。 */
 export type FactionBrief = {
   id: string;
   name: string;
+  in_trash?: boolean;
 };
 
 export type CharacterNodeRef = {

@@ -76,7 +76,9 @@ test.describe("势力树", () => {
     await expect(page.getByText("暂无直属成员")).toBeVisible();
 
     await page.locator(".ui-page-header").getByRole("button", { name: "编辑" }).click();
-    await page.getByLabel("首领").selectOption({ label: leader.name });
+    // 首领按名称服务端搜索后再选择（PG-05 §6.2.3）。
+    await page.getByLabel("搜索首领人物").fill(leader.name);
+    await page.getByLabel("首领", { exact: true }).selectOption({ label: leader.name });
     await page.getByLabel("简介").fill("势力视觉简介。");
     await page.getByRole("button", { name: "保存修改" }).click();
     await expect(page.locator(".ui-toast").filter({ hasText: `已保存势力「${childName}」` })).toBeVisible();
@@ -148,6 +150,21 @@ test.describe("势力删除与回收站", () => {
     await page.getByRole("dialog").getByRole("button", { name: "删除势力" }).click();
     await expect(page.getByRole("dialog")).toContainText("仍有下级势力，无法删除");
     await expect(page.getByRole("dialog").getByRole("link", { name: child.name })).toBeVisible();
+  });
+
+  test("软删下级在删除阻断中标出回收站", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("回收站下级"));
+    const parent = await createFaction(request, work.id, uniqueName("回收站上级"));
+    const child = await createFaction(request, work.id, uniqueName("已删下级"), { parentID: parent.id });
+    await deleteFaction(request, child);
+
+    await page.goto(`/factions?id=${parent.id}`);
+    await page.locator(".ui-page-header").getByRole("button", { name: "删除势力" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "删除势力" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("仍有下级势力，无法删除");
+    await expect(dialog.locator("li").filter({ hasText: child.name })).toContainText("（回收站）");
+    await expect(dialog.getByRole("link", { name: child.name })).toHaveAttribute("href", "/trash");
   });
 
   test("回收站恢复与永久删除势力根", async ({ page, request }) => {

@@ -22,7 +22,7 @@
 | FAC-04 | `GET /factions` 返回扁平全量 + 计数；`q` 返回命中 + 全部祖先 | `TestFactionTreeCRUD` | ☑ |
 | FAC-05 | `PATCH` 必须 `If-Match`；版本不一致 `VERSION_CONFLICT` | `TestFactionMoveCycleAndVersion` | ☑ |
 | FAC-06 | 移动到自身/直接子/深层后代 → `CYCLE_DETECTED` | `TestFactionMoveCycleAndVersion`；E2E 禁用选项 | ☑ |
-| FAC-07 | 首领必须当前作品活跃人物；可清空；人物改名后展示同步 | `TestFactionNameAndReferenceValidation`；`TestCharacterFactionIntegration` | ☑ |
+| FAC-07 | 首领必须当前作品活跃人物；可清空；人物改名后展示同步；编辑时可搜索选择 | `TestFactionNameAndReferenceValidation`；`TestCharacterFactionIntegration`；`TestFactionLeaderInTrashMarked`；E2E 首领搜索选择 | ☑ |
 | FAC-08 | 详情返回 `parent/children/leader/locations(空)/chronicle_count` | `TestFactionDeleteAndDetail`；`TestFactionChronicleCRUDAndUndo` | ☑ |
 | FAC-09 | 1000 节点列表加载不阻塞页面 | 延后：性能专项，未做 1000 节点压测 | ☐ |
 
@@ -80,7 +80,7 @@
 | UI-05 | 详情首屏名称/上级/首领/直属/含下级/下级分支 | `e2e/factions.spec.ts#2/#3`；视觉基线 `faction-detail-1280` | ☑ |
 | UI-06 | 内联编辑上级禁用自身与后代；清空=顶层 | `e2e/factions.spec.ts#2` | ☑ |
 | UI-07 | 成员表直属/含下级切换、分页、缩略图 | `e2e/factions.spec.ts#3`；`MemberTable` | ☑ |
-| UI-08 | 删除阻断 ReferenceDialog 分组并可跳转；成功后 Toast 撤销 | `e2e/factions.spec.ts#4/#5` | ☑ |
+| UI-08 | 删除阻断 ReferenceDialog 分组并可跳转；软删下级标注回收站；成功后 Toast 撤销 | `e2e/factions.spec.ts#4/#5`、`软删下级在删除阻断中标出回收站` | ☑ |
 | UI-09 | 回收站势力行、父级列、恢复失败提示 | `e2e/factions.spec.ts#5`；`trash-dialogs.tsx` | ☑ |
 | UI-10 | 1280/1024 无横向溢出；导航「资料 > 势力」可达 | 视觉基线 `factions-1280/1024`；`e2e/keyboard.spec.ts` | ☑ |
 | UI-11 | 慢网下树先渲染文字，计数后到无布局抖动 | 延后：性能专项 | ☐ |
@@ -100,7 +100,7 @@
 | TEST-01 | 后端 gofmt/vet/build/单测全绿 | `verification.md` §1 | ☑ |
 | TEST-02 | 集成覆盖迁移/树/成员/首领/大事记/生命周期 | `verification.md` §2 | ☑ |
 | TEST-03 | 前端 typecheck/lint/单测/Node 22 构建通过 | `verification.md` §1 | ☑ |
-| TEST-04 | 全量 E2E 通过，含新增势力用例 | `verification.md` §3（75 passed） | ☑ |
+| TEST-04 | 全量 E2E 通过，含新增势力用例 | `verification.md` §3（F3 75 passed）；§6（F5 后 76 passed） | ☑ |
 | TEST-05 | 视觉基线更新（势力列表/详情、人物势力列） | `frontend/e2e/visual.spec.ts-snapshots/` | ☑ |
 
 ## 10. 文档
@@ -110,4 +110,4 @@
 | DOC-01 | SPEC-FACTION-001～004 状态与缺口在 F10 更新 | 待 F10 | ☐ |
 | DOC-02 | `api-contract.md` 回写势力 CRUD/成员/错误码与人物势力字段 | 待 F10（含 `{items,total}` 形态说明） | ☐ |
 | DOC-03 | `data-model.md` 回写 `factions`、FK、`chronicles.owner_type` | 待 F10 | ☐ |
-| DOC-04 | verification/review/acceptance/pr 齐全并含证据 | verification 已生成；review/acceptance/pr 待 F4/F7/F8 | ☐ |
+| DOC-04 | verification/review/acceptance/pr 齐全并含证据 | verification、review（F4 FAIL → F5 复审 PASS）已生成；acceptance/pr 待 F7/F8 | ☐ |

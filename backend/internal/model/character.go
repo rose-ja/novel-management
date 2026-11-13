@@ -69,10 +69,11 @@ type CharacterNameView struct {
 	Value string `json:"value"`
 }
 
-// FactionBrief 是势力摘要占位；CHG-006 前恒为 null。
+// FactionBrief 是势力/首领摘要；InTrash 用于提示引用目标已在回收站（RT-13）。
 type FactionBrief struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	InTrash bool   `json:"in_trash"`
 }
 
 // CharacterNodeParentView 是选中节点的父层级摘要。

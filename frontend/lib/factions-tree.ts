@@ -51,14 +51,12 @@ export function indexFactions(
     for (const item of items) visible.add(item.id);
   } else {
     for (const id of matches) visible.add(id);
-    // 搜索命中时补齐祖先，避免组树丢父链。
-    if (query) {
-      for (const id of matches) {
-        let parent = byID.get(id)?.parent ?? null;
-        while (parent && byID.has(parent.id) && !visible.has(parent.id)) {
-          visible.add(parent.id);
-          parent = byID.get(parent.id)?.parent ?? null;
-        }
+    // 任意过滤命中都补齐祖先，避免组树丢父链（搜索与「仅看待校对」一致）。
+    for (const id of matches) {
+      let parent = byID.get(id)?.parent ?? null;
+      while (parent && byID.has(parent.id) && !visible.has(parent.id)) {
+        visible.add(parent.id);
+        parent = byID.get(parent.id)?.parent ?? null;
       }
     }
   }

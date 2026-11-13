@@ -60,10 +60,37 @@
 | 地点关系 | `relations.locations` 恒为空数组，CHG-007 接入。 |
 | 契约错误码 | 未知 `owner_type` 沿用既有 `VALIDATION_ERROR` 422（字段 `owner_type`），与 CHG-005 一致。 |
 
-## 6. 证据文件
+## 6. F5 修复复审复跑（2026-11-13）
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| 后端构建/静态 | `go build ./...`、`go vet ./...` | 通过 |
+| 后端单测 | `go test -count=1 ./...` | 全部 `ok` |
+| 后端集成 | `$env:TEST_DATABASE_URL=...; go test -count=1 -tags=integration ./...` | 全部 `ok`（`internal/integration` 14.3s） |
+| 前端类型/Lint | `npm run typecheck`、`npm run lint` | 通过 |
+| 前端单测 | `npm run test` | 54 passed（`factions-tree` 8 项） |
+| 前端构建 | `npx -y node@22 node_modules/next/dist/bin/next build` | 通过 |
+| E2E | `npx playwright test` | **76 passed**（新增「软删下级在删除阻断中标出回收站」；首领选择走搜索） |
+| 视觉基线 | 全量 E2E 内含 `visual.spec.ts` | 13 项通过，无需更新 |
+| 镜像 | `docker compose build app && docker compose up -d app` | 通过，静态导出已更新 |
+
+新增集成用例（`faction_review_fix_test.go`）：
+
+- `TestFactionPurgeBlockedByRestoredMember`：删除人物 → 删除势力 → 恢复人物 → 永久删除势力返回 409 `REFERENCE_CONFLICT` 且行仍在；解除引用后 204。
+- `TestPurgeAllWithIndividuallyDeletedFactionRoot`：单独删除势力根 + 删除作品 + 清空回收站成功，无残留。
+- `TestFactionLeaderInTrashMarked`：首领软删（模拟历史数据）后 `leader.in_trash=true`；仅改名称成功保留首领；显式提交回收站首领 409 `PARENT_DELETED`。
+- `TestFactionDeleteConflictMarksTrashedChild`：软删下级阻断父级删除时，`details.items[0].in_trash=true`。
+
+已知限制：
+
+- RV-06 并发移动串行化采用事务级 advisory lock，未新增真实并发集成用例（现有测试为单事务回滚模型）。
+- 单根永久删除对「已不存在」的根仍返回 409 `ALREADY_DELETED`（幂等语义不在本轮契约内）；清空回收站已容忍该情况。
+
+## 7. 证据文件
 
 - 迁移：`backend/internal/migrations/0006_factions_chronicles.sql`
-- 集成：`backend/internal/integration/{factions,faction_members,faction_character,faction_chronicle,faction_lifecycle,migrations}_test.go`
+- 集成：`backend/internal/integration/{factions,faction_members,faction_character,faction_chronicle,faction_lifecycle,faction_review_fix,migrations}_test.go`
+- 审查/复审：`changes/CHG-006-factions-tree/review.md`
 - 前端单测：`frontend/lib/factions-tree.test.ts`
 - E2E：`frontend/e2e/factions.spec.ts`
 - 视觉基线：`frontend/e2e/visual.spec.ts-snapshots/`（新增 `factions-1280/1024`、`faction-detail-1280`）

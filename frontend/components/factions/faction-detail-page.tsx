@@ -261,9 +261,24 @@ export function FactionDetailPage({ factionID }: FactionDetailPageProps) {
                   <dt>{messages.factionSummaryLeader}</dt>
                   <dd>
                     {detail.leader ? (
-                      <Link className="character-name-link" href={`/characters?id=${encodeURIComponent(detail.leader.id)}`}>
-                        {detail.leader.name || messages.characterNoValue}
-                      </Link>
+                      detail.leader.in_trash ? (
+                        <>
+                          <span className="character-muted">
+                            {detail.leader.name || messages.characterNoValue}
+                            {messages.factionLeaderTrashSuffix}
+                          </span>
+                          <Link className="character-name-link" href="/trash">
+                            {messages.factionGoTrash}
+                          </Link>
+                        </>
+                      ) : (
+                        <Link
+                          className="character-name-link"
+                          href={`/characters?id=${encodeURIComponent(detail.leader.id)}`}
+                        >
+                          {detail.leader.name || messages.characterNoValue}
+                        </Link>
+                      )
                     ) : (
                       messages.factionNoValue
                     )}

@@ -367,7 +367,12 @@ export async function cleanupE2E(request: APIRequestContext): Promise<void> {
 
   const trash = await listTrash(request);
   for (const item of trash.filter((entry) => entry.name.startsWith(E2E_PREFIX))) {
-    await purgeTrashItem(request, item.root_type, item.root_id);
+    try {
+      await purgeTrashItem(request, item.root_type, item.root_id);
+    } catch (cause) {
+      // 子项可能已随作品组永久删除，此时 ALREADY_DELETED 属于预期。
+      if (!(cause instanceof Error) || !cause.message.includes("ALREADY_DELETED")) throw cause;
+    }
   }
 }
 

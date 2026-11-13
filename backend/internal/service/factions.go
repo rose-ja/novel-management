@@ -122,14 +122,14 @@ func (s *Factions) List(ctx context.Context, in ListFactionsInput) (*FactionList
 			leaderIDs = append(leaderIDs, *item.LeaderCharacterID)
 		}
 	}
-	leaderNames, err := repo.LeaderNames(ctx, leaderIDs)
+	leaderBriefs, err := repo.LeaderBriefs(ctx, leaderIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	views := make([]model.FactionSummary, 0, len(selected))
 	for _, item := range selected {
-		views = append(views, s.summary(item, byID, leaderNames, childCounts, memberCounts))
+		views = append(views, s.summary(item, byID, leaderBriefs, childCounts, memberCounts))
 	}
 	return &FactionList{Items: views, Total: len(views)}, nil
 }
@@ -187,7 +187,7 @@ func selectFactions(all []model.Faction, byID map[string]model.Faction, query, r
 	return out, nil
 }
 
-func (s *Factions) summary(item model.Faction, byID map[string]model.Faction, leaderNames map[string]string, childCounts, memberCounts map[string]int64) model.FactionSummary {
+func (s *Factions) summary(item model.Faction, byID map[string]model.Faction, leaderBriefs map[string]model.FactionBrief, childCounts, memberCounts map[string]int64) model.FactionSummary {
 	var parent *model.FactionBrief
 	if item.ParentID != nil {
 		if parentItem, ok := byID[*item.ParentID]; ok {
@@ -198,7 +198,9 @@ func (s *Factions) summary(item model.Faction, byID map[string]model.Faction, le
 	}
 	var leader *model.FactionBrief
 	if item.LeaderCharacterID != nil {
-		leader = &model.FactionBrief{ID: *item.LeaderCharacterID, Name: leaderNames[*item.LeaderCharacterID]}
+		brief := leaderBriefs[*item.LeaderCharacterID]
+		brief.ID = *item.LeaderCharacterID
+		leader = &brief
 	}
 	return model.FactionSummary{
 		ID:            item.ID,
@@ -226,18 +228,18 @@ func (s *Factions) Get(ctx context.Context, id string) (*model.FactionDetail, er
 		return nil, err
 	}
 	parentName := make(map[string]string)
-	leaderNames := make(map[string]string)
+	leaderBriefs := make(map[string]model.FactionBrief)
 	if item.ParentID != nil {
 		if parent, err := repo.Get(ctx, *item.ParentID); err == nil {
 			parentName[parent.ID] = parent.Name
 		}
 	}
 	if item.LeaderCharacterID != nil {
-		names, err := repo.LeaderNames(ctx, []string{*item.LeaderCharacterID})
+		briefs, err := repo.LeaderBriefs(ctx, []string{*item.LeaderCharacterID})
 		if err != nil {
 			return nil, err
 		}
-		leaderNames = names
+		leaderBriefs = briefs
 	}
 	childCounts, err := repo.CountActiveChildren(ctx, item.WorkID)
 	if err != nil {
@@ -248,7 +250,7 @@ func (s *Factions) Get(ctx context.Context, id string) (*model.FactionDetail, er
 		return nil, err
 	}
 	byID := make(map[string]model.Faction)
-	sum := s.summary(*item, byID, leaderNames, childCounts, memberCounts)
+	sum := s.summary(*item, byID, leaderBriefs, childCounts, memberCounts)
 	if item.ParentID != nil {
 		if name, ok := parentName[*item.ParentID]; ok {
 			sum.Parent = &model.FactionBrief{ID: *item.ParentID, Name: name}
@@ -392,6 +394,12 @@ func (s *Factions) Update(ctx context.Context, id string, in UpdateFactionInput)
 		}
 
 		parentID := item.ParentID
+		if in.ClearParent || in.ParentID != nil {
+			// 先串行化同作品移动，再读取父链做环检测，避免两请求互相不可见而写入环。
+			if err := lockFactionWorkMoves(ctx, tx, item.WorkID); err != nil {
+				return err
+			}
+		}
 		if in.ClearParent {
 			parentID = nil
 		} else if in.ParentID != nil {
@@ -490,7 +498,12 @@ func (s *Factions) Delete(ctx context.Context, id, ifMatch string) (*DeleteFacti
 		if len(children) > 0 {
 			items := make([]model.ConflictItem, 0, len(children))
 			for _, child := range children {
-				items = append(items, model.ConflictItem{ID: child.ID, Name: child.Name, EntityType: RootTypeFaction})
+				items = append(items, model.ConflictItem{
+					ID:         child.ID,
+					Name:       child.Name,
+					EntityType: RootTypeFaction,
+					InTrash:    child.DeletedAt != nil,
+				})
 			}
 			return &model.HasChildrenError{Items: items}
 		}
@@ -499,18 +512,7 @@ func (s *Factions) Delete(ctx context.Context, id, ifMatch string) (*DeleteFacti
 			return err
 		}
 		if len(members) > 0 {
-			items := make([]model.ReferenceItem, 0, len(members))
-			for _, member := range members {
-				name := member.Name
-				items = append(items, model.ReferenceItem{
-					Type:     "character_faction",
-					EntityID: member.ID,
-					Name:     &name,
-					Field:    "faction_id",
-					Value:    item.Name,
-				})
-			}
-			return &model.ReferenceConflictError{Message: "势力仍有成员，无法删除", Items: items}
+			return factionMemberReferenceConflict(item.Name, members)
 		}
 		rows, err := repo.SoftDelete(ctx, id, model.FactionActionDelete, version, now)
 		if err != nil {
@@ -581,6 +583,27 @@ func (s *Factions) Members(ctx context.Context, factionID, scope string, page, p
 		}
 	}
 	return &MemberPage{Items: summaries, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+// factionMemberReferenceConflict 构造「活跃成员阻止势力删除/永久删除」的引用明细。
+func factionMemberReferenceConflict(factionName string, members []repository.FactionMemberRef) error {
+	items := make([]model.ReferenceItem, 0, len(members))
+	for _, member := range members {
+		name := member.Name
+		items = append(items, model.ReferenceItem{
+			Type:     "character_faction",
+			EntityID: member.ID,
+			Name:     &name,
+			Field:    "faction_id",
+			Value:    factionName,
+		})
+	}
+	return &model.ReferenceConflictError{Message: "势力仍有成员，无法删除", Items: items}
+}
+
+// lockFactionWorkMoves 以作品为粒度串行化上级变更，避免并发移动互相不可见而成环。
+func lockFactionWorkMoves(ctx context.Context, tx *gorm.DB, workID string) error {
+	return tx.WithContext(ctx).Exec("SELECT pg_advisory_xact_lock(hashtext(?))", workID).Error
 }
 
 // resolveFactionParent 校验父级同作品且活跃，返回去空白后的 ID。
