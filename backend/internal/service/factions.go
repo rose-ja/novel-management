@@ -18,12 +18,13 @@ const RootTypeFaction = "faction"
 
 // Factions 负责势力树的创建、查询、移动、成员推导与删除。
 type Factions struct {
-	db  *gorm.DB
-	now func() time.Time
+	db         *gorm.DB
+	characters *Characters
+	now        func() time.Time
 }
 
-func NewFactions(db *gorm.DB) *Factions {
-	return &Factions{db: db, now: time.Now}
+func NewFactions(db *gorm.DB, characters *Characters) *Factions {
+	return &Factions{db: db, characters: characters, now: time.Now}
 }
 
 type ListFactionsInput struct {
@@ -530,6 +531,56 @@ func (s *Factions) Delete(ctx context.Context, id, ifMatch string) (*DeleteFacti
 		return nil, err
 	}
 	return &DeleteFactionResult{ID: id, DeletedAt: now, UndoToken: token, ExpiresAt: expires}, nil
+}
+
+// Members 返回直属或子树成员；scope 默认 direct，分页默认 20。
+func (s *Factions) Members(ctx context.Context, factionID, scope string, page, pageSize int) (*MemberPage, error) {
+	repo := repository.NewFactions(s.db)
+	faction, err := repo.Get(ctx, factionID)
+	if err != nil {
+		return nil, err
+	}
+	scope = strings.TrimSpace(scope)
+	switch scope {
+	case "":
+		scope = "direct"
+	case "direct", "subtree":
+	default:
+		return nil, &model.ValidationError{Field: "scope", Message: "scope 仅支持 direct 或 subtree"}
+	}
+	page, pageSize = normalizePage(page, pageSize)
+
+	var items []model.Character
+	var total int64
+	if scope == "subtree" {
+		items, total, err = repo.ListSubtreeMembers(ctx, faction.WorkID, factionID, page, pageSize)
+	} else {
+		items, total, err = repo.ListActiveMembers(ctx, faction.WorkID, factionID, page, pageSize)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if s.characters == nil {
+		return &MemberPage{Items: []model.CharacterSummary{}, Page: page, PageSize: pageSize, Total: total}, nil
+	}
+	summaries, err := s.characters.Summaries(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+	all, err := repo.ListActive(ctx, faction.WorkID, "")
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]string, len(all))
+	for _, item := range all {
+		names[item.ID] = item.Name
+	}
+	for i := range summaries {
+		if items[i].FactionID != nil {
+			summaries[i].Faction = &model.FactionBrief{ID: *items[i].FactionID, Name: names[*items[i].FactionID]}
+		}
+	}
+	return &MemberPage{Items: summaries, Page: page, PageSize: pageSize, Total: total}, nil
 }
 
 // resolveFactionParent 校验父级同作品且活跃，返回去空白后的 ID。

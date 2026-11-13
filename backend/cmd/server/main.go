@@ -70,6 +70,8 @@ func run() error {
 
 	snapshotService := service.NewSnapshot(db.Gorm, cfg, log, service.PGDumper{})
 	mediaService := service.NewMedia(db.Gorm, cfg.DataDir, log)
+	charactersService := service.NewCharacters(db.Gorm, mediaService)
+	factionsService := service.NewFactions(db.Gorm, charactersService)
 	router := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    log,
@@ -84,10 +86,10 @@ func run() error {
 		Snapshots:  snapshotService,
 		Settings:   service.NewSettings(db.Gorm),
 		System:     service.NewSystem(db.Gorm),
-		Characters: service.NewCharacters(db.Gorm, mediaService),
+		Characters: charactersService,
 		Media:      mediaService,
 		Chronicles: service.NewChronicles(db.Gorm),
-		Factions:   service.NewFactions(db.Gorm),
+		Factions:   factionsService,
 	})
 
 	srv := &http.Server{

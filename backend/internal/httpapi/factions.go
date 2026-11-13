@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,6 +17,7 @@ func registerFactions(api *gin.RouterGroup, svc *service.Factions) {
 	group.GET("/:id", getFactionHandler(svc))
 	group.PATCH("/:id", updateFactionHandler(svc))
 	group.DELETE("/:id", deleteFactionHandler(svc))
+	group.GET("/:id/members", listFactionMembersHandler(svc))
 }
 
 func listFactionsHandler(svc *service.Factions) gin.HandlerFunc {
@@ -135,6 +137,19 @@ func updateFactionHandler(svc *service.Factions) gin.HandlerFunc {
 func deleteFactionHandler(svc *service.Factions) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		result, err := svc.Delete(c.Request.Context(), c.Param("id"), c.GetHeader("If-Match"))
+		if err != nil {
+			abortServiceError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, result)
+	}
+}
+
+func listFactionMembersHandler(svc *service.Factions) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		page, _ := strconv.Atoi(c.Query("page"))
+		pageSize, _ := strconv.Atoi(c.Query("page_size"))
+		result, err := svc.Members(c.Request.Context(), c.Param("id"), c.Query("scope"), page, pageSize)
 		if err != nil {
 			abortServiceError(c, err)
 			return

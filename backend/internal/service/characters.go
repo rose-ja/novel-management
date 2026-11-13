@@ -146,6 +146,11 @@ func parseCharacterFilter(in ListCharactersInput) (repository.CharacterFilter, i
 	}, page, pageSize, nil
 }
 
+// Summaries 批量装配人物摘要，供势力成员等其他模块复用（含别名、境界与缩略图）。
+func (s *Characters) Summaries(ctx context.Context, items []model.Character) ([]model.CharacterSummary, error) {
+	return s.summaries(ctx, repository.NewCharacters(s.db), items)
+}
+
 // summaries 批量装配别名与境界摘要，避免列表 N+1。
 func (s *Characters) summaries(ctx context.Context, repo *repository.Characters, items []model.Character) ([]model.CharacterSummary, error) {
 	out := make([]model.CharacterSummary, 0, len(items))
