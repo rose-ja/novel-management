@@ -34,6 +34,7 @@ type characterPayload struct {
 	WorkID        string                      `json:"work_id"`
 	Name          string                      `json:"name"`
 	Names         []characterNamePayload      `json:"names"`
+	Faction       *factionBrief               `json:"faction"`
 	SystemSummary *string                     `json:"system_summary"`
 	SystemRefs    []characterSystemRefPayload `json:"system_refs"`
 	LocationLinks []struct{}                  `json:"location_links"`

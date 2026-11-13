@@ -34,6 +34,43 @@ type FactionMemberRef struct {
 	Name string `gorm:"column:name"`
 }
 
+// Briefs 批量读取势力摘要（含回收站），供人物列表/详情展示。
+func (r *Factions) Briefs(ctx context.Context, ids []string) (map[string]model.FactionBrief, error) {
+	out := make(map[string]model.FactionBrief, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	type row struct {
+		ID   string
+		Name string
+	}
+	var rows []row
+	if err := r.DB.WithContext(ctx).Table("factions").
+		Select("id, name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, item := range rows {
+		out[item.ID] = model.FactionBrief{ID: item.ID, Name: item.Name}
+	}
+	return out, nil
+}
+
+// ListByLeader 返回以该人物为首领的势力（含回收站），用于删除人物入向阻断。
+func (r *Factions) ListByLeader(ctx context.Context, characterID string) ([]model.Faction, error) {
+	var items []model.Faction
+	err := r.DB.WithContext(ctx).
+		Where("leader_character_id = ?", characterID).
+		Order("name_key ASC, id ASC").
+		Find(&items).Error
+	if err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = []model.Faction{}
+	}
+	return items, nil
+}
+
 // ListActive 返回作品下全部未删除势力，按同级稳定顺序（name_key, id）。
 func (r *Factions) ListActive(ctx context.Context, workID, reviewDB string) ([]model.Faction, error) {
 	tx := r.DB.WithContext(ctx).

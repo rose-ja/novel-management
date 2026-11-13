@@ -198,6 +198,10 @@ func (s *Characters) summaries(ctx context.Context, repo *repository.Characters,
 		// 图片是可选附件，读取失败降级为无图，不阻断列表。
 		images, _ = s.media.ListCharacterImages(ctx, ids)
 	}
+	factions, err := s.factionBriefs(ctx, items)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, item := range items {
 		views := namesByCharacter[item.ID]
@@ -213,7 +217,7 @@ func (s *Characters) summaries(ctx context.Context, repo *repository.Characters,
 			ID:            item.ID,
 			Name:          item.Name,
 			Names:         views,
-			Faction:       nil,
+			Faction:       factions[item.ID],
 			SystemSummary: summaryByCharacter[item.ID],
 			ImageThumbURL: thumbURL,
 			ReviewStatus:  model.APIReviewStatus(item.ReviewStatus),
@@ -221,6 +225,40 @@ func (s *Characters) summaries(ctx context.Context, repo *repository.Characters,
 			UpdatedAt:     item.UpdatedAt,
 			Version:       item.Version,
 		})
+	}
+	return out, nil
+}
+
+// factionBriefs 批量读取人物所属势力，避免列表 N+1。
+func (s *Characters) factionBriefs(ctx context.Context, items []model.Character) (map[string]*model.FactionBrief, error) {
+	out := make(map[string]*model.FactionBrief, len(items))
+	ids := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		if item.FactionID == nil {
+			continue
+		}
+		if _, ok := seen[*item.FactionID]; ok {
+			continue
+		}
+		seen[*item.FactionID] = struct{}{}
+		ids = append(ids, *item.FactionID)
+	}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	briefs, err := repository.NewFactions(s.db).Briefs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		if item.FactionID == nil {
+			continue
+		}
+		if brief, ok := briefs[*item.FactionID]; ok {
+			value := brief
+			out[item.ID] = &value
+		}
 	}
 	return out, nil
 }
@@ -244,6 +282,16 @@ func (s *Characters) Get(ctx context.Context, id string) (*model.CharacterDetail
 	if s.media != nil {
 		// 图片是可选附件，读取失败降级为无图。
 		detail.Image, _ = s.media.GetCharacterImage(ctx, id)
+	}
+	if item.FactionID != nil {
+		briefs, err := repository.NewFactions(s.db).Briefs(ctx, []string{*item.FactionID})
+		if err != nil {
+			return nil, err
+		}
+		if brief, ok := briefs[*item.FactionID]; ok {
+			value := brief
+			detail.Faction = &value
+		}
 	}
 	return detail, nil
 }
@@ -308,9 +356,6 @@ func (s *Characters) Create(ctx context.Context, in CreateCharacterInput) (*mode
 	if err != nil {
 		return nil, err
 	}
-	if in.FactionID != nil {
-		return nil, &model.ValidationError{Field: "faction_id", Message: "势力功能尚未开放"}
-	}
 	if len(in.LocationLinks) > 0 {
 		return nil, &model.ValidationError{Field: "location_links", Message: "地点功能尚未开放"}
 	}
@@ -351,6 +396,13 @@ func (s *Characters) Create(ctx context.Context, in CreateCharacterInput) (*mode
 			}
 			return newNameConflict(existing, name)
 		}
+		if in.FactionID != nil {
+			factionID, err := resolveCharacterFaction(ctx, tx, workID, *in.FactionID)
+			if err != nil {
+				return err
+			}
+			item.FactionID = factionID
+		}
 		if err := repo.Insert(ctx, item); err != nil {
 			if repository.IsUniqueViolation(err, "characters_active_name_uq") {
 				return newNameConflict(nil, name)
@@ -376,9 +428,6 @@ func (s *Characters) Update(ctx context.Context, id string, in UpdateCharacterIn
 	}
 	if in.LocationLinks != nil && len(*in.LocationLinks) > 0 {
 		return nil, &model.ValidationError{Field: "location_links", Message: "地点功能尚未开放"}
-	}
-	if in.FactionID != nil {
-		return nil, &model.ValidationError{Field: "faction_id", Message: "势力功能尚未开放"}
 	}
 
 	now := s.now().UTC()
@@ -409,6 +458,12 @@ func (s *Characters) Update(ctx context.Context, id string, in UpdateCharacterIn
 		factionID := item.FactionID
 		if in.ClearFaction {
 			factionID = nil
+		} else if in.FactionID != nil {
+			resolved, err := resolveCharacterFaction(ctx, tx, item.WorkID, *in.FactionID)
+			if err != nil {
+				return err
+			}
+			factionID = resolved
 		}
 
 		if nameKey != item.NameKey {
@@ -518,10 +573,51 @@ func (s *Characters) Delete(ctx context.Context, id, ifMatch string) (*DeleteCha
 	return &DeleteCharacterResult{ID: id, DeletedAt: now, UndoToken: token, ExpiresAt: expires}, nil
 }
 
-// characterInboundReferences 是入向引用检查框架：势力首领与榜单席位表尚未创建，
-// CHG-006 / CHG-008 接入后在此返回阻断明细。
-func characterInboundReferences(_ context.Context, _ *gorm.DB, _ string) ([]model.ReferenceItem, error) {
-	return nil, nil
+// characterInboundReferences 汇总人物入向引用：势力首领（含回收站中的势力）与榜单席位。
+// 榜单在 CHG-008 接入。
+func characterInboundReferences(ctx context.Context, db *gorm.DB, id string) ([]model.ReferenceItem, error) {
+	leaders, err := repository.NewFactions(db).ListByLeader(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]model.ReferenceItem, 0, len(leaders))
+	for _, faction := range leaders {
+		name := faction.Name
+		items = append(items, model.ReferenceItem{
+			Type:     "faction_leader",
+			EntityID: faction.ID,
+			Name:     &name,
+			Field:    "leader_character_id",
+			Value:    faction.Name,
+			InTrash:  faction.DeletedAt != nil,
+		})
+	}
+	return items, nil
+}
+
+// resolveCharacterFaction 校验人物所属势力为当前作品活跃势力。
+func resolveCharacterFaction(ctx context.Context, tx *gorm.DB, workID, raw string) (*string, error) {
+	id := strings.TrimSpace(raw)
+	if id == "" {
+		return nil, &model.ValidationError{Field: "faction_id", Message: "faction_id 不能为空"}
+	}
+	if _, err := repository.NewFactions(tx).GetActiveByWork(ctx, workID, id); err != nil {
+		if !errors.Is(err, model.ErrNotFound) {
+			return nil, err
+		}
+		any, anyErr := repository.NewFactions(tx).GetAny(ctx, id)
+		if anyErr != nil {
+			if errors.Is(anyErr, model.ErrNotFound) {
+				return nil, &model.ValidationError{Field: "faction_id", Message: "势力不存在"}
+			}
+			return nil, anyErr
+		}
+		if any.WorkID != workID {
+			return nil, &model.CrossWorkReferenceError{Field: "faction_id", Message: "势力不属于当前作品"}
+		}
+		return nil, model.ErrParentDeleted
+	}
+	return &id, nil
 }
 
 // replaceSystemRefs 校验类别/节点归属与启用状态后整组替换引用。
