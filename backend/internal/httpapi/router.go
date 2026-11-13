@@ -23,6 +23,7 @@ type Options struct {
 	Characters *service.Characters
 	Media      *service.Media
 	Chronicles *service.Chronicles
+	Factions   *service.Factions
 }
 
 // NewRouter 组装 API 路由与静态页面托管；业务服务为 nil 时对应路由不注册（单元测试可用）。
@@ -58,6 +59,9 @@ func NewRouter(opts Options) *gin.Engine {
 	}
 	if opts.Chronicles != nil {
 		registerChronicles(api, opts.Chronicles)
+	}
+	if opts.Factions != nil {
+		registerFactions(api, opts.Factions)
 	}
 
 	serveStatic := staticHandler(opts.Config.WebDir)

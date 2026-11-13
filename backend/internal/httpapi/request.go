@@ -76,6 +76,14 @@ func abortServiceError(c *gin.Context, err error) {
 		return
 	}
 
+	var cycle *model.CycleDetectedError
+	if errors.As(err, &cycle) {
+		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "CYCLE_DETECTED", "上级不能是自身或其后代", gin.H{
+			"field": cycle.Field,
+		})
+		return
+	}
+
 	var conflict *model.RestoreConflictError
 	if errors.As(err, &conflict) {
 		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "RESTORE_CONFLICT", "恢复目标与现有记录重名", gin.H{

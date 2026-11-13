@@ -87,6 +87,7 @@ func run() error {
 		Characters: service.NewCharacters(db.Gorm, mediaService),
 		Media:      mediaService,
 		Chronicles: service.NewChronicles(db.Gorm),
+		Factions:   service.NewFactions(db.Gorm),
 	})
 
 	srv := &http.Server{
