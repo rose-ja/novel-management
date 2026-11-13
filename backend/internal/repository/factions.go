@@ -95,6 +95,11 @@ func (r *Factions) GetDeleted(ctx context.Context, id string) (*model.Faction, e
 	return r.get(ctx, "id = ? AND deleted_at IS NOT NULL AND deleted_root_id = id", id)
 }
 
+// GetAny 返回任意状态（含软删）的势力，用于区分跨作品与已删引用。
+func (r *Factions) GetAny(ctx context.Context, id string) (*model.Faction, error) {
+	return r.get(ctx, "id = ?", id)
+}
+
 func (r *Factions) Insert(ctx context.Context, item *model.Faction) error {
 	return r.DB.WithContext(ctx).Create(item).Error
 }

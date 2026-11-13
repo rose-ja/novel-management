@@ -130,6 +130,19 @@ func (r *Characters) GetActiveByWork(ctx context.Context, workID, id string) (*m
 	return &item, nil
 }
 
+// GetAny 返回任意状态（含软删）的人物，用于区分跨作品与已删引用。
+func (r *Characters) GetAny(ctx context.Context, id string) (*model.Character, error) {
+	var item model.Character
+	err := r.DB.WithContext(ctx).Where("id = ?", id).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 // GetForUpdate 在事务内锁定未删除人物行，供乐观锁读取。
 func (r *Characters) GetForUpdate(ctx context.Context, id string) (*model.Character, error) {
 	var item model.Character
