@@ -27,6 +27,7 @@ var (
 	ErrImageTooLarge             = errors.New("图片尺寸过大")
 	ErrChronicleOwnerUnsupported = errors.New("暂不支持该大事记归属类型")
 	ErrCycleDetected             = errors.New("上级不能是自身或其后代")
+	ErrDuplicateRelation         = errors.New("关系已存在")
 )
 
 // CycleDetectedError 表示移动势力/地点时形成环，details 携带字段名。

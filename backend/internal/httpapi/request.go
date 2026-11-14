@@ -141,6 +141,8 @@ func abortServiceError(c *gin.Context, err error) {
 		abortError(c, http.StatusConflict, "HAS_CHILDREN", "仍有下级节点，无法删除")
 	case errors.Is(err, model.ErrParentDeleted):
 		abortError(c, http.StatusConflict, "PARENT_DELETED", "上级或类别仍在回收站")
+	case errors.Is(err, model.ErrDuplicateRelation):
+		abortError(c, http.StatusConflict, "DUPLICATE_RELATION", "关系已存在")
 	case errors.Is(err, model.ErrPreconditionRequired):
 		abortError(c, http.StatusPreconditionRequired, "PRECONDITION_REQUIRED", "缺少 If-Match 请求头")
 	case errors.Is(err, model.ErrCharacterWorkUnavailable):
