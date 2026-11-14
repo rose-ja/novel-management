@@ -534,6 +534,12 @@ func (r *Factions) Purge(ctx context.Context, id string) (int64, error) {
 		if err := purgeFactionChronicles(ctx, tx, id); err != nil {
 			return err
 		}
+		// 地点关联为势力出向引用，永久删除前解除以满足 location_factions.faction_id 外键。
+		if err := tx.WithContext(ctx).Exec(
+			"DELETE FROM location_factions WHERE faction_id = ?", id,
+		).Error; err != nil {
+			return err
+		}
 		// 已软删除的人物仍可能引用该势力（外键 RESTRICT），永久删除前解除出向引用。
 		if err := tx.WithContext(ctx).Exec(
 			"UPDATE characters SET faction_id = NULL WHERE faction_id = ? AND deleted_at IS NOT NULL", id,
@@ -556,6 +562,11 @@ func (r *Factions) PurgeByWork(ctx context.Context, workID string) error {
 			Delete(&model.Chronicle{}).Error; err != nil {
 			return err
 		}
+		if err := tx.WithContext(ctx).Exec(
+			"DELETE FROM location_factions WHERE work_id = ?", workID,
+		).Error; err != nil {
+			return err
+		}
 		return purgeFactionsByWork(ctx, tx, workID)
 	})
 }
@@ -565,6 +576,10 @@ func (r *Factions) PurgeByDeletedWorks(ctx context.Context) error {
 	scope := "work_id IN (SELECT id FROM works WHERE deleted_at IS NOT NULL)"
 	if err := r.DB.WithContext(ctx).
 		Exec("DELETE FROM chronicles WHERE owner_type = 'faction' AND " + scope).Error; err != nil {
+		return err
+	}
+	if err := r.DB.WithContext(ctx).
+		Exec("DELETE FROM location_factions WHERE " + scope).Error; err != nil {
 		return err
 	}
 	var workIDs []string

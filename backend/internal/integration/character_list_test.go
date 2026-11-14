@@ -37,10 +37,14 @@ type characterPayload struct {
 	Faction       *factionBrief               `json:"faction"`
 	SystemSummary *string                     `json:"system_summary"`
 	SystemRefs    []characterSystemRefPayload `json:"system_refs"`
-	LocationLinks []struct{}                  `json:"location_links"`
-	ReviewStatus  string                      `json:"review_status"`
-	Version       int                         `json:"version"`
-	UpdatedAt     time.Time                   `json:"updated_at"`
+	LocationLinks []struct {
+		LocationID string  `json:"location_id"`
+		Name       string  `json:"name"`
+		Note       *string `json:"note"`
+	} `json:"location_links"`
+	ReviewStatus string    `json:"review_status"`
+	Version      int       `json:"version"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type characterListPayload struct {

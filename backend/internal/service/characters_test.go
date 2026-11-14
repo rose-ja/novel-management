@@ -107,13 +107,17 @@ func TestParseCharacterFilter(t *testing.T) {
 		t.Fatalf("page_size 应夹取到 100，实际 %d（err=%v）", pageSize, err)
 	}
 
+	filter, _, _, err = parseCharacterFilter(ListCharactersInput{WorkID: "w", LocationID: "loc"})
+	if err != nil || filter.LocationID != "loc" {
+		t.Fatalf("地点筛选应透传 location_id，实际 %q（err=%v）", filter.LocationID, err)
+	}
+
 	invalid := []struct {
 		name  string
 		input ListCharactersInput
 		field string
 	}{
 		{"缺作品", ListCharactersInput{}, "work_id"},
-		{"地点未开放", ListCharactersInput{WorkID: "w", LocationID: "loc"}, "location_id"},
 		{"非法排序", ListCharactersInput{WorkID: "w", Sort: "created_at"}, "sort"},
 		{"非法校对态", ListCharactersInput{WorkID: "w", ReviewStatus: "draft"}, "review_status"},
 		{"搜索词超长", ListCharactersInput{WorkID: "w", Query: strings.Repeat("龙", 101)}, "q"},

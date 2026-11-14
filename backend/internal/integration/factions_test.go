@@ -32,8 +32,10 @@ type factionPayload struct {
 	Relations     struct {
 		Children  []factionBrief `json:"children"`
 		Locations []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
+			ID      string  `json:"id"`
+			Name    string  `json:"name"`
+			Note    *string `json:"note"`
+			InTrash bool    `json:"in_trash"`
 		} `json:"locations"`
 		ChronicleCount     int64 `json:"chronicle_count"`
 		SubtreeMemberCount int64 `json:"subtree_member_count"`

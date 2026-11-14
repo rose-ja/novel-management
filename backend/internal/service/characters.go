@@ -120,9 +120,6 @@ func parseCharacterFilter(in ListCharactersInput) (repository.CharacterFilter, i
 	if utf8.RuneCountInString(query) > 100 {
 		return repository.CharacterFilter{}, 0, 0, &model.ValidationError{Field: "q", Message: "搜索词不能超过 100 个字符"}
 	}
-	if strings.TrimSpace(in.LocationID) != "" {
-		return repository.CharacterFilter{}, 0, 0, &model.ValidationError{Field: "location_id", Message: "地点功能尚未开放"}
-	}
 	switch in.Sort {
 	case "", "-updated_at", "updated_at", "name", "-name":
 	default:
@@ -139,6 +136,7 @@ func parseCharacterFilter(in ListCharactersInput) (repository.CharacterFilter, i
 		Query:        query,
 		SystemNodeID: strings.TrimSpace(in.SystemNodeID),
 		FactionID:    strings.TrimSpace(in.FactionID),
+		LocationID:   strings.TrimSpace(in.LocationID),
 		ReviewDB:     reviewDB,
 		Sort:         in.Sort,
 		Page:         page,
@@ -293,6 +291,29 @@ func (s *Characters) Get(ctx context.Context, id string) (*model.CharacterDetail
 			detail.Faction = &value
 		}
 	}
+	links, err := repository.NewLocations(s.db).ListCharacterLocations(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if len(links) > 0 {
+		ids := make([]string, 0, len(links))
+		for _, link := range links {
+			ids = append(ids, link.LocationID)
+		}
+		briefs, err := repository.NewLocations(s.db).Briefs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		views := make([]model.LocationLinkView, 0, len(links))
+		for _, link := range links {
+			views = append(views, model.LocationLinkView{
+				LocationID: link.LocationID,
+				Name:       briefs[link.LocationID].Name,
+				Note:       link.Note,
+			})
+		}
+		detail.LocationLinks = views
+	}
 	return detail, nil
 }
 
@@ -356,8 +377,9 @@ func (s *Characters) Create(ctx context.Context, in CreateCharacterInput) (*mode
 	if err != nil {
 		return nil, err
 	}
-	if len(in.LocationLinks) > 0 {
-		return nil, &model.ValidationError{Field: "location_links", Message: "地点功能尚未开放"}
+	locationLinks, err := normalizeCharacterLocationLinks(in.LocationLinks)
+	if err != nil {
+		return nil, err
 	}
 	refs, err := normalizeCharacterRefs(in.SystemRefs)
 	if err != nil {
@@ -412,7 +434,10 @@ func (s *Characters) Create(ctx context.Context, in CreateCharacterInput) (*mode
 		if err := repo.ReplaceNames(ctx, item.ID, buildNameRows(item.ID, workID, names, now)); err != nil {
 			return err
 		}
-		return s.replaceSystemRefs(ctx, tx, repo, item, refs, now)
+		if err := s.replaceSystemRefs(ctx, tx, repo, item, refs, now); err != nil {
+			return err
+		}
+		return s.replaceLocationLinks(ctx, tx, item.ID, workID, locationLinks, now)
 	})
 	if err != nil {
 		return nil, err
@@ -425,9 +450,6 @@ func (s *Characters) Update(ctx context.Context, id string, in UpdateCharacterIn
 	version, ok := ParseIfMatch(in.IfMatch)
 	if !ok {
 		return nil, model.ErrPreconditionRequired
-	}
-	if in.LocationLinks != nil && len(*in.LocationLinks) > 0 {
-		return nil, &model.ValidationError{Field: "location_links", Message: "地点功能尚未开放"}
 	}
 
 	now := s.now().UTC()
@@ -512,6 +534,15 @@ func (s *Characters) Update(ctx context.Context, id string, in UpdateCharacterIn
 				return err
 			}
 			if err := s.replaceSystemRefs(ctx, tx, repo, item, refs, now); err != nil {
+				return err
+			}
+		}
+		if in.LocationLinks != nil {
+			links, err := normalizeCharacterLocationLinks(*in.LocationLinks)
+			if err != nil {
+				return err
+			}
+			if err := s.replaceLocationLinks(ctx, tx, id, item.WorkID, links, now); err != nil {
 				return err
 			}
 		}
@@ -618,6 +649,60 @@ func resolveCharacterFaction(ctx context.Context, tx *gorm.DB, workID, raw strin
 		return nil, model.ErrParentDeleted
 	}
 	return &id, nil
+}
+
+// normalizeCharacterLocationLinks 去空格、去重并校验备注长度；重复地点保留最后一条备注。
+func normalizeCharacterLocationLinks(in []CharacterLocationLinkInput) ([]model.CharacterLocation, error) {
+	out := make([]model.CharacterLocation, 0, len(in))
+	index := make(map[string]int, len(in))
+	for _, link := range in {
+		locationID := strings.TrimSpace(link.LocationID)
+		if locationID == "" {
+			return nil, &model.ValidationError{Field: "location_links", Message: "地点不能为空"}
+		}
+		note, err := model.NormalizeRelationNote(link.Note)
+		if err != nil {
+			return nil, &model.ValidationError{Field: "location_links", Message: "关系备注不能超过 500 个字符"}
+		}
+		if idx, ok := index[locationID]; ok {
+			out[idx].Note = note
+			continue
+		}
+		index[locationID] = len(out)
+		out = append(out, model.CharacterLocation{LocationID: locationID, Note: note})
+	}
+	return out, nil
+}
+
+// replaceLocationLinks 校验地点同作品与活跃状态后整组替换人物地点关系。
+func (s *Characters) replaceLocationLinks(ctx context.Context, tx *gorm.DB, characterID, workID string, links []model.CharacterLocation, now time.Time) error {
+	repo := repository.NewLocations(tx)
+	if len(links) > 0 {
+		for i := range links {
+			if _, err := repo.GetActiveByWork(ctx, workID, links[i].LocationID); err != nil {
+				if !errors.Is(err, model.ErrNotFound) {
+					return err
+				}
+				any, anyErr := repo.GetAny(ctx, links[i].LocationID)
+				if anyErr != nil {
+					if errors.Is(anyErr, model.ErrNotFound) {
+						return &model.ValidationError{Field: "location_links", Message: "地点不存在"}
+					}
+					return anyErr
+				}
+				if any.WorkID != workID {
+					return &model.CrossWorkReferenceError{Field: "location_links", Message: "地点不属于当前作品"}
+				}
+				return model.ErrParentDeleted
+			}
+			links[i].ID = model.NewID()
+			links[i].WorkID = workID
+			links[i].CharacterID = characterID
+			links[i].CreatedAt = now
+			links[i].UpdatedAt = now
+		}
+	}
+	return repo.ReplaceCharacterLocations(ctx, characterID, links)
 }
 
 // replaceSystemRefs 校验类别/节点归属与启用状态后整组替换引用。

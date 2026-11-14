@@ -73,7 +73,7 @@ type PurgeAllResult struct {
 func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (*TrashPage, error) {
 	page, pageSize = normalizePage(page, pageSize)
 	switch rootType {
-	case "", RootTypeWork, RootTypeSystemCategory, RootTypeSystemNode, RootTypeCharacter, RootTypeFaction:
+	case "", RootTypeWork, RootTypeSystemCategory, RootTypeSystemNode, RootTypeCharacter, RootTypeFaction, RootTypeLocation:
 	default:
 		return nil, model.ErrInvalidRootType
 	}
@@ -87,6 +87,7 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 	nodes := []model.SystemNode{}
 	characters := []model.Character{}
 	factions := []model.Faction{}
+	locations := []model.Location{}
 	var err error
 	if rootType == "" || rootType == RootTypeWork {
 		if works, err = worksRepo.ListDeletedRoots(ctx); err != nil {
@@ -110,6 +111,11 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 	}
 	if rootType == "" || rootType == RootTypeFaction {
 		if factions, err = repository.NewFactions(s.db).ListDeletedRoots(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if rootType == "" || rootType == RootTypeLocation {
+		if locations, err = repository.NewLocations(s.db).ListDeletedRoots(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -138,8 +144,24 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 			factionParents[id] = brief.Name
 		}
 	}
+	locationParentIDs := make([]string, 0, len(locations))
+	for _, location := range locations {
+		if location.ParentID != nil {
+			locationParentIDs = append(locationParentIDs, *location.ParentID)
+		}
+	}
+	locationParents := make(map[string]string)
+	if len(locationParentIDs) > 0 {
+		briefs, err := repository.NewLocations(s.db).ParentBriefs(ctx, locationParentIDs)
+		if err != nil {
+			return nil, err
+		}
+		for id, brief := range briefs {
+			locationParents[id] = brief.Name
+		}
+	}
 
-	items := make([]TrashItem, 0, len(works)+len(categories)+len(nodes)+len(characters)+len(factions))
+	items := make([]TrashItem, 0, len(works)+len(categories)+len(nodes)+len(characters)+len(factions)+len(locations))
 	for _, work := range works {
 		items = append(items, TrashItem{
 			RootType:      RootTypeWork,
@@ -215,6 +237,27 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 			AffectedCount: chronicleCount + 1,
 		})
 	}
+	for _, location := range locations {
+		var parent *string
+		if location.ParentID != nil {
+			if name, ok := locationParents[*location.ParentID]; ok {
+				parent = &name
+			}
+		}
+		if parent == nil {
+			if name, err := worksRepo.Name(ctx, location.WorkID); err == nil {
+				parent = &name
+			}
+		}
+		items = append(items, TrashItem{
+			RootType:      RootTypeLocation,
+			RootID:        location.ID,
+			Name:          location.Name,
+			ParentName:    parent,
+			DeletedAt:     location.DeletedAt,
+			AffectedCount: 1,
+		})
+	}
 
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].DeletedAt.Equal(*items[j].DeletedAt) {
@@ -269,6 +312,12 @@ func (s *Trash) Restore(ctx context.Context, rootType, rootID string, in Restore
 		run = func(tx *gorm.DB) error {
 			var err error
 			result, err = s.restoreFaction(ctx, tx, rootID, in, now)
+			return err
+		}
+	case RootTypeLocation:
+		run = func(tx *gorm.DB) error {
+			var err error
+			result, err = s.restoreLocation(ctx, tx, rootID, in, now)
 			return err
 		}
 	default:
@@ -649,6 +698,63 @@ func (s *Trash) restoreFaction(ctx context.Context, tx *gorm.DB, rootID string, 
 	}, nil
 }
 
+// restoreLocation 恢复地点根；父级仍在回收站时阻止。
+func (s *Trash) restoreLocation(ctx context.Context, tx *gorm.DB, rootID string, in RestoreInput, now time.Time) (*RestoreResult, error) {
+	repo := repository.NewLocations(tx)
+	item, err := repo.GetDeleted(ctx, rootID)
+	if err != nil {
+		return nil, alreadyDeleted(err)
+	}
+	if _, err := repository.NewWorks(tx).GetForUpdate(ctx, item.WorkID); err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, model.ErrParentDeleted
+		}
+		return nil, err
+	}
+	if item.ParentID != nil {
+		if _, err := repo.Get(ctx, *item.ParentID); err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return nil, model.ErrParentDeleted
+			}
+			return nil, err
+		}
+	}
+
+	name, nameKey := item.Name, item.NameKey
+	if in.NewName != nil {
+		name, nameKey, err = model.NormalizeLocationName(*in.NewName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	taken, err := repo.NameTaken(ctx, item.WorkID, nameKey, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	if taken {
+		return nil, &model.RestoreConflictError{Items: []model.ConflictItem{{
+			ID:         item.ID,
+			Name:       name,
+			EntityType: RootTypeLocation,
+		}}}
+	}
+
+	if name != item.Name || nameKey != item.NameKey {
+		if err := repo.RenameDeleted(ctx, item.ID, name, nameKey, now); err != nil {
+			return nil, alreadyDeleted(err)
+		}
+	}
+	if err := repo.Restore(ctx, item.ID, now); err != nil {
+		return nil, alreadyDeleted(err)
+	}
+	return &RestoreResult{
+		RootType:      RootTypeLocation,
+		RootID:        item.ID,
+		Name:          name,
+		RestoredCount: 1,
+	}, nil
+}
+
 // Purge 永久删除单个根；先落 trash_purge 快照，失败即阻止；
 // 引用检查与物理删除共用同一事务，避免 TOCTOU。
 func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
@@ -785,6 +891,45 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			}
 			return nil
 		})
+	case RootTypeLocation:
+		repo := repository.NewLocations(s.db)
+		location, err := repo.GetDeleted(ctx, rootID)
+		if err != nil {
+			return alreadyDeleted(err)
+		}
+		// 人物关系属于地点的入向引用；存在时禁止永久删除，避免静默解除。
+		characterRows, err := repo.CharacterRowsForLocation(ctx, rootID)
+		if err != nil {
+			return err
+		}
+		if err := locationReferenceConflict(location.Name, characterRows, nil); err != nil {
+			return err
+		}
+		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
+			return err
+		}
+		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			txRepo := repository.NewLocations(tx)
+			locked, err := txRepo.GetDeletedForUpdate(ctx, rootID)
+			if err != nil {
+				return alreadyDeleted(err)
+			}
+			characterRows, err := txRepo.CharacterRowsForLocation(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if err := locationReferenceConflict(locked.Name, characterRows, nil); err != nil {
+				return err
+			}
+			rows, err := txRepo.Purge(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if rows == 0 {
+				return model.ErrAlreadyDeleted
+			}
+			return nil
+		})
 	default:
 		return model.ErrInvalidRootType
 	}
@@ -817,11 +962,15 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	if err != nil {
 		return nil, err
 	}
-	if len(works)+len(categories)+len(nodes)+len(characters)+len(factions) == 0 {
+	locations, err := repository.NewLocations(s.db).ListDeletedRoots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(works)+len(categories)+len(nodes)+len(characters)+len(factions)+len(locations) == 0 {
 		return &PurgeAllResult{Purged: 0}, nil
 	}
 	nodes = orderNodeRootsForPurge(nodes)
-	total := int64(len(works) + len(categories) + len(nodes) + len(characters) + len(factions))
+	total := int64(len(works) + len(categories) + len(nodes) + len(characters) + len(factions) + len(locations))
 
 	// 先检查后快照：引用命中即中止，不落快照。
 	references, err := s.collectReferences(ctx, system, categories, nodes)
@@ -895,6 +1044,27 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 				return factionMemberReferenceConflict(locked.Name, members)
 			}
 			if _, err := txFactions.Purge(ctx, faction.ID); err != nil {
+				return err
+			}
+		}
+		// 地点在势力之后删除；先解除人物关系（理论上不可达，防御性复核）。
+		txLocations := repository.NewLocations(tx)
+		for _, location := range locations {
+			locked, err := txLocations.GetDeletedForUpdate(ctx, location.ID)
+			if err != nil {
+				if errors.Is(err, model.ErrNotFound) {
+					continue
+				}
+				return err
+			}
+			characterRows, err := txLocations.CharacterRowsForLocation(ctx, location.ID)
+			if err != nil {
+				return err
+			}
+			if err := locationReferenceConflict(locked.Name, characterRows, nil); err != nil {
+				return err
+			}
+			if _, err := txLocations.Purge(ctx, location.ID); err != nil {
 				return err
 			}
 		}
@@ -1132,6 +1302,41 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 					ID:         item.ID,
 					Name:       item.Name,
 					EntityType: RootTypeFaction,
+				}}}
+			}
+			if err := repo.Restore(ctx, record.RootID, now); err != nil {
+				return alreadyDeleted(err)
+			}
+			return nil
+		case RootTypeLocation:
+			repo := repository.NewLocations(tx)
+			item, err := repo.GetDeleted(ctx, record.RootID)
+			if err != nil {
+				return alreadyDeleted(err)
+			}
+			if _, err := repository.NewWorks(tx).Get(ctx, item.WorkID); err != nil {
+				if errors.Is(err, model.ErrNotFound) {
+					return model.ErrParentDeleted
+				}
+				return err
+			}
+			if item.ParentID != nil {
+				if _, err := repo.Get(ctx, *item.ParentID); err != nil {
+					if errors.Is(err, model.ErrNotFound) {
+						return model.ErrParentDeleted
+					}
+					return err
+				}
+			}
+			taken, err := repo.NameTaken(ctx, item.WorkID, item.NameKey, item.ID)
+			if err != nil {
+				return err
+			}
+			if taken {
+				return &model.RestoreConflictError{Items: []model.ConflictItem{{
+					ID:         item.ID,
+					Name:       item.Name,
+					EntityType: RootTypeLocation,
 				}}}
 			}
 			if err := repo.Restore(ctx, record.RootID, now); err != nil {

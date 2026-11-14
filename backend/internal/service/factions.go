@@ -274,11 +274,25 @@ func (s *Factions) Get(ctx context.Context, id string) (*model.FactionDetail, er
 		return nil, err
 	}
 
+	locationRows, err := repository.NewLocations(s.db).LocationRowsForFaction(ctx, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	locationViews := make([]model.LocationRelationView, 0, len(locationRows))
+	for _, row := range locationRows {
+		locationViews = append(locationViews, model.LocationRelationView{
+			ID:      row.LocationID,
+			Name:    row.Name,
+			Note:    row.Note,
+			InTrash: row.InTrash,
+		})
+	}
+
 	return &model.FactionDetail{
 		FactionSummary: sum,
 		Relations: model.FactionRelations{
 			Children:           childViews,
-			Locations:          []model.LocationRelationView{},
+			Locations:          locationViews,
 			ChronicleCount:     chronicleCount,
 			SubtreeMemberCount: subtreeMembers,
 		},

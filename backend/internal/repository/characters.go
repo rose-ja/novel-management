@@ -24,6 +24,7 @@ type CharacterFilter struct {
 	Query        string
 	SystemNodeID string
 	FactionID    string
+	LocationID   string
 	ReviewDB     string
 	Sort         string
 	Page         int
@@ -77,6 +78,13 @@ func (r *Characters) buildList(ctx context.Context, filter CharacterFilter) *gor
 	}
 	if filter.FactionID != "" {
 		tx = tx.Where("characters.faction_id = ?", filter.FactionID)
+	}
+	if filter.LocationID != "" {
+		tx = tx.Where(
+			`EXISTS (SELECT 1 FROM character_locations cl JOIN locations l ON l.id = cl.location_id
+			 WHERE cl.character_id = characters.id AND cl.location_id = ? AND l.deleted_at IS NULL)`,
+			filter.LocationID,
+		)
 	}
 	if filter.ReviewDB != "" {
 		tx = tx.Where("characters.review_status = ?", filter.ReviewDB)
