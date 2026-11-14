@@ -92,6 +92,7 @@ func run() error {
 		Chronicles: service.NewChronicles(db.Gorm),
 		Factions:   factionsService,
 		Locations:  locationsService,
+		Rankings:   service.NewRankings(db.Gorm, charactersService),
 	})
 
 	srv := &http.Server{

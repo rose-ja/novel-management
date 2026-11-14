@@ -106,6 +106,43 @@ func abortServiceError(c *gin.Context, err error) {
 		return
 	}
 
+	var seatConflict *model.SeatConflictError
+	if errors.As(err, &seatConflict) {
+		abortErrorWithDetails(c, http.StatusConflict, "SEAT_CONFLICT", "该人物已在本榜其他席位", gin.H{
+			"seat_no":          seatConflict.SeatNo,
+			"character_id":     seatConflict.CharacterID,
+			"existing_seat_no": seatConflict.ExistingSeatNo,
+		})
+		return
+	}
+
+	var seatOutOfRange *model.SeatOutOfRangeError
+	if errors.As(err, &seatOutOfRange) {
+		abortErrorWithDetails(c, http.StatusBadRequest, "SEAT_OUT_OF_RANGE", "席位号超出榜单范围", gin.H{
+			"seat_no":    seatOutOfRange.SeatNo,
+			"seat_count": seatOutOfRange.SeatCount,
+		})
+		return
+	}
+
+	var seatShrink *model.SeatShrinkOccupiedError
+	if errors.As(err, &seatShrink) {
+		abortErrorWithDetails(c, http.StatusConflict, "SEAT_SHRINK_OCCUPIED", "缩容目标席位之后仍有人物", gin.H{
+			"from_seat_count": seatShrink.FromSeatCount,
+			"to_seat_count":   seatShrink.ToSeatCount,
+			"items":           seatShrink.Items,
+		})
+		return
+	}
+
+	var referenceMissing *model.ReferenceMissingError
+	if errors.As(err, &referenceMissing) {
+		abortErrorWithDetails(c, http.StatusConflict, "REFERENCE_MISSING", "引用的人物已不存在", gin.H{
+			"items": referenceMissing.Items,
+		})
+		return
+	}
+
 	switch {
 	case errors.Is(err, model.ErrNotFound):
 		abortError(c, http.StatusNotFound, "NOT_FOUND", "资源不存在")
@@ -145,6 +182,14 @@ func abortServiceError(c *gin.Context, err error) {
 		abortError(c, http.StatusConflict, "DUPLICATE_RELATION", "关系已存在")
 	case errors.Is(err, model.ErrPreconditionRequired):
 		abortError(c, http.StatusPreconditionRequired, "PRECONDITION_REQUIRED", "缺少 If-Match 请求头")
+	case errors.Is(err, model.ErrSeatConflict):
+		abortError(c, http.StatusConflict, "SEAT_CONFLICT", "该人物已在本榜其他席位")
+	case errors.Is(err, model.ErrSeatOutOfRange):
+		abortError(c, http.StatusBadRequest, "SEAT_OUT_OF_RANGE", "席位号超出榜单范围")
+	case errors.Is(err, model.ErrSeatShrinkOccupied):
+		abortError(c, http.StatusConflict, "SEAT_SHRINK_OCCUPIED", "缩容目标席位之后仍有人物")
+	case errors.Is(err, model.ErrReferenceMissing):
+		abortError(c, http.StatusConflict, "REFERENCE_MISSING", "引用的人物已不存在")
 	case errors.Is(err, model.ErrCharacterWorkUnavailable):
 		abortError(c, http.StatusUnprocessableEntity, "PARENT_DELETED", "作品不存在或已删除")
 	case errors.Is(err, model.ErrUnsupportedFileType):
