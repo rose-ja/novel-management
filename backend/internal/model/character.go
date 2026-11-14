@@ -120,6 +120,8 @@ type CharacterSummary struct {
 	Faction       *FactionBrief       `json:"faction"`
 	SystemSummary *string             `json:"system_summary"`
 	ImageThumbURL *string             `json:"image_thumb_url"`
+	Rankings      []RankingRefView    `json:"rankings"`
+	RankingCount  int                 `json:"ranking_count"`
 	ReviewStatus  string              `json:"review_status"`
 	ReviewedAt    *time.Time          `json:"reviewed_at"`
 	UpdatedAt     time.Time           `json:"updated_at"`
@@ -136,6 +138,7 @@ type CharacterDetail struct {
 	Faction       *FactionBrief       `json:"faction"`
 	SystemRefs    []SystemRefView     `json:"system_refs"`
 	LocationLinks []LocationLinkView  `json:"location_links"`
+	Rankings      []RankingRefView    `json:"rankings"`
 	Image         *MediaView          `json:"image"`
 	ReviewStatus  string              `json:"review_status"`
 	ReviewedAt    *time.Time          `json:"reviewed_at"`

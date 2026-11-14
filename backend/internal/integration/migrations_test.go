@@ -46,6 +46,7 @@ func TestMigrationRoundTrip(t *testing.T) {
 		"works", "system_categories", "system_nodes", "character_system_refs",
 		"characters", "character_names", "media_assets", "chronicles", "factions",
 		"locations", "character_locations", "location_factions",
+		"rankings", "ranking_seats",
 		"app_settings", "snapshots", "undo_tokens",
 	}
 	for _, table := range tables {
@@ -61,8 +62,8 @@ func TestMigrationRoundTrip(t *testing.T) {
 	if err := testDB.Raw("SELECT max(version_id) FROM goose_db_version").Scan(&version).Error; err != nil {
 		t.Fatalf("读取 goose_db_version 失败：%v", err)
 	}
-	if version != 7 {
-		t.Fatalf("迁移版本应为 7，实际 %d", version)
+	if version != 8 {
+		t.Fatalf("迁移版本应为 8，实际 %d", version)
 	}
 
 	seed := []string{
@@ -79,11 +80,26 @@ func TestMigrationRoundTrip(t *testing.T) {
 		`INSERT INTO locations (id, work_id, name, name_key) VALUES ('MIGLOC', 'MIGWORK', '迁移地点', '迁移地点')`,
 		`INSERT INTO character_locations (id, work_id, character_id, location_id, note) VALUES ('MIGCL', 'MIGWORK', 'MIGCHAR', 'MIGLOC', '出生地')`,
 		`INSERT INTO location_factions (id, work_id, location_id, faction_id, note) VALUES ('MIGLF', 'MIGWORK', 'MIGLOC', 'MIGFAC', '驻点')`,
+		`INSERT INTO rankings (id, work_id, name, name_key, seat_count) VALUES ('MIGRANK', 'MIGWORK', '迁移榜单', '迁移榜单', 3)`,
+		`INSERT INTO ranking_seats (id, work_id, ranking_id, seat_no, character_id) VALUES ('MIGSEAT', 'MIGWORK', 'MIGRANK', 1, 'MIGCHAR')`,
 	}
 	for _, statement := range seed {
 		if err := testDB.Exec(statement).Error; err != nil {
 			t.Fatalf("播种迁移回滚数据失败：%v", err)
 		}
+	}
+
+	// 0008 Down：删除榜单与席位；人物保留。
+	if err := migrations.Down(ctx, sqlDB); err != nil {
+		t.Fatalf("回滚 0008 失败：%v", err)
+	}
+	for _, table := range []string{"ranking_seats", "rankings"} {
+		if tableExists(t, table) {
+			t.Fatalf("回滚 0008 后表 %s 仍然存在", table)
+		}
+	}
+	if !tableExists(t, "characters") {
+		t.Fatal("回滚 0008 不应删除人物表")
 	}
 
 	// 0007 Down：删除地点与两类关系表；人物/势力本体保留。
