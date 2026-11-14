@@ -94,3 +94,20 @@
 - 前端单测：`frontend/lib/factions-tree.test.ts`
 - E2E：`frontend/e2e/factions.spec.ts`
 - 视觉基线：`frontend/e2e/visual.spec.ts-snapshots/`（新增 `factions-1280/1024`、`faction-detail-1280`）
+
+## 8. F9 合并与发布记录
+
+| 项目 | 内容 |
+|---|---|
+| 版本 / Commit | `main` @ `c0777b8`（功能分支 `feat/chg-006-factions-tree`，15 个提交，`9426526..c0777b8` 快进合并，70 文件 +7083/−74） |
+| 环境 | 本机（Windows + Docker Desktop 单用户本地）；`http://127.0.0.1:17860`；PostgreSQL 迁移 v6 |
+| 时间 | 2026-11-14（Asia/Shanghai） |
+| 操作者 | Agent（发布协调） |
+| 审批 | 用户：F7 结论 **ACCEPT** + 明确授权「执行 F9 合并与冒烟测试」（本地合并，不推送） |
+| 部署步骤 | 无镜像变更：容器 `novel-management-app-1` 已在 F5 修复后重建并运行同一代码；本次合并仅新增文档提交。`docker compose ps` 三容器 `healthy`；`goose_db_version` 最新 version_id = 6。 |
+| Smoke Test | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke.ps1` → `SMOKE OK: version=0.1.0 db=ok cache=ok`；`GET /api/v1/works` 200；`GET /factions` 页面 200；`npx playwright test e2e/factions.spec.ts` → **6 passed（11.3s）**；最近 400 行日志无 5xx / ERROR |
+| 异常 | 直接请求 `GET /api/v1/factions`（未带 `work_id`）返回 422 `VALIDATION_ERROR`，属契约要求的必填参数，非缺陷；因库中暂无作品，未单独构造正例，改由 E2E 全链路覆盖 |
+| 远程状态 | **未推送** `origin/main`（本地 main 领先 66 个提交；按授权不推送、不创建远程 PR） |
+| 回滚结果 | 未触发回滚。如需回退：`git reset --hard 9426526`（本地）或 revert；若已迁移，执行 0006 Down（势力大事记会清理，`characters.faction_id` 值保留）。 |
+
+**发布结论**：本地集成与冒烟通过，未发布到远程/公网；符合 `project/deployment.md`「未获批准不得发布到公网或修改部署拓扑」。
