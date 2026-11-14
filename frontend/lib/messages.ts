@@ -13,6 +13,8 @@ function trashTypeLabel(rootType: string): string {
       return "势力";
     case "location":
       return "地点";
+    case "ranking":
+      return "榜单";
     default:
       return "未知类型";
   }
@@ -45,6 +47,7 @@ export const messages = {
   cancel: "取消",
   close: "关闭",
   confirm: "确认",
+  saving: "保存中…",
 
   /** 稳定错误码到用户文案的映射；未覆盖时回退到后端文案。 */
   errorByCode: {
@@ -65,6 +68,10 @@ export const messages = {
     HAS_CHILDREN: "仍有下级节点，无法删除",
     PARENT_DELETED: "上级或类别仍在回收站",
     REFERENCE_CONFLICT: "仍被其他记录引用，无法删除",
+    SEAT_CONFLICT: "该人物已在本榜其他席位",
+    SEAT_OUT_OF_RANGE: "席位号超出榜单范围",
+    SEAT_SHRINK_OCCUPIED: "目标席位之后仍有人物，无法缩容",
+    REFERENCE_MISSING: "引用的人物已不存在，请先处理",
     CYCLE_DETECTED: "上级不能是自身或其后代",
     NOT_FOUND: "资源不存在",
     FORBIDDEN_ORIGIN: "请求来源校验失败，请从本机页面操作",
@@ -167,6 +174,8 @@ export const messages = {
         return `恢复人物「${name}」？`;
       case "faction":
         return `恢复势力「${name}」？`;
+      case "ranking":
+        return `恢复榜单「${name}」？`;
       default:
         return `恢复「${name}」？`;
     }
@@ -183,6 +192,8 @@ export const messages = {
         return "恢复人物及其别名与体系引用；如与现有记录重名，可改名后恢复。";
       case "faction":
         return "恢复势力及其势力大事记；如上级势力仍在回收站，请先恢复上级。";
+      case "ranking":
+        return "恢复榜单及固定席位；如席位中的人物已删除或在回收站，请先恢复人物。";
       default:
         return "将整组恢复到原位置；如与现有记录重名，可改名后恢复。";
     }
@@ -732,6 +743,125 @@ export const messages = {
   characterFactionLink: (name: string) => `查看势力「${name}」`,
   characterFactionLeaderPrefix: "担任首领：",
   characterFilterFactionAll: "全部势力",
+
+  rankingTitle: "榜单",
+  rankingWorkFallback: "当前作品",
+  rankingDescription: (workName: string, total: number) => `《${workName}》 · 榜单 · 共 ${total} 个`,
+  rankingAdd: "新建榜单",
+  rankingTotal: (count: number) => `共 ${count} 个榜单`,
+  rankingSearchLabel: "搜索榜单",
+  rankingSearchPlaceholder: "搜索榜单名称…",
+  rankingFilterPending: "仅看待校对",
+  rankingSortLabel: "排序",
+  rankingSortUpdated: "最近更新",
+  rankingSortName: "名称升序",
+  rankingColumnName: "榜单名称",
+  rankingColumnSeats: "席位数",
+  rankingColumnOccupied: "已占",
+  rankingColumnEmpty: "空席",
+  rankingColumnTop: "前三席",
+  rankingColumnUpdatedAt: "更新时间",
+  rankingColumnActions: "操作",
+  rankingTableCaption: "榜单列表",
+  rankingEmptyTitle: "还没有榜单",
+  rankingEmptyDescription: "新建榜单后会自动生成固定席位，可逐席指派人物。",
+  rankingFilterEmptyTitle: "没有匹配的榜单",
+  rankingFilterEmptyDescription: "调整或清除筛选条件后再试。",
+  rankingClearFilter: "清除筛选",
+  rankingNoValue: "—",
+  rankingCreateTitle: "新建榜单",
+  rankingCreateDescription: "选择名称与席位数，创建后自动生成 1..N 固定席位。",
+  rankingNameLabel: "榜单名称",
+  rankingNameHint: "必填，1–200 字符；同作品内不可重名，英文不区分大小写。",
+  rankingNameRequired: "请输入榜单名称",
+  rankingSeatCountLabel: "席位数",
+  rankingSeatCountHint: "1–200，默认 100。",
+  rankingSeatCountInvalid: "席位数需在 1 到 200 之间",
+  rankingCreateSubmit: "创建榜单",
+  rankingCreated: (name: string) => `已创建榜单「${name}」`,
+  rankingDelete: "删除榜单",
+  rankingDeleteTitle: (name: string) => `删除榜单「${name}」？`,
+  rankingDeleteDescription: "榜单将移入回收站，8 秒内可撤销；席位与名次会一并隐藏。",
+  rankingDeleteSubmit: "删除榜单",
+  rankingMovedToTrash: (name: string) => `榜单「${name}」已移入回收站，8 秒内可撤销`,
+  rankingUndone: (name: string) => `已撤销删除榜单「${name}」`,
+  rankingDeletedTitle: "榜单已移入回收站",
+  rankingDeletedDescription: "可在 8 秒内撤销，或稍后前往回收站恢复。",
+  rankingGoTrash: "前往回收站",
+  rankingDetailDescription: "查看榜单席位与名次，支持指派、移动、交换与容量调整。",
+  rankingNotFoundTitle: "榜单不存在或已删除",
+  rankingNotFoundDescription: "该榜单可能已被删除，或不属于当前作品。",
+  rankingBackToList: "返回榜单列表",
+  rankingRenameSubmit: "保存名称",
+  rankingUpdated: (name: string) => `已保存榜单「${name}」`,
+  rankingVersionConflict: "榜单已被其他页面修改，请刷新后重试",
+  rankingRefresh: "刷新最新内容",
+  rankingSummarySeats: "席位数",
+  rankingSummaryOccupied: "已占",
+  rankingSummaryEmpty: "空席",
+  rankingSeatsTitle: "席位",
+  rankingSeatNo: "席位",
+  rankingSeatOccupied: "人物",
+  rankingSeatNote: "备注",
+  rankingSeatNoteEmpty: "—",
+  rankingSeatNotePlaceholder: "可选，最多 500 字符",
+  rankingSeatNoteSave: "保存备注",
+  rankingSeatNoteSaved: (seatNo: number) => `已保存第 ${seatNo} 席备注`,
+  rankingSeatNoteCleared: (seatNo: number) => `已清空第 ${seatNo} 席备注`,
+  rankingSeatActions: "操作",
+  rankingSeatEmptyLabel: "虚位以待",
+  rankingAssign: "指派人物",
+  rankingAssignTitle: (seatNo: number) => `指派到第 ${seatNo} 席`,
+  rankingAssignSearchLabel: "搜索人物",
+  rankingAssignSearchPlaceholder: "输入人物名称搜索…",
+  rankingAssignEmpty: "没有匹配的人物",
+  rankingAssignSubmit: "确认指派",
+  rankingAssigned: (seatNo: number, name: string) => `已将「${name}」指派到第 ${seatNo} 席`,
+  rankingAssignInOtherSeat: (seatNo: number) => `该人物已在第 ${seatNo} 席`,
+  rankingAssignGoSeat: "前往该席位",
+  rankingAdjust: "调整席位",
+  rankingAdjustTitle: (seatNo: number) => `调整第 ${seatNo} 席`,
+  rankingAdjustTargetLabel: "目标席位",
+  rankingAdjustTargetHint: "1–当前席位数；目标为当前席位时不可提交。",
+  rankingAdjustTargetEmpty: (seatNo: number) => `将移动到第 ${seatNo} 席（空席）`,
+  rankingAdjustTargetSwap: (seatNo: number, name: string) => `将与第 ${seatNo} 席「${name}」交换`,
+  rankingAdjustCurrent: "目标席位不能与当前席位相同",
+  rankingAdjustSubmit: "确认调整",
+  rankingAdjusted: (seatNo: number) => `已调整到第 ${seatNo} 席`,
+  rankingRemove: "移出榜单",
+  rankingRemoveTitle: (name: string) => `将「${name}」移出榜单？`,
+  rankingRemoveDescription: "席位将变为空席，备注一并清空；8 秒内可撤销。",
+  rankingRemoveSubmit: "移出榜单",
+  rankingRemoved: (name: string) => `已将「${name}」移出榜单`,
+  rankingRestoreSeatFailed: "席位已发生变化，无法撤销移出",
+  rankingCapacity: "调整席位容量",
+  rankingCapacityTitle: "调整席位容量",
+  rankingCapacityDescription: "扩容会追加空席；缩容仅允许删除尾部空席。",
+  rankingCapacityLabel: "席位总数",
+  rankingCapacityHint: "1–200。缩容到已占席位之前会被阻止。",
+  rankingCapacitySubmit: "保存容量",
+  rankingCapacityUpdated: (count: number) => `席位数已调整为 ${count}`,
+  rankingShrinkBlockedTitle: "尾席仍有人物，无法缩容",
+  rankingShrinkBlockedDescription: "请先移出以下席位的人物，再缩容。",
+  rankingShrinkBlockedItem: (seatNo: number, name: string) => `第 ${seatNo} 席 · ${name}`,
+  rankingJumpLabel: "跳转到席位",
+  rankingJumpPlaceholder: "输入席位号",
+  rankingJumpSubmit: "跳转",
+  rankingJumpOutOfRange: (seatCount: number) => `请输入 1–${seatCount} 之间的席位号`,
+  rankingSeatPage: (page: number, pageSize: number) => `第 ${page} 页 · 每页 ${pageSize} 席`,
+  rankingOnlyOccupied: "仅看已占",
+  rankingOnlyEmpty: "仅看空席",
+  rankingAllSeats: "全部席位",
+  rankingSeatFilterLabel: "席位筛选",
+  rankingChildNoValue: "—",
+  characterRankingsTitle: "所在榜单",
+  characterRankingsEmpty: "暂未进入任何榜单",
+  characterRankingMore: (count: number) => `+${count}`,
+  characterRankingLink: (name: string, seatNo: number) => `查看榜单「${name}」第 ${seatNo} 席`,
+  characterRankingInTrash: "（回收站）",
+  navRankings: "榜单",
+  trashTypeRanking: "榜单",
+  trashRankingRestoreHint: "恢复榜单前，请先恢复席位中的人物。",
 } as const;
 
 export type MessageCode = keyof typeof messages;
