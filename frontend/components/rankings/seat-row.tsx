@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { CharacterImage } from "@/components/characters/character-image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toUserMessage } from "@/lib/api/errors";
@@ -23,12 +24,25 @@ export function SeatCharacterCell({ seat }: { seat: SeatView }) {
   }
   return (
     <div className="ranking-seat-character">
-      <Link className="character-name-link" href={`/characters?id=${encodeURIComponent(seat.character.id)}`}>
-        {seat.character.name}
-      </Link>
-      {seat.character.system_summary ? (
-        <span className="character-muted">{seat.character.system_summary}</span>
-      ) : null}
+      <CharacterImage
+        name={seat.character.name}
+        size="sm"
+        thumb
+        image={
+          seat.character.image_thumb_url
+            ? { asset_id: seat.character.id, url: seat.character.image_thumb_url, width: 40, height: 40 }
+            : null
+        }
+      />
+      <div className="ranking-seat-character__text">
+        <Link className="character-name-link" href={`/characters?id=${encodeURIComponent(seat.character.id)}`}>
+          {seat.character.name}
+        </Link>
+        <span className="character-muted">
+          {[seat.character.system_summary, seat.character.faction?.name].filter(Boolean).join(" · ") ||
+            messages.rankingNoValue}
+        </span>
+      </div>
     </div>
   );
 }

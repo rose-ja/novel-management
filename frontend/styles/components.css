@@ -2661,3 +2661,163 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* CHG-008 榜单与席位 */
+.ranking-name-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ranking-top-seats {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  line-height: var(--text-small-line);
+}
+
+.ranking-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.ranking-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 88px;
+}
+
+.ranking-summary__label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+}
+
+.ranking-summary__value {
+  font-size: var(--text-h2);
+  line-height: var(--text-h2-line);
+  font-weight: var(--text-h2-weight);
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-rename {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.ranking-seat-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.ranking-jump {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ranking-jump .ui-input {
+  width: 132px;
+}
+
+.ranking-seat-no {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 28px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-seat-no[data-highlighted="true"] {
+  background: var(--color-surface-sunken);
+  outline: 2px solid var(--color-border-focus);
+}
+
+.ranking-seat-character {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ranking-seat-character__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ranking-seat-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ranking-seat-note--editing .ui-input {
+  min-width: 200px;
+}
+
+.ranking-seat-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.ranking-assign-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.ranking-assign-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ranking-assign-item--selected,
+.ranking-assign-item:hover {
+  border-color: var(--color-border-focus);
+  background: var(--color-surface-sunken);
+}
+
+.character-rankings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (max-width: 1024px) {
+  .ranking-rename {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .ranking-seat-note--editing .ui-input {
+    min-width: 0;
+    width: 100%;
+  }
+}
