@@ -54,18 +54,20 @@ type FactionSummary struct {
 	DeletedAt     *time.Time    `json:"deleted_at"`
 }
 
-// LocationBrief 是势力关联地点占位；CHG-007 前恒为空数组。
-type LocationBrief struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+// LocationRelationView 是势力详情页的关联地点行；CHG-007 起返回真实关系。
+type LocationRelationView struct {
+	ID      string  `json:"id"`
+	Name    string  `json:"name"`
+	Note    *string `json:"note"`
+	InTrash bool    `json:"in_trash"`
 }
 
-// FactionRelations 是详情侧栏关系；地点关系由 CHG-007 接入，本轮恒为空数组。
+// FactionRelations 是详情侧栏关系。
 type FactionRelations struct {
-	Children           []FactionBrief  `json:"children"`
-	Locations          []LocationBrief `json:"locations"`
-	ChronicleCount     int64           `json:"chronicle_count"`
-	SubtreeMemberCount int64           `json:"subtree_member_count"`
+	Children           []FactionBrief         `json:"children"`
+	Locations          []LocationRelationView `json:"locations"`
+	ChronicleCount     int64                  `json:"chronicle_count"`
+	SubtreeMemberCount int64                  `json:"subtree_member_count"`
 }
 
 // FactionDetail 是详情 DTO。

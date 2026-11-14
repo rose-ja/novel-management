@@ -45,6 +45,7 @@ func TestMigrationRoundTrip(t *testing.T) {
 	tables := []string{
 		"works", "system_categories", "system_nodes", "character_system_refs",
 		"characters", "character_names", "media_assets", "chronicles", "factions",
+		"locations", "character_locations", "location_factions",
 		"app_settings", "snapshots", "undo_tokens",
 	}
 	for _, table := range tables {
@@ -60,8 +61,8 @@ func TestMigrationRoundTrip(t *testing.T) {
 	if err := testDB.Raw("SELECT max(version_id) FROM goose_db_version").Scan(&version).Error; err != nil {
 		t.Fatalf("读取 goose_db_version 失败：%v", err)
 	}
-	if version != 6 {
-		t.Fatalf("迁移版本应为 6，实际 %d", version)
+	if version != 7 {
+		t.Fatalf("迁移版本应为 7，实际 %d", version)
 	}
 
 	seed := []string{
@@ -75,11 +76,27 @@ func TestMigrationRoundTrip(t *testing.T) {
 		`INSERT INTO factions (id, work_id, name, name_key) VALUES ('MIGFAC', 'MIGWORK', '迁移势力', '迁移势力')`,
 		`UPDATE characters SET faction_id = 'MIGFAC' WHERE id = 'MIGCHAR'`,
 		`INSERT INTO chronicles (id, work_id, owner_type, owner_id, text) VALUES ('MIGFACHRON', 'MIGWORK', 'faction', 'MIGFAC', '迁移势力大事记')`,
+		`INSERT INTO locations (id, work_id, name, name_key) VALUES ('MIGLOC', 'MIGWORK', '迁移地点', '迁移地点')`,
+		`INSERT INTO character_locations (id, work_id, character_id, location_id, note) VALUES ('MIGCL', 'MIGWORK', 'MIGCHAR', 'MIGLOC', '出生地')`,
+		`INSERT INTO location_factions (id, work_id, location_id, faction_id, note) VALUES ('MIGLF', 'MIGWORK', 'MIGLOC', 'MIGFAC', '驻点')`,
 	}
 	for _, statement := range seed {
 		if err := testDB.Exec(statement).Error; err != nil {
 			t.Fatalf("播种迁移回滚数据失败：%v", err)
 		}
+	}
+
+	// 0007 Down：删除地点与两类关系表；人物/势力本体保留。
+	if err := migrations.Down(ctx, sqlDB); err != nil {
+		t.Fatalf("回滚 0007 失败：%v", err)
+	}
+	for _, table := range []string{"location_factions", "character_locations", "locations"} {
+		if tableExists(t, table) {
+			t.Fatalf("回滚 0007 后表 %s 仍然存在", table)
+		}
+	}
+	if !tableExists(t, "factions") || !tableExists(t, "characters") {
+		t.Fatal("回滚 0007 不应删除势力或人物表")
 	}
 
 	// 0006 Down：删除势力与势力大事记，恢复 chronicles 仅 character，人物 faction_id 列值保留。

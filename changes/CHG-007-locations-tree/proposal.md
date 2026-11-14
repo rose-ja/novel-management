@@ -2,7 +2,7 @@
 
 - ID: CHG-007-locations-tree
 - Title: 地点树与人物/势力关系
-- Status: Draft（F1 待批准）
+- Status: Approved（2026-11-14，F1 按推荐方案批准）
 - Owner: 主 Agent
 - Related Spec: SPEC-LOC-001、SPEC-LOC-002、SPEC-LOC-003
 - Related Issue: roadmap §CHG-007；FR-13~FR-16、FR-34~FR-38、FR-47~FR-51、FR-66、FR-67；PG-06、PG-07；AC-05、AC-09、AC-14
@@ -84,7 +84,7 @@ CHG-004 为人物保留了 `location_links` 占位（恒空数组），CHG-006 �
 
 | 决策 | 方案 | 状态 |
 |---|---|---|
-| D1 校对确认端点 | 延后 CHG-011，本轮只读 `review_status` + 筛选 + Badge | 待批准 |
-| D2 人物-地点维护入口 | 仅 `PATCH /characters/{id}` 全量替换，地点页通过该接口编辑 | 待批准 |
-| D3 地点-势力备注更新 | 新增 `PATCH /locations/{id}/factions/{faction_id}`（仅改备注） | 待批准 |
-| D4 删除阻断口径 | 关系行存在即阻止（含引用方在回收站），返回 `in_trash` | 待批准 |
+| D1 校对确认端点 | 延后 CHG-011，本轮只读 `review_status` + 筛选 + Badge | 批准（2026-11-14） |
+| D2 人物-地点维护入口 | 仅 `PATCH /characters/{id}` 全量替换，地点页通过该接口编辑 | 批准（2026-11-14） |
+| D3 地点-势力备注更新 | 新增 `PATCH /locations/{id}/factions/{faction_id}`（仅改备注） | 批准（2026-11-14） |
+| D4 删除阻断口径 | 关系行存在即阻止（含引用方在回收站），返回 `in_trash` | 批准（2026-11-14） |

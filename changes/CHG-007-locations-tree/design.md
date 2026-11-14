@@ -110,11 +110,11 @@ DROP TABLE IF EXISTS locations;
   - `LocationChildView{ID,Name,TypeText,CharactersCount,FactionsCount}`；
   - `LocationCharacterView{CharacterID,Name,Faction *FactionBrief,SystemSummary *string,ImageThumbURL *string,Note *string,InTrash bool}`；
   - `LocationFactionView{FactionID,Name,Note *string,InTrash bool}`；
-  - `LocationRelations{Parent *LocationBrief, Children []LocationChildView, Characters []LocationCharacterView, Factions []LocationFactionView}`；
+  - `LocationRelations{Children []LocationChildView, Characters []LocationCharacterView, Factions []LocationFactionView}`（`parent` 位于 `LocationSummary`）；
   - `LocationDetail{LocationSummary, Relations}`。
 - `NormalizeLocationName`：`lower(trim)` 生成 `name_key`；`NormalizeLocationType` 空串 → nil；`NormalizeLocationDescription` 空串 → nil；`NormalizeRelationNote` 空串 → nil 且 ≤500。
 - `model/character.go`：`LocationLinkView` 注释更新为真实关系（结构不变）。
-- `model/faction.go`：`LocationBrief` 增加 `Note *string`、`InTrash bool`（势力详情关系用）。
+- `model/faction.go`：新增 `LocationRelationView{ID,Name,Note,InTrash}` 替换占位 `LocationBrief`。
 
 ### 3.2 `repository/locations.go`
 

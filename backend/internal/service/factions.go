@@ -278,7 +278,7 @@ func (s *Factions) Get(ctx context.Context, id string) (*model.FactionDetail, er
 		FactionSummary: sum,
 		Relations: model.FactionRelations{
 			Children:           childViews,
-			Locations:          []model.LocationBrief{},
+			Locations:          []model.LocationRelationView{},
 			ChronicleCount:     chronicleCount,
 			SubtreeMemberCount: subtreeMembers,
 		},

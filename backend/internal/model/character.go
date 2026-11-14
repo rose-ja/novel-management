@@ -97,7 +97,7 @@ type SystemRefView struct {
 	Node         CharacterNodeView `json:"node"`
 }
 
-// LocationLinkView 是地点关联占位；CHG-007 前恒为空数组。
+// LocationLinkView 是人物详情的关联地点；CHG-007 起返回真实关系。
 type LocationLinkView struct {
 	LocationID string  `json:"location_id"`
 	Name       string  `json:"name"`
