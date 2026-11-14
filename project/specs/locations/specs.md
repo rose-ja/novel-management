@@ -1,13 +1,13 @@
 # locations — 地点树与人物/势力关系
 
-- 域状态：`planned`（P6，2026-11-07）
+- 域状态：`implemented`（2026-11-14，CHG-007 交付地点树 CRUD、类型/搜索/待校对筛选、人物-地点与地点-势力关系、删除阻断、回收站与作品组生命周期；校对确认端点见 CHG-011）
 - 目标行为：用单棵树表达地点层级，人物与势力通过带备注的关系双向关联。
 - 关联页面：PG-06、PG-07；关联验收：AC-05、AC-09、AC-14。
-- 说明：本文件中的 Spec 均为待实现目标，不代表当前系统能力。
+- 说明：本文件中的 Spec 已由 CHG-007 交付并验收；校对确认端点 `POST /locations/{id}/review` 延后 CHG-011。
 
 ## SPEC-LOC-001 地点树、类型与列表视图
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-007，2026-11-14 验收；覆盖三级树、内联新建/编辑、类型建议、搜索命中 + 祖先补齐、类型/待校对筛选、名称唯一与非法父级）
 - 来源：FR-13、FR-16、FR-66；US-004；PG-06；API `GET/POST /api/v1/locations`；Data `locations`；AC-05
 - 行为：
   - 单棵树、父级可空、深度不限；节点类型为自由文本，带已有值建议（如星域/星城/秘境）。
@@ -22,11 +22,11 @@
   2. Given 类型输入「星域」，When 新建同级地点，Then 类型输入框提供已有值建议（FR-13）。
   3. Given 200 地点，When 搜索名称，Then 自动展开祖先并定位，不隐藏层级（PG-06）。
   4. Given 名称为空或同作品重名，When 保存，Then 阻止并定位字段（AC-17）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-14 — CHG-007 交付三级树、内联新建/编辑、类型建议、搜索定位与筛选，状态转 `implemented`。
 
 ## SPEC-LOC-002 人物-地点关系与地点详情
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-007，2026-11-14 验收；覆盖人物侧 `location_links` 全量替换、地点详情关联人物装配、备注编辑与双向展示）
 - 来源：FR-14、FR-16、FR-34、FR-35；US-004、US-008；PG-07；API `GET /api/v1/locations/{id}/characters`、人物 DTO `locations[]`；Data `character_locations`；AC-05、AC-09
 - 行为：
   - 人物可关联 0..N 地点，每条带可选备注；备注可编辑并保留。
@@ -40,11 +40,11 @@
   1. Given 人物关联两个地点并填写备注，When 查看人物与地点详情，Then 两侧均显示关系与备注（AC-05）。
   2. Given 修改人物地点备注，When 保存后刷新，Then 备注保留且双向一致（FR-34）。
   3. Given 删除人物，When 其地点关系仍存在，Then 人物可删除，关系随删解除（AC-14）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-14 — CHG-007 交付人物-地点关系、地点详情与双向展示，状态转 `implemented`。
 
 ## SPEC-LOC-003 地点-势力关系、详情与删除阻断
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-007，2026-11-14 验收；覆盖地点-势力关系 CRUD 与备注、三类入向引用阻断、软删/撤销/恢复/永久删除、作品组生命周期）
 - 来源：FR-14、FR-15、FR-16、FR-35、FR-37；US-004、US-011；PG-07、PG-12；API `GET/POST/DELETE /api/v1/locations/{id}/factions`、`DELETE /api/v1/locations/{id}`；Data `location_factions`；AC-05、AC-14
 - 行为：
   - 地点可关联 0..N 势力，每条带可选备注；地点与势力详情双向展示并跳转。
@@ -57,4 +57,4 @@
   2. Given 地点有下级地点，When 删除，Then 阻止并列出下级（E2E-04 / AC-14）。
   3. Given 地点被人物或势力关联，When 删除，Then 阻止并列出引用，不级联解除（AC-14）。
   4. Given 无任何入向引用，When 删除并撤销，Then 地点恢复原位置（FR-59）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-14 — CHG-007 交付地点-势力关系、删除阻断与回收站生命周期，状态转 `implemented`。

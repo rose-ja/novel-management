@@ -141,18 +141,21 @@ erDiagram
 
 | Field | Type | Nullable | Default | Constraint | Description |
 |---|---|---|---|---|---|
-| id | TEXT(26) | No | — | PK | — |
-| work_id | TEXT(26) | No | — | FK → works.id；索引 | — |
-| name | TEXT | No | — | 1–200 | 名称 |
-| name_key | TEXT | No | — | 部分唯一 `(work_id, name_key)` | 规范化 |
-| parent_id | TEXT(26) | Yes | NULL | FK → locations.id `ON DELETE RESTRICT`；禁止环 | 上级 0..1 |
-| type_text | TEXT | Yes | NULL | ≤200 | 自由文本类型（星域/星城/秘境…） |
-| description | TEXT | Yes | NULL | ≤20,000 | 简介 |
-| review_status | TEXT | No | `reviewed` | — | — |
-| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
-| reviewed_by | TEXT | Yes | NULL | 默认 `local-author` | 校对者（P5b RT-04） |
-| created_at / updated_at / version | — | — | — | — | — |
-| deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 软删除 |
+| id | TEXT | No | — | PK | — |
+| work_id | TEXT | No | — | FK → works.id `ON DELETE CASCADE`；索引 | — |
+| name | TEXT | No | — | CHECK 1–200 | 名称 |
+| name_key | TEXT | No | — | 部分唯一 `(work_id, name_key)` | 规范化 `lower(trim(name))` |
+| parent_id | TEXT | Yes | NULL | FK → locations.id `ON DELETE RESTRICT`；同作品；禁止环 | 上级 0..1 |
+| type_text | TEXT | Yes | NULL | CHECK ≤200 | 自由文本类型（星域/星城/秘境…） |
+| description | TEXT | Yes | NULL | CHECK ≤20,000 | 简介 |
+| review_status | TEXT | No | `reviewed` | CHECK `reviewed`/`pending` | 校对状态（API 映射 `confirmed`/`pending`） |
+| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间 |
+| reviewed_by | TEXT | Yes | NULL | 无默认值 | 校对者（本版无用户表） |
+| version | INTEGER | No | 1 | CHECK ≥1 | 乐观锁 |
+| created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
+| deleted_at / deleted_root_id / deleted_by_action | TIMESTAMPTZ / TEXT / TEXT | Yes | NULL | CHECK 同步 | 软删除三件套 |
+
+> `0007_locations.sql` 新建；命名 CHECK：`locations_name_len`、`locations_type_len`、`locations_desc_len`、`locations_deleted_consistent`。移动通过事务级 advisory lock（`hashtext(work_id)`）+ 递归 CTE 判环。
 
 ### 3.6 rankings（榜单）
 
@@ -246,7 +249,7 @@ erDiagram
 | note | TEXT | Yes | NULL | ≤500 | 备注 |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 
-唯一：`(character_id, location_id)`。
+唯一：`(character_id, location_id)`（约束名 `char_loc_uq`）。不加删除列：人物软删后关系行保留但随父实体过滤隐藏；地点在关系中为 `RESTRICT`，因此删除地点须先解除关系。
 
 ### 3.12 location_factions（地点-势力）
 
@@ -259,7 +262,7 @@ erDiagram
 | note | TEXT | Yes | NULL | ≤500 | 备注 |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 
-唯一：`(location_id, faction_id)`。
+唯一：`(location_id, faction_id)`（约束名 `loc_fac_uq`）。`faction_id` 为 `RESTRICT`：势力永久删除前必须先清理关系行（`Purge`/`PurgeByWork` 中显式删除），地点永久删除则由 `location_id` CASCADE 自动清理。
 
 ### 3.13 chronicles（大事记）
 
@@ -390,7 +393,7 @@ erDiagram
 | works | `works_name_key_uq` | `UNIQUE(name_key) WHERE deleted_at IS NULL` |
 | characters | `characters_work_name_uq` | `UNIQUE(work_id, name_key) WHERE deleted_at IS NULL` |
 | factions | `factions_active_name_uq` | `UNIQUE(work_id, name_key) WHERE deleted_at IS NULL` |
-| locations | `locations_work_name_uq` | 同上 |
+| locations | `locations_active_name_uq` | `UNIQUE(work_id, name_key) WHERE deleted_at IS NULL` |
 | rankings | `rankings_work_name_uq` | 同上 |
 | system_categories | `categories_work_name_uq` | `UNIQUE(work_id, name_key) WHERE deleted_at IS NULL` |
 | system_categories | `categories_builtin_uq` | `UNIQUE(work_id) WHERE is_builtin AND deleted_at IS NULL` |
@@ -412,8 +415,8 @@ erDiagram
 | characters | `characters_faction_idx` `(work_id, faction_id) WHERE deleted_at IS NULL` | 势力成员/筛选 |
 | factions | `factions_active_parent_idx` `(work_id, parent_id) WHERE deleted_at IS NULL` | 树查询/下级计数 |
 | factions | `factions_deleted_root_idx` `(deleted_root_id) WHERE deleted_root_id IS NOT NULL` | 回收站根 |
-| locations | `(work_id, parent_id, deleted_at)` | 树查询 |
-| locations | `(work_id, name_key)` | 类型/名称建议 |
+| locations | `locations_active_parent_idx` `(work_id, parent_id) WHERE deleted_at IS NULL` | 树查询/下级计数 |
+| locations | `locations_deleted_root_idx` `(deleted_root_id) WHERE deleted_root_id IS NOT NULL` | 回收站根 |
 | ranking_seats | `(ranking_id, seat_no)` | 榜单详情 |
 | ranking_seats | `(character_id)` | 人物所在榜单 |
 | system_nodes | `(category_id, parent_id, sort_order)` | 体系树 |
@@ -601,5 +604,6 @@ name_key = NFKC(value).casefold().strip()
 | 2026-11-11 | v1.2 | CHG-004 | `characters.work_id` 为 `ON DELETE CASCADE`；`faction_id` 暂不建 FK（CHG-006）；`reviewed_by` 无默认值；`character_names.value` 上限 100；补 `image_path` 占位与 0004 回滚说明 | F10 回写审查 C-14 的三处文档漂移与实际迁移 |
 | 2026-11-13 | v1.3 | CHG-005 | 0005 删除 `characters.image_path`；`chronicles` 增加 `version` 且 `owner_type` 仅 `character`；`media_assets.mime` 实际仅 jpeg/png、`byte_size` 1–10485760、`width/height` 为重编码后尺寸；软删除 CHECK 与活跃唯一索引 | F10 回写图片/大事记实现与迁移 v5 |
 | 2026-11-14 | v1.4 | CHG-006 | 0006 新建 `factions`（父级/首领 RESTRICT、命名 CHECK、活跃名称唯一、父级与回收站根索引）；`characters.faction_id` 补 `characters_faction_fk` 与部分索引；`chronicles.owner_type` 扩为 `character/faction`；补双 RESTRICT FK 环的永久删除顺序 | F10 回写势力树、首领与势力大事记实现及迁移 v6 |
+| 2026-11-14 | v1.5 | CHG-007 | 0007 新建 `locations`（自引用父级 RESTRICT、`type_text` 与简介 CHECK、软删 CHECK、`locations_active_name_uq`/`locations_active_parent_idx`/`locations_deleted_root_idx`）与 `character_locations`（人物 CASCADE、地点 RESTRICT、备注 ≤500、`char_loc_uq`）、`location_factions`（地点 CASCADE、势力 RESTRICT、备注 ≤500、`loc_fac_uq`）；关系表不加删除列，可见性由父实体过滤；势力永久删除前显式清理 `location_factions` | F10 回写地点垂直切片实现及迁移 v7 |
 
 > 已确认项：C-01~C-07 均已确认（2026-11-07）；D-02 检索方案已确认，V-01 待执行；P5b 修订项（RT-04/06/07/08/09/10/11/17/22）待复审。

@@ -1,6 +1,6 @@
 # PR/MR 描述 — CHG-007 地点树与人物/势力关系
 
-> 状态：已本地合并（2026-11-14）。本次变更直接在 `main` 上按阶段提交，提交范围 `f977bbd..fb86b99`（13 个提交，67 文件，+7371/−60）。**未创建远程 PR**；F9 仅做本地 Smoke 与推送 `origin/main`。
+> 状态：已合并并推送（2026-11-14，`origin/main` `ef26638`）。本次变更直接在 `main` 上按阶段提交，提交范围 `f977bbd..fb86b99`（13 个提交，67 文件，+7371/−60）。**未创建远程 PR**（单人本地仓库流程）。
 > 门禁：F3 自测 PASS、F4 独立审查 FAIL（2×S1 + 5×S2）、F5 修复复审 **PASS**、F6 全量回归 **86 passed**、F7 人工验收 **ACCEPT**（2026-11-14，项目负责人）。
 
 ## 1. 标题与目标
@@ -16,7 +16,7 @@
 - Spec：SPEC-LOC-001（地点树）、SPEC-LOC-002（人物-地点）、SPEC-LOC-003（地点-势力与删除阻断）、SPEC-WORK-001（作品隔离）、SPEC-PLAT-005（输入安全）
 - Page Spec：PG-06 地点树/列表、PG-07 地点详情、PG-12 回收站（地点根）
 - 契约：`project/api-contract.md` §3.5；`project/data-model.md` §3.5（F10 回写实际形态）
-- 变更文档：`changes/CHG-007-locations-tree/`（proposal、design、tasks、checklist、review、verification、acceptance）
+- 变更文档：`changes/archive/CHG-007-locations-tree/`（proposal、design、tasks、checklist、review、verification、acceptance）
 
 ## 3. 范围与非目标
 

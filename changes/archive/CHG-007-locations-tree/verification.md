@@ -92,6 +92,15 @@ F4 独立审查结果见 `review.md`；F5 修复项与复审结论在 `review.md
 - 代码回滚到 `d8cce2a` 可移除地点入口；已有数据从删除前快照恢复。
 - 回收站永久删除前生成 `trash_purge` 快照，失败即阻止。
 
-## 8. 结论
+## 8. F9 合并与 Smoke
 
-PASS。F3 自测、F4 独立审查（S1 全部修复）、F5 复审、F6 全量回归（86 passed）均通过，进入 F7 人工验收。
+| 步骤 | 命令/操作 | 结果 |
+|---|---|---|
+| 分支状态 | `git status -sb` | `main` 领先 `origin/main` 14 个提交；无分支合并冲突（本次直接在 `main` 分阶段提交） |
+| 迁移版本 | `docker compose exec -T db psql -U novel -d novel -c "select max(version_id) from goose_db_version;"` | `7` |
+| Smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1` | `SMOKE OK: version=0.1.0 db=ok cache=ok` |
+| 推送 | `git push origin main` | `f977bbd..ef26638  main -> main` |
+
+## 9. 结论
+
+PASS。F3 自测、F4 独立审查（S1 全部修复）、F5 复审、F6 全量回归（86 passed）、F7 人工验收（ACCEPT）、F9 Smoke 与推送均通过。

@@ -334,7 +334,7 @@
 
 ### 3.3 人物 Characters（FR-04~08）
 
-> 实现状态（2026-11-13，CHG-006）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根、主图上传/替换/移除、媒体读取与大事记，`faction_id` 接受真实势力（同作品、活跃，可清空）。`location_links` 仅接受空数组（CHG-007 开放）；`review_status` 只读返回，校对确认端点延后 CHG-011。人物删除已接入势力首领入向阻断，榜单席位待 CHG-008。
+> 实现状态（2026-11-14，CHG-007 更新）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根、主图上传/替换/移除、媒体读取、大事记与人物-地点关系。`faction_id` 接受真实势力（同作品、活跃，可清空）；`location_links` 接受真实地点（同作品、活跃，全量替换）；`review_status` 只读返回，校对确认端点延后 CHG-011。人物删除已接入势力首领入向阻断，榜单席位待 CHG-008。
 
 #### GET /api/v1/characters
 - Query：`work_id`（必填）、`q`、`faction_id`、`system_node_id`、`location_id`、`review_status`、`sort`、`page`、`page_size`。
@@ -352,22 +352,22 @@
     "description": null,
     "faction_id": null,
     "system_refs": [{ "category_id": "01H...", "node_id": "01H..." }],
-    "location_links": []
+    "location_links": [{ "location_id": "01H...", "note": "祖地" }]
   }
   ```
 - Response `201`：`Character`；`Location: /api/v1/characters/{id}`。
-- Validation：名称必填/≤200；别名/称号值 1–100 字符、每人至多 100 条（前端软上限 20）；`system_refs` 每类别至多 1，节点必须属于类别且类别启用；全部引用同作品；`faction_id` 可为 `null` 或同作品活跃势力（跨作品 `CROSS_WORK_REFERENCE`、已删 `PARENT_DELETED`、不存在 422）；`location_links` 非空 → 422。
+- Validation：名称必填/≤200；别名/称号值 1–100 字符、每人至多 100 条（前端软上限 20）；`system_refs` 每类别至多 1，节点必须属于类别且类别启用；全部引用同作品；`faction_id` 可为 `null` 或同作品活跃势力（跨作品 `CROSS_WORK_REFERENCE`、已删 `PARENT_DELETED`、不存在 422）；`location_links` 每项为 `{location_id, note}`，地点须同作品活跃，重复 `location_id` 去重保留最后备注，`note` ≤500。
 - Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CROSS_WORK_REFERENCE`、`CATEGORY_DISABLED`、`NODE_PARENT_MISMATCH`、`PARENT_DELETED`。
 
 #### GET /api/v1/characters/{id}
-- Response：`Character`（含 `names[]`、`system_refs[]`、`location_links[]`（当前恒空）、`image`（`MediaView|null`）、`version`）。
+- Response：`Character`（含 `names[]`、`system_refs[]`、`location_links:[{location_id,name,note}]`、`image`（`MediaView|null`）、`version`）。
 - `MediaView`：`{ asset_id, url, thumb_url, width, height, byte_size }`；无主图时 `image` 为 `null`。
 - Errors：`NOT_FOUND`。
 
 #### PATCH /api/v1/characters/{id}
 - Request：任意字段子集（`name`、`names`、`description`、`faction_id`、`system_refs`、`location_links`）；`If-Match` 必填。
 - Response：`Character`。
-- Behavior：`names` 为全量替换；`system_refs` 为全量替换；`location_links` 为全量替换（当前仅接受空数组）。
+- Behavior：`names` 为全量替换；`system_refs` 为全量替换；`location_links` 为全量替换（缺省不变，`[]` 清空）。
 - Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`VERSION_CONFLICT`、`CROSS_WORK_REFERENCE`、`CATEGORY_DISABLED`、`NODE_PARENT_MISMATCH`。
 
 #### DELETE /api/v1/characters/{id}
@@ -393,7 +393,7 @@
 
 ### 3.4 势力 Factions（FR-09~12）
 
-> 实现状态（2026-11-13，CHG-006）：已实现势力树 CRUD、搜索定位（命中 + 祖先）、首领与成员、移动环校验、删除/恢复/永久删除与势力大事记。`relations.locations` 恒为空数组（CHG-007 接入）；校对确认端点延后 CHG-011；`flat`/`page`/`page_size` 参数保留但列表始终返回当前作品扁平全量（≤1000）。
+> 实现状态（2026-11-14，CHG-007 更新）：已实现势力树 CRUD、搜索定位（命中 + 祖先）、首领与成员、移动环校验、删除/恢复/永久删除、势力大事记与地点关联。`relations.locations` 返回真实关系（含 `note`/`in_trash`）；校对确认端点延后 CHG-011；`flat`/`page`/`page_size` 参数保留但列表始终返回当前作品扁平全量（≤1000）。
 
 #### GET /api/v1/factions
 - Query：`work_id`（必填，缺失 422）、`q`、`parent_id`（`root` 表示顶层）、`review_status`；`flat`/`page`/`page_size` 被忽略。
@@ -408,8 +408,8 @@
 - Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CROSS_WORK_REFERENCE`、`PARENT_DELETED`。
 
 #### GET /api/v1/factions/{id}
-- Response：`FactionDetail` = `FactionSummary` + `relations`：`{ children:[{id,name,in_trash}], locations:[], chronicle_count, subtree_member_count }`。
-- `locations` 在 CHG-007 前恒为空数组；`subtree_member_count` 为整棵子树的活跃成员去重计数。
+- Response：`FactionDetail` = `FactionSummary` + `relations`：`{ children:[{id,name,in_trash}], locations:[{id,name,note,in_trash}], chronicle_count, subtree_member_count }`。
+- `locations` 为地点-势力关系（`in_trash=true` 表示地点在回收站）；`subtree_member_count` 为整棵子树的活跃成员去重计数。
 - Errors：`NOT_FOUND`。
 
 #### PATCH /api/v1/factions/{id}
@@ -430,39 +430,65 @@
 
 ### 3.5 地点 Locations（FR-13~16）
 
+> 实现状态（2026-11-14，CHG-007）：已实现地点树 CRUD、搜索定位（命中 + 全部祖先）、类型/待校对筛选、人物-地点与地点-势力关系、删除阻断与回收站/作品组生命周期。校对确认端点延后 CHG-011；`flat`/`page`/`page_size` 参数保留但列表始终返回当前作品扁平全量（≤1000），由前端组树。
+
 #### GET /api/v1/locations
-- Query：`work_id`、`q`、`parent_id`（`root`）、`type_text`、`flat`、`review_status`、`page`、`page_size`。
-- Response：`LocationSummary[]`。
+- Query：`work_id`（必填，缺失 422）、`q`、`parent_id`（`root` 表示顶层）、`type_text`、`review_status`；`flat`/`page`/`page_size` 被忽略。
+- Response：`{ "items": LocationSummary[], "total": number }`。
+- `LocationSummary`：`id, work_id, name, parent:{id,name}|null, type_text, description, review_status, reviewed_at, children_count, characters_count, factions_count, created_at, updated_at, version, deleted_at`。
+- `q`：按名称子串匹配（`name_key`），返回命中节点 **及其全部祖先**；`type_text` 为大小写不敏感等值匹配并同样补祖先；`review_status=pending` 只看待校对并补祖先；`parent_id=root` 只返回顶层。
 
 #### POST /api/v1/locations
 - Request：`{ "work_id", "name", "parent_id": null, "type_text": null, "description": null }`。
-- Response `201`：`Location`。
-- Errors：`NAME_CONFLICT`、`CYCLE_DETECTED`、`CROSS_WORK_REFERENCE`。
+- Response `201`：`LocationDetail`；`Location: /api/v1/locations/{id}`。
+- Validation：名称必填 1–200、`name_key=lower(trim(name))` 同作品活跃唯一；父级必须同作品且活跃；类型 ≤200、简介 ≤20,000（空串视为未填写）。
+- Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CROSS_WORK_REFERENCE`、`PARENT_DELETED`。
 
 #### GET /api/v1/locations/{id}
-- Response：`Location` + `relations`：`parent`、`children`、`characters`、`factions`。
+- Response：`LocationDetail` = `LocationSummary` + `relations`：
+  - `children: [{ id, name, type_text, characters_count, factions_count }]`
+  - `characters: [{ character_id, name, faction:{id,name,in_trash}|null, system_summary, image_thumb_url, note, in_trash }]`
+  - `factions: [{ faction_id, name, note, in_trash }]`
+- `in_trash=true` 表示引用方本身在回收站（仍计入删除阻断，但 `characters_count`/`factions_count` 只统计活跃）。
 - Errors：`NOT_FOUND`。
 
 #### PATCH /api/v1/locations/{id}
-- 字段：`name`、`parent_id`、`type_text`、`description`；`If-Match`。
-- Errors：`NAME_CONFLICT`、`CYCLE_DETECTED`、`VERSION_CONFLICT`。
+- Header：`If-Match: <version>` 必填（缺失 428）；版本不一致 → 409 `VERSION_CONFLICT`。
+- Request：`name`、`parent_id`、`type_text`、`description` 的任意子集；显式 `null` 表示清空（`parent_id` 移到顶层），缺省表示保持不变；未知字段 422。
+- 移动校验：目标父级不能是自身或后代（`CYCLE_DETECTED`）；同作品移动以事务级 advisory lock 串行化，父级读取加共享锁。
+- Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CYCLE_DETECTED`、`CROSS_WORK_REFERENCE`、`PARENT_DELETED`、`VERSION_CONFLICT`、`NOT_FOUND`。
 
 #### DELETE /api/v1/locations/{id}
-- 校验：存在下级地点 → `HAS_CHILDREN`（结构约束）；存在人物地点关系或地点-势力关系 → `REFERENCE_CONFLICT` 并返回引用清单（RT-05/RT-14 人工决策：阻止删除，不级联）；无引用 → 软删除。
-- Response：`{ "deleted": true, "undo_token": "…" }`。
+- Header：`If-Match: <version>` 必填（缺失 428）。
+- 校验（一次返回全部阻断项）：
+  - 有下级地点（含已软删子节点）→ `HAS_CHILDREN`，`details.items[]` 含 `id/name/entity_type/in_trash`，且同时包含人物/势力关系项（`entity_type`：`location_child`、`character_location`、`location_faction`）。
+  - 无下级但有人物/势力关系 → `REFERENCE_CONFLICT`，`details` 为引用项数组（`type=character_location|location_faction`），含 `in_trash`。
+  - 不级联、不静默解除任何关系。
+- Response：`{ "deleted": true, "id", "deleted_at", "undo_token": "…", "expires_at" }`（8 秒一次性撤销，恢复地点本身）。
+- Errors：`HAS_CHILDREN`、`REFERENCE_CONFLICT`、`ALREADY_DELETED`、`VERSION_CONFLICT`、`VALIDATION_ERROR`、`NOT_FOUND`。
 
 #### GET /api/v1/locations/{id}/characters
-- Response：`{ "items": [{ "character_id", "name", "note" }] }`。
+- Response：`{ "items": [{ "character_id", "name", "faction", "system_summary", "image_thumb_url", "note", "in_trash" }] }`。
 
 #### GET /api/v1/locations/{id}/factions
-- Response：`{ "items": [{ "faction_id", "name", "note" }] }`。
+- Response：`{ "items": [{ "faction_id", "name", "note", "in_trash" }] }`。
 
 #### POST /api/v1/locations/{id}/factions
 - Request：`{ "faction_id": "01H...", "note": null }`。
-- Response `201`；重复关联 `409 DUPLICATE_RELATION`。
-- DELETE /api/v1/locations/{id}/factions/{faction_id}：`204`。
+- Validation：势力必须同作品且活跃；备注 ≤500。
+- Response `201`：`{ "faction_id", "name", "note", "in_trash" }`；重复关联 `409 DUPLICATE_RELATION`。
+- Errors：`VALIDATION_ERROR`、`CROSS_WORK_REFERENCE`、`PARENT_DELETED`、`DUPLICATE_RELATION`。
 
-> 人物↔地点关系通过 `PATCH /characters/{id}` 的 `location_links` 全量替换维护，避免双入口（FR-14）。
+#### PATCH /api/v1/locations/{id}/factions/{faction_id}
+- Request：`{ "note": "宗门驻地"|null }`；仅更新备注，不改关系本体。
+- Response `200`：关系对象；不存在 `NOT_FOUND`。
+
+#### DELETE /api/v1/locations/{id}/factions/{faction_id}
+- Response `204`；不存在 `NOT_FOUND`。
+
+> 人物↔地点关系统一通过 `PATCH /characters/{id}` 的 `location_links` 全量替换维护（去重保留最后备注、备注 ≤500、地点须同作品活跃），避免双入口（FR-14）。
+
+> 回收站：`root_type=location` 支持列表（含父级名）、恢复、永久删除；父级仍在回收站时恢复返回 `PARENT_DELETED`。作品整组删除/恢复/清空覆盖 `locations`、`character_locations`、`location_factions`。
 
 ### 3.6 榜单 Rankings（FR-17~20）
 
@@ -794,3 +820,4 @@
 | 2026-11-11 | v1.2 | CHG-004 | `CharacterSummary` 增加 `names[]`/`version`；DELETE 人物要求 `If-Match`；`faction_id` 仅接受 `null`、`location_links` 仅接受空数组；别名/称号值上限 100；标注 `*/image` 未实现（CHG-005） | F10 回写人物 F1 裁决 D1/D2/D8 与实现差异 |
 | 2026-11-13 | v1.3 | CHG-005 | `Character.image` 改为 `MediaView|null`（含 `thumb_url`/`byte_size`）；图片端点生效并明确 MIME/像素/尺寸与错误码；媒体 `ETag`/304 与缓存头；大事记 `owner_type` 仅 `character`、`version` + `If-Match`、`{items:[]}` 包装、`root_type=chronicle` 保留不进回收站 | F10 回写图片与大事记最终实现 |
 | 2026-11-14 | v1.4 | CHG-006 | 势力 CRUD/成员/回收站契约落地：`GET /factions` 为 `{items,total}` 扁平全量（忽略 `flat`/`page`）、`q` 命中 + 祖先；`FactionSummary/Detail` 含 `parent/leader.in_trash`、`relations.subtree_member_count`；PATCH/DELETE 要求 `If-Match`（缺失 428）；members 返回 `{items,page,page_size,total}`；`HAS_CHILDREN.details.items[].in_trash`；`CYCLE_DETECTED`/`CROSS_WORK_REFERENCE` 统一 422；`owner_type` 扩为 `character/faction`（未知值 `VALIDATION_ERROR`）；回收站新增 `root_type=faction` 与永久删除活跃成员复核 | F10 回写势力与势力大事记实现及契约偏差 |
+| 2026-11-14 | v1.5 | CHG-007 | 地点契约落地：`GET /locations` 为 `{items,total}` 扁平全量（忽略 `flat`/`page`）+ `type_text` 筛选与祖先补齐；`LocationSummary/Detail` 含 `parent/type_text/children_count/characters_count/factions_count`、`relations.characters/factions` 含 `note`/`in_trash`；PATCH/DELETE 要求 `If-Match`；`DELETE /locations/{id}` 在下级存在时 `HAS_CHILDREN` 同时返回三类引用（`entity_type`）；无下级但有关系时 `REFERENCE_CONFLICT`；新增 `PATCH /locations/{id}/factions/{faction_id}`（仅备注）与 `DUPLICATE_RELATION`；人物 `location_links` 开放为 `{location_id,note}` 全量替换；`FactionDetail.relations.locations` 返回真实关系；回收站新增 `root_type=location` | F10 回写地点垂直切片实现 |

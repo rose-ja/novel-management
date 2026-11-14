@@ -46,7 +46,7 @@
 
 ## SPEC-FACTION-003 详情、关联展示与移动环校验
 
-- 状态：`implemented-partial`（CHG-006 交付详情、内联编辑、移动环校验与势力大事记；地点关联与双向跳转见 CHG-007，跨页关系验收见 CHG-012）
+- 状态：`implemented`（CHG-006 交付详情、内联编辑、移动环校验与势力大事记；CHG-007 补齐地点关联与双向跳转，2026-11-14 验收）
 - 来源：FR-11、FR-35；US-003、US-008；PG-05；API `GET/PATCH /api/v1/factions/{id}`；Data `factions.parent_id`、`location_factions`、`chronicles`；AC-04、AC-09、EX-18
 - 行为：
   - 详情展示名称、上级、下级分支、首领、成员、简介、关联地点、势力大事记。
@@ -61,7 +61,7 @@
   1. Given 势力关联地点与人物，When 打开详情，Then 地点/人物链接均可到达对应详情（AC-09）。
   2. Given 把父节点移动到自己的后代，When 保存，Then 阻止并提示「不能移动到自身或后代」（EX-18）。
   3. Given 两个标签页编辑同一势力，When 后保存者提交，Then `VERSION_CONFLICT` 提示且无覆盖（EX-07）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-13 — CHG-006 交付详情、内联编辑、环校验与势力大事记，状态转 `implemented-partial`（地点关系见 CHG-007）。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-13 — CHG-006 交付详情、内联编辑、环校验与势力大事记，状态转 `implemented-partial`（地点关系见 CHG-007）；2026-11-14 — CHG-007 补齐地点关联与双向跳转，状态转 `implemented`。
 
 ## SPEC-FACTION-004 势力删除与恢复约束
 
