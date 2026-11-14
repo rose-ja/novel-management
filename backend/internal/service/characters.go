@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -200,11 +201,19 @@ func (s *Characters) summaries(ctx context.Context, repo *repository.Characters,
 	if err != nil {
 		return nil, err
 	}
+	rankingRefs, rankingCounts, err := s.rankingBriefs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, item := range items {
 		views := namesByCharacter[item.ID]
 		if views == nil {
 			views = []model.CharacterNameView{}
+		}
+		rankings := rankingRefs[item.ID]
+		if rankings == nil {
+			rankings = []model.RankingRefView{}
 		}
 		var thumbURL *string
 		if image := images[item.ID]; image != nil {
@@ -218,6 +227,8 @@ func (s *Characters) summaries(ctx context.Context, repo *repository.Characters,
 			Faction:       factions[item.ID],
 			SystemSummary: summaryByCharacter[item.ID],
 			ImageThumbURL: thumbURL,
+			Rankings:      rankings,
+			RankingCount:  rankingCounts[item.ID],
 			ReviewStatus:  model.APIReviewStatus(item.ReviewStatus),
 			ReviewedAt:    item.ReviewedAt,
 			UpdatedAt:     item.UpdatedAt,
@@ -225,6 +236,26 @@ func (s *Characters) summaries(ctx context.Context, repo *repository.Characters,
 		})
 	}
 	return out, nil
+}
+
+// rankingBriefs 批量读取人物名次摘要（每人物最多两条 + 总数），供列表/详情/成员表回显。
+func (s *Characters) rankingBriefs(ctx context.Context, ids []string) (map[string][]model.RankingRefView, map[string]int, error) {
+	refs := make(map[string][]model.RankingRefView, len(ids))
+	counts := make(map[string]int, len(ids))
+	rows, err := repository.NewRankings(s.db).RankingBriefsByCharacters(ctx, ids, RankingDisplayLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, row := range rows {
+		refs[row.CharacterID] = append(refs[row.CharacterID], model.RankingRefView{
+			RankingID: row.RankingID,
+			Name:      row.Name,
+			SeatNo:    row.SeatNo,
+			Note:      row.Note,
+		})
+		counts[row.CharacterID] = row.Total
+	}
+	return refs, counts, nil
 }
 
 // factionBriefs 批量读取人物所属势力，避免列表 N+1。
@@ -313,6 +344,19 @@ func (s *Characters) Get(ctx context.Context, id string) (*model.CharacterDetail
 			})
 		}
 		detail.LocationLinks = views
+	}
+	rankingRows, err := repository.NewRankings(s.db).RankingBriefsByCharacters(ctx, []string{id}, model.MaxRankingSeats)
+	if err != nil {
+		return nil, err
+	}
+	detail.Rankings = make([]model.RankingRefView, 0, len(rankingRows))
+	for _, row := range rankingRows {
+		detail.Rankings = append(detail.Rankings, model.RankingRefView{
+			RankingID: row.RankingID,
+			Name:      row.Name,
+			SeatNo:    row.SeatNo,
+			Note:      row.Note,
+		})
 	}
 	return detail, nil
 }
@@ -605,7 +649,6 @@ func (s *Characters) Delete(ctx context.Context, id, ifMatch string) (*DeleteCha
 }
 
 // characterInboundReferences 汇总人物入向引用：势力首领（含回收站中的势力）与榜单席位。
-// 榜单在 CHG-008 接入。
 func characterInboundReferences(ctx context.Context, db *gorm.DB, id string) ([]model.ReferenceItem, error) {
 	leaders, err := repository.NewFactions(db).ListByLeader(ctx, id)
 	if err != nil {
@@ -621,6 +664,25 @@ func characterInboundReferences(ctx context.Context, db *gorm.DB, id string) ([]
 			Field:    "leader_character_id",
 			Value:    faction.Name,
 			InTrash:  faction.DeletedAt != nil,
+		})
+	}
+	// 席位引用不过滤榜单 deleted_at：回收站榜单同样阻止人物删除。
+	seats, err := repository.NewRankings(db).SeatsForCharacter(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	for _, seat := range seats {
+		if len(items) >= model.ReferenceListLimit {
+			break
+		}
+		name := seat.Name
+		items = append(items, model.ReferenceItem{
+			Type:     "ranking_seat",
+			EntityID: seat.RankingID,
+			Name:     &name,
+			Field:    "seat_no",
+			Value:    strconv.Itoa(seat.SeatNo),
+			InTrash:  seat.InTrash,
 		})
 	}
 	return items, nil

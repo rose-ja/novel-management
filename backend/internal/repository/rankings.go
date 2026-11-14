@@ -52,6 +52,32 @@ type CharacterRankingBrief struct {
 	Total       int     `gorm:"column:total"`
 }
 
+// RankingSeatCharacterRow 是恢复榜单时的席位人物校验行。
+type RankingSeatCharacterRow struct {
+	SeatNo      int     `gorm:"column:seat_no"`
+	CharacterID string  `gorm:"column:character_id"`
+	Name        *string `gorm:"column:name"`
+	InTrash     bool    `gorm:"column:in_trash"`
+}
+
+// SeatsWithCharacters 返回榜单全部已占席位的所属人物状态（含缺失与回收站）。
+func (r *Rankings) SeatsWithCharacters(ctx context.Context, rankingID string) ([]RankingSeatCharacterRow, error) {
+	var rows []RankingSeatCharacterRow
+	err := r.DB.WithContext(ctx).Raw(`
+		SELECT rs.seat_no, rs.character_id, c.name, (c.deleted_at IS NOT NULL) AS in_trash
+		FROM ranking_seats rs
+		LEFT JOIN characters c ON c.id = rs.character_id
+		WHERE rs.ranking_id = ? AND rs.character_id IS NOT NULL
+		ORDER BY rs.seat_no ASC`, rankingID).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	if rows == nil {
+		rows = []RankingSeatCharacterRow{}
+	}
+	return rows, nil
+}
+
 // Get 返回未删除榜单。
 func (r *Rankings) Get(ctx context.Context, id string) (*model.Ranking, error) {
 	return r.get(ctx, "id = ? AND deleted_at IS NULL", id)

@@ -45,6 +45,13 @@ type characterPayload struct {
 	ReviewStatus string    `json:"review_status"`
 	Version      int       `json:"version"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	Rankings     []struct {
+		RankingID string  `json:"ranking_id"`
+		Name      string  `json:"name"`
+		SeatNo    int     `json:"seat_no"`
+		Note      *string `json:"note"`
+	} `json:"rankings"`
+	RankingCount int `json:"ranking_count"`
 }
 
 type characterListPayload struct {

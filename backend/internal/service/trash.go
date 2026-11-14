@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -73,7 +74,7 @@ type PurgeAllResult struct {
 func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (*TrashPage, error) {
 	page, pageSize = normalizePage(page, pageSize)
 	switch rootType {
-	case "", RootTypeWork, RootTypeSystemCategory, RootTypeSystemNode, RootTypeCharacter, RootTypeFaction, RootTypeLocation:
+	case "", RootTypeWork, RootTypeSystemCategory, RootTypeSystemNode, RootTypeCharacter, RootTypeFaction, RootTypeLocation, RootTypeRanking:
 	default:
 		return nil, model.ErrInvalidRootType
 	}
@@ -88,6 +89,7 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 	characters := []model.Character{}
 	factions := []model.Faction{}
 	locations := []model.Location{}
+	rankings := []model.Ranking{}
 	var err error
 	if rootType == "" || rootType == RootTypeWork {
 		if works, err = worksRepo.ListDeletedRoots(ctx); err != nil {
@@ -116,6 +118,11 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 	}
 	if rootType == "" || rootType == RootTypeLocation {
 		if locations, err = repository.NewLocations(s.db).ListDeletedRoots(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if rootType == "" || rootType == RootTypeRanking {
+		if rankings, err = repository.NewRankings(s.db).ListDeletedRoots(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -161,7 +168,7 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 		}
 	}
 
-	items := make([]TrashItem, 0, len(works)+len(categories)+len(nodes)+len(characters)+len(factions)+len(locations))
+	items := make([]TrashItem, 0, len(works)+len(categories)+len(nodes)+len(characters)+len(factions)+len(locations)+len(rankings))
 	for _, work := range works {
 		items = append(items, TrashItem{
 			RootType:      RootTypeWork,
@@ -259,6 +266,21 @@ func (s *Trash) List(ctx context.Context, rootType string, page, pageSize int) (
 		})
 	}
 
+	for _, ranking := range rankings {
+		var parent *string
+		if name, err := worksRepo.Name(ctx, ranking.WorkID); err == nil {
+			parent = &name
+		}
+		items = append(items, TrashItem{
+			RootType:      RootTypeRanking,
+			RootID:        ranking.ID,
+			Name:          ranking.Name,
+			ParentName:    parent,
+			DeletedAt:     ranking.DeletedAt,
+			AffectedCount: 1,
+		})
+	}
+
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].DeletedAt.Equal(*items[j].DeletedAt) {
 			return items[i].RootID > items[j].RootID
@@ -318,6 +340,12 @@ func (s *Trash) Restore(ctx context.Context, rootType, rootID string, in Restore
 		run = func(tx *gorm.DB) error {
 			var err error
 			result, err = s.restoreLocation(ctx, tx, rootID, in, now)
+			return err
+		}
+	case RootTypeRanking:
+		run = func(tx *gorm.DB) error {
+			var err error
+			result, err = s.restoreRanking(ctx, tx, rootID, in, now)
 			return err
 		}
 	default:
@@ -755,6 +783,87 @@ func (s *Trash) restoreLocation(ctx context.Context, tx *gorm.DB, rootID string,
 	}, nil
 }
 
+// restoreRanking 恢复榜单根；作品在线、同名与席位人物仍可用时才允许恢复。
+func (s *Trash) restoreRanking(ctx context.Context, tx *gorm.DB, rootID string, in RestoreInput, now time.Time) (*RestoreResult, error) {
+	repo := repository.NewRankings(tx)
+	item, err := repo.GetDeleted(ctx, rootID)
+	if err != nil {
+		return nil, alreadyDeleted(err)
+	}
+	if _, err := repository.NewWorks(tx).GetForUpdate(ctx, item.WorkID); err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, model.ErrParentDeleted
+		}
+		return nil, err
+	}
+
+	name, nameKey := item.Name, item.NameKey
+	if in.NewName != nil {
+		name, nameKey, err = model.NormalizeRankingName(*in.NewName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	taken, err := repo.NameTaken(ctx, item.WorkID, nameKey, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	if taken {
+		return nil, &model.RestoreConflictError{Items: []model.ConflictItem{{
+			ID:         item.ID,
+			Name:       name,
+			EntityType: RootTypeRanking,
+		}}}
+	}
+	if err := rankingSeatReferenceMissing(ctx, tx, item.ID); err != nil {
+		return nil, err
+	}
+
+	if name != item.Name || nameKey != item.NameKey {
+		if err := repo.RenameDeleted(ctx, item.ID, name, nameKey, now); err != nil {
+			return nil, alreadyDeleted(err)
+		}
+	}
+	if err := repo.Restore(ctx, item.ID, now); err != nil {
+		return nil, alreadyDeleted(err)
+	}
+	return &RestoreResult{
+		RootType:      RootTypeRanking,
+		RootID:        item.ID,
+		Name:          name,
+		RestoredCount: 1,
+	}, nil
+}
+
+// rankingSeatReferenceMissing 校验席位人物仍存在且不在回收站，否则返回 REFERENCE_MISSING。
+func rankingSeatReferenceMissing(ctx context.Context, tx *gorm.DB, rankingID string) error {
+	rows, err := repository.NewRankings(tx).SeatsWithCharacters(ctx, rankingID)
+	if err != nil {
+		return err
+	}
+	items := make([]model.ReferenceItem, 0, len(rows))
+	for _, row := range rows {
+		if row.Name != nil && !row.InTrash {
+			continue
+		}
+		if len(items) >= model.ReferenceListLimit {
+			break
+		}
+		items = append(items, model.ReferenceItem{
+			Type:     "character",
+			EntityID: row.CharacterID,
+			Name:     row.Name,
+			Field:    "seat_no",
+			Value:    strconv.Itoa(row.SeatNo),
+			InTrash:  row.InTrash,
+		})
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return &model.ReferenceMissingError{Items: items}
+}
+
 // Purge 永久删除单个根；先落 trash_purge 快照，失败即阻止；
 // 引用检查与物理删除共用同一事务，避免 TOCTOU。
 func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
@@ -837,6 +946,14 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 		}
 		var paths []string
 		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			// 席位外键为 RESTRICT，永久删除前复核引用，避免直接 500。
+			refs, err := characterInboundReferences(ctx, tx, rootID)
+			if err != nil {
+				return err
+			}
+			if len(refs) > 0 {
+				return &model.ReferenceConflictError{Message: "人物仍被其他数据引用，无法删除", Items: refs}
+			}
 			rows, mediaPaths, err := repository.NewCharacters(tx).Purge(ctx, rootID)
 			if err != nil {
 				return err
@@ -930,6 +1047,23 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			}
 			return nil
 		})
+	case RootTypeRanking:
+		if _, err := repository.NewRankings(s.db).GetDeleted(ctx, rootID); err != nil {
+			return alreadyDeleted(err)
+		}
+		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
+			return err
+		}
+		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			rows, err := repository.NewRankings(tx).Purge(ctx, rootID)
+			if err != nil {
+				return err
+			}
+			if rows == 0 {
+				return model.ErrAlreadyDeleted
+			}
+			return nil
+		})
 	default:
 		return model.ErrInvalidRootType
 	}
@@ -966,11 +1100,15 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 	if err != nil {
 		return nil, err
 	}
-	if len(works)+len(categories)+len(nodes)+len(characters)+len(factions)+len(locations) == 0 {
+	rankings, err := repository.NewRankings(s.db).ListDeletedRoots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(works)+len(categories)+len(nodes)+len(characters)+len(factions)+len(locations)+len(rankings) == 0 {
 		return &PurgeAllResult{Purged: 0}, nil
 	}
 	nodes = orderNodeRootsForPurge(nodes)
-	total := int64(len(works) + len(categories) + len(nodes) + len(characters) + len(factions) + len(locations))
+	total := int64(len(works) + len(categories) + len(nodes) + len(characters) + len(factions) + len(locations) + len(rankings))
 
 	// 先检查后快照：引用命中即中止，不落快照。
 	references, err := s.collectReferences(ctx, system, categories, nodes)
@@ -1012,6 +1150,13 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 		}
 		for _, node := range nodes {
 			if _, err := txSystem.PurgeNode(ctx, node.ID); err != nil {
+				return err
+			}
+		}
+		// 榜单先于人物清理：席位对人物为 RESTRICT，先删席位再删榜单。
+		txRankings := repository.NewRankings(tx)
+		for _, ranking := range rankings {
+			if _, err := txRankings.Purge(ctx, ranking.ID); err != nil {
 				return err
 			}
 		}
@@ -1343,6 +1488,9 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 				return alreadyDeleted(err)
 			}
 			return nil
+		case RootTypeRanking:
+			_, err := s.restoreRanking(ctx, tx, record.RootID, RestoreInput{}, now)
+			return err
 		default:
 			return model.ErrAlreadyDeleted
 		}

@@ -179,6 +179,17 @@ func (r *Works) SoftDeleteGroup(ctx context.Context, id, action string, now time
 			}).Error; err != nil {
 			return err
 		}
+		if err := tx.Table("rankings").
+			Where("work_id = ? AND deleted_at IS NULL", id).
+			Updates(map[string]any{
+				"deleted_at":        now,
+				"deleted_root_id":   id,
+				"deleted_by_action": action,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
 		return NewChronicles(tx).MarkWorkDeleted(ctx, id, id, model.ActionWorkDelete, now)
 	})
 }
@@ -251,6 +262,17 @@ func (r *Works) RestoreGroup(ctx context.Context, id string, now time.Time) erro
 			return err
 		}
 		if err := tx.Table("locations").
+			Where("work_id = ? AND deleted_root_id = ?", id, id).
+			Updates(map[string]any{
+				"deleted_at":        nil,
+				"deleted_root_id":   nil,
+				"deleted_by_action": nil,
+				"version":           gorm.Expr("version + 1"),
+				"updated_at":        now,
+			}).Error; err != nil {
+			return err
+		}
+		if err := tx.Table("rankings").
 			Where("work_id = ? AND deleted_root_id = ?", id, id).
 			Updates(map[string]any{
 				"deleted_at":        nil,
@@ -394,6 +416,13 @@ func (r *Works) PurgeAllDeleted(ctx context.Context) (int64, []string, error) {
 		if err := tx.Exec("DELETE FROM character_names WHERE " + scope).Error; err != nil {
 			return err
 		}
+		// 席位对人物为 RESTRICT：清理回收站作品的榜单与席位。
+		if err := tx.Exec("DELETE FROM ranking_seats WHERE " + scope).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM rankings WHERE " + scope).Error; err != nil {
+			return err
+		}
 		// 势力首领外键同样 RESTRICT；先解除引用，再删人物，最后删势力。
 		if err := tx.Exec("UPDATE factions SET leader_character_id = NULL WHERE " + scope).Error; err != nil {
 			return err
@@ -441,6 +470,13 @@ func purgeWorkChildren(ctx context.Context, tx *gorm.DB, workID string) ([]strin
 		return nil, err
 	}
 	if err := tx.WithContext(ctx).Exec("DELETE FROM character_names WHERE work_id = ?", workID).Error; err != nil {
+		return nil, err
+	}
+	// 席位对人物为 RESTRICT：必须在删除人物前清理榜单与席位。
+	if err := tx.WithContext(ctx).Exec("DELETE FROM ranking_seats WHERE work_id = ?", workID).Error; err != nil {
+		return nil, err
+	}
+	if err := tx.WithContext(ctx).Exec("DELETE FROM rankings WHERE work_id = ?", workID).Error; err != nil {
 		return nil, err
 	}
 	// 势力首领外键同样 RESTRICT；先解除引用，再删人物，最后删势力。

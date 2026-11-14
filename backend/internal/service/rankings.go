@@ -22,6 +22,8 @@ const (
 	RankingsMaxSeatPageSize     = 100
 	// RankingTopSeatLimit 是列表页前三席展示数量。
 	RankingTopSeatLimit = 3
+	// RankingDisplayLimit 是人物列表/成员表最多回显的榜单名次数量。
+	RankingDisplayLimit = 2
 )
 
 // Rankings 负责榜单 CRUD、固定席位与容量调整。
