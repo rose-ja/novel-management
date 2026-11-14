@@ -89,7 +89,7 @@ export async function listWorks(request: APIRequestContext): Promise<WorkJson[]>
 
 export async function listTrash(
   request: APIRequestContext,
-  rootType?: "work" | "system_category" | "system_node" | "character" | "faction",
+  rootType?: "work" | "system_category" | "system_node" | "character" | "faction" | "location",
 ): Promise<TrashItemJson[]> {
   const search = new URLSearchParams({ page: "1", page_size: "100" });
   if (rootType) search.set("root_type", rootType);
@@ -221,6 +221,7 @@ export type CharacterJson = {
   }[];
   review_status: "confirmed" | "pending";
   version: number;
+  location_links?: { location_id: string; name: string; note: string | null }[];
 };
 
 export type CreateCharacterOptions = {
@@ -228,6 +229,7 @@ export type CreateCharacterOptions = {
   description?: string | null;
   factionID?: string | null;
   systemRefs?: { category_id: string; node_id: string }[];
+  locationLinks?: { locationID: string; note?: string | null }[];
 };
 
 export async function createCharacter(
@@ -244,7 +246,10 @@ export async function createCharacter(
       description: options.description ?? null,
       faction_id: options.factionID ?? null,
       system_refs: options.systemRefs ?? [],
-      location_links: [],
+      location_links: (options.locationLinks ?? []).map((link) => ({
+        location_id: link.locationID,
+        note: link.note ?? null,
+      })),
     },
     headers: JSON_HEADERS,
   });
@@ -352,6 +357,72 @@ export async function deleteFaction(
     headers: { ...JSON_HEADERS, "If-Match": `"${faction.version}"` },
   });
   await ensure(res, `删除势力「${faction.id}」`);
+  return (await res.json()) as { undo_token: string };
+}
+
+export type LocationJson = {
+  id: string;
+  work_id: string;
+  name: string;
+  parent: { id: string; name: string } | null;
+  type_text: string | null;
+  description: string | null;
+  review_status: "confirmed" | "pending";
+  children_count: number;
+  characters_count: number;
+  factions_count: number;
+  version: number;
+  relations?: {
+    children: { id: string; name: string }[];
+    characters: { character_id: string; name: string; note: string | null }[];
+    factions: { faction_id: string; name: string; note: string | null }[];
+  };
+};
+
+export type CreateLocationOptions = {
+  parentID?: string | null;
+  typeText?: string | null;
+  description?: string | null;
+};
+
+export async function createLocation(
+  request: APIRequestContext,
+  workID: string,
+  name: string,
+  options: CreateLocationOptions = {},
+): Promise<LocationJson> {
+  const res = await request.post("/api/v1/locations", {
+    data: {
+      work_id: workID,
+      name,
+      parent_id: options.parentID ?? null,
+      type_text: options.typeText ?? null,
+      description: options.description ?? null,
+    },
+    headers: JSON_HEADERS,
+  });
+  await ensure(res, `创建地点「${name}」`);
+  return (await res.json()) as LocationJson;
+}
+
+export async function listLocations(
+  request: APIRequestContext,
+  workID: string,
+): Promise<LocationJson[]> {
+  const res = await request.get(`/api/v1/locations?work_id=${encodeURIComponent(workID)}`);
+  await ensure(res, "读取地点列表");
+  const body = (await res.json()) as { items: LocationJson[] };
+  return body.items;
+}
+
+export async function deleteLocation(
+  request: APIRequestContext,
+  location: Pick<LocationJson, "id" | "version">,
+): Promise<{ undo_token: string }> {
+  const res = await request.delete(`/api/v1/locations/${location.id}`, {
+    headers: { ...JSON_HEADERS, "If-Match": `"${location.version}"` },
+  });
+  await ensure(res, `删除地点「${location.id}」`);
   return (await res.json()) as { undo_token: string };
 }
 

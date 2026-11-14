@@ -217,7 +217,11 @@ export function LocationRelations({
               <button
                 type="button"
                 className="ui-icon-button ui-icon-button--sm"
-                aria-label={messages.locationRelationRemove(row.characterID || "—")}
+                aria-label={messages.locationRelationRemove(
+                  characterOptions.find((option) => option.value === row.characterID)?.label ??
+                    row.characterID ??
+                    "—",
+                )}
                 disabled={submitting}
                 onClick={() =>
                   setCharacterRows((current) => current.filter((_, position) => position !== index))
@@ -320,7 +324,11 @@ export function LocationRelations({
               <button
                 type="button"
                 className="ui-icon-button ui-icon-button--sm"
-                aria-label={messages.locationRelationRemove(row.factionID || "—")}
+                aria-label={messages.locationRelationRemove(
+                  factionOptions.find((option) => option.value === row.factionID)?.label ??
+                    row.factionID ??
+                    "—",
+                )}
                 disabled={submitting}
                 onClick={() =>
                   setFactionRows((current) => current.filter((_, position) => position !== index))

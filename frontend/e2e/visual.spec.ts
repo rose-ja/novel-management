@@ -4,6 +4,7 @@ import {
   cleanupE2E,
   createCharacter,
   createFaction,
+  createLocation,
   createSystemCategory,
   createSystemNode,
   createWork,
@@ -187,6 +188,68 @@ test.describe("视觉基线 · 势力", () => {
     await expect(page.getByRole("heading", { name: "E2E-视觉妖族", level: 1 })).toBeVisible();
 
     await expect(page).toHaveScreenshot("faction-detail-1280.png", {
+      fullPage: true,
+      mask: [page.locator(".character-archive-meta")],
+    });
+  });
+});
+
+test.describe("视觉基线 · 地点", () => {
+  const WORK_NAME = "E2E-视觉地点";
+
+  test.beforeEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  for (const { width, height } of [
+    { width: 1280, height: 900 },
+    { width: 1024, height: 800 },
+  ]) {
+    test(`地点树 ${width}`, async ({ page, request }) => {
+      const work = await createWork(request, WORK_NAME);
+      const root = await createLocation(request, work.id, "E2E-视觉东荒", { typeText: "星域" });
+      await createLocation(request, work.id, "E2E-视觉青丘山", {
+        parentID: root.id,
+        typeText: "星城",
+      });
+      await createLocation(request, work.id, "E2E-视觉西洲", { typeText: "星域" });
+
+      await page.setViewportSize({ width, height });
+      await page.goto("/locations");
+      await expect(page.getByRole("heading", { name: "地点", level: 1 })).toBeVisible();
+      await expect(page.locator(".location-tree__row")).toHaveCount(3);
+
+      await expect(page).toHaveScreenshot(`locations-${width}.png`, { fullPage: true });
+    });
+  }
+
+  test("地点详情 1280", async ({ page, request }) => {
+    const work = await createWork(request, WORK_NAME);
+    const root = await createLocation(request, work.id, "E2E-视觉东荒", {
+      typeText: "星域",
+      description: "E2E 固定地点简介，用于视觉基线。",
+    });
+    const child = await createLocation(request, work.id, "E2E-视觉青丘山", {
+      parentID: root.id,
+      typeText: "星城",
+    });
+    const faction = await createFaction(request, work.id, "E2E-视觉狐族");
+    await createCharacter(request, work.id, "E2E-视觉涂山氏", {
+      locationLinks: [{ locationID: child.id, note: "出生地" }],
+    });
+    await request.post(`/api/v1/locations/${child.id}/factions`, {
+      data: { faction_id: faction.id, note: "狐族驻地" },
+    });
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/locations?id=${child.id}`);
+    await expect(page.getByRole("heading", { name: "E2E-视觉青丘山", level: 1 })).toBeVisible();
+
+    await expect(page).toHaveScreenshot("location-detail-1280.png", {
       fullPage: true,
       mask: [page.locator(".character-archive-meta")],
     });

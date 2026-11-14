@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   cleanupE2E,
+  createLocation,
   createSystemCategory,
   createSystemNode,
   createWork,
@@ -29,6 +30,7 @@ test.describe("键盘可达", () => {
     const system = nav.getByRole("link", { name: "体系" });
     const characters = nav.getByRole("link", { name: "人物" });
     const factions = nav.getByRole("link", { name: "势力" });
+    const locations = nav.getByRole("link", { name: "地点" });
     const trash = nav.getByRole("link", { name: "回收站" });
     const settings = nav.getByRole("link", { name: "设置" });
 
@@ -40,6 +42,8 @@ test.describe("键盘可达", () => {
     await expect(characters).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(factions).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(locations).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(trash).toBeFocused();
     await page.keyboard.press("Tab");
@@ -72,7 +76,35 @@ test.describe("键盘可达", () => {
   });
 });
 
-/** 体系页键盘：类别 listbox 与两级节点树（PG-10 §10）。 */
+/** 地点树键盘：展开/收起按钮可用 Enter/空格切换，层级不丢失。 */
+test.describe("地点树键盘", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test("展开按钮可键盘切换且下级随之显隐", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("键盘地点"));
+    const root = await createLocation(request, work.id, uniqueName("键盘东荒"));
+    const child = await createLocation(request, work.id, uniqueName("键盘青丘"), {
+      parentID: root.id,
+    });
+
+    await page.goto("/locations");
+    await expect(page.getByRole("heading", { name: "地点", level: 1 })).toBeVisible();
+    const toggle = page.getByRole("button", { name: `收起地点：${root.name}` });
+    await toggle.focus();
+    await expect(toggle).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: `展开地点：${root.name}` })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await expect(page.getByRole("link", { name: child.name })).toHaveCount(0);
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("link", { name: child.name })).toBeVisible();
+  });
+});
+
 test.describe("体系页键盘", () => {
   test.afterEach(async ({ request }) => {
     await cleanupE2E(request);
