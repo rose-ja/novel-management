@@ -6,6 +6,7 @@ import {
   CharacterFormFields,
   createCharacterFormValues,
   toCharacterFactionID,
+  toCharacterLocationLinks,
   toCharacterNameInputs,
   toCharacterSystemRefs,
   useCharacterSystemFields,
@@ -18,7 +19,9 @@ import { useToast } from "@/components/ui/toast";
 import { createCharacter } from "@/lib/api/characters";
 import { toUserMessage } from "@/lib/api/errors";
 import { listFactions } from "@/lib/api/factions";
+import { listLocations } from "@/lib/api/locations";
 import { toFactionOptions } from "@/lib/factions-tree";
+import { toLocationOptions } from "@/lib/locations-tree";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 
@@ -36,6 +39,7 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
   const { categories, status: systemStatus } = useCharacterSystemFields(workID, open);
   const [values, setValues] = useState(createCharacterFormValues);
   const [factionOptions, setFactionOptions] = useState<{ value: string; label: string }[]>([]);
+  const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const resetGuard = guard.reset;
@@ -50,12 +54,18 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
   useEffect(() => {
     if (!open) return;
     let active = true;
-    listFactions({ workID })
-      .then((result) => {
-        if (active) setFactionOptions(toFactionOptions(result.items));
+    Promise.all([listFactions({ workID }), listLocations({ workID })])
+      .then(([factions, locations]) => {
+        if (!active) return;
+        setFactionOptions(toFactionOptions(factions.items));
+        setLocationOptions(toLocationOptions(locations.items));
       })
       .catch(() => {
-        if (active) setFactionOptions([]);
+        if (!active) {
+          return;
+        }
+        setFactionOptions([]);
+        setLocationOptions([]);
       });
     return () => {
       active = false;
@@ -82,6 +92,7 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
         description: values.description.trim() ? values.description : null,
         factionID: toCharacterFactionID(values),
         systemRefs: toCharacterSystemRefs(values),
+        locationLinks: toCharacterLocationLinks(values),
       });
       guard.reset();
       onCreated({ id: created.id, name: created.name });
@@ -130,6 +141,7 @@ export function CharacterCreateDrawer({ open, workID, onClose, onCreated }: Char
           categories={categories}
           systemStatus={systemStatus}
           factionOptions={factionOptions}
+          locationOptions={locationOptions}
         />
       </Drawer>
       <Dialog

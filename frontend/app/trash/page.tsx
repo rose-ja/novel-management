@@ -35,6 +35,7 @@ const typeOptions = [
   { value: "system_node", label: messages.trashTypeSystemNode },
   { value: "character", label: messages.trashTypeCharacter },
   { value: "faction", label: messages.trashTypeFaction },
+  { value: "location", label: messages.trashTypeLocation },
 ];
 
 export default function TrashPage() {

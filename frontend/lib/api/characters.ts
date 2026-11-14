@@ -30,7 +30,7 @@ export type CharacterSystemRef = {
   node: CharacterNodeRef;
 };
 
-/** 地点关联占位；CHG-007 前恒为空数组。 */
+/** 人物详情的地点关联；CHG-007 起返回真实关系。 */
 export type CharacterLocationLink = {
   location_id: string;
   name: string;
@@ -94,6 +94,7 @@ export type ListCharactersOptions = {
   q?: string;
   systemNodeID?: string;
   factionID?: string;
+  locationID?: string;
   reviewStatus?: ReviewStatus;
   sort?: CharacterSort;
   page?: number;
@@ -154,6 +155,7 @@ function listQuery(options: ListCharactersOptions): string {
   if (options.q) search.set("q", options.q);
   if (options.systemNodeID) search.set("system_node_id", options.systemNodeID);
   if (options.factionID) search.set("faction_id", options.factionID);
+  if (options.locationID) search.set("location_id", options.locationID);
   if (options.reviewStatus) search.set("review_status", options.reviewStatus);
   if (options.sort) search.set("sort", options.sort);
   if (options.page) search.set("page", String(options.page));

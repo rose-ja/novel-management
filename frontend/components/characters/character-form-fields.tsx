@@ -7,7 +7,12 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { CharacterNameInput, CharacterNameKind, CharacterSystemRefInput } from "@/lib/api/characters";
+import type {
+  CharacterLocationLinkInput,
+  CharacterNameInput,
+  CharacterNameKind,
+  CharacterSystemRefInput,
+} from "@/lib/api/characters";
 import {
   listCategories,
   listNodes,
@@ -15,6 +20,11 @@ import {
   type SystemNode,
 } from "@/lib/api/system";
 import { messages } from "@/lib/messages";
+
+export type CharacterLocationLinkValue = {
+  locationID: string;
+  note: string;
+};
 
 export type CharacterFormValues = {
   name: string;
@@ -24,6 +34,8 @@ export type CharacterFormValues = {
   factionID: string;
   /** categoryID → nodeID；空字符串表示未选择。 */
   systemRefs: Record<string, string>;
+  /** 关联地点与备注；空 locationID 的行在提交时丢弃。 */
+  locationLinks: CharacterLocationLinkValue[];
 };
 
 export type CharacterCategoryField = {
@@ -37,7 +49,7 @@ export type CharacterCategoryField = {
 export type SystemFieldsStatus = "idle" | "loading" | "ready" | "error";
 
 export function createCharacterFormValues(): CharacterFormValues {
-  return { name: "", names: [], description: "", factionID: "", systemRefs: {} };
+  return { name: "", names: [], description: "", factionID: "", systemRefs: {}, locationLinks: [] };
 }
 
 /** 把节点树压平为下拉选项；子节点显示「父 · 子」。 */
@@ -117,6 +129,24 @@ export function toCharacterFactionID(values: CharacterFormValues): string | null
   return id === "" ? null : id;
 }
 
+/** 提交时只保留已选择的地点，重复地点保留最后一条备注。 */
+export function toCharacterLocationLinks(values: CharacterFormValues): CharacterLocationLinkInput[] {
+  const out: CharacterLocationLinkInput[] = [];
+  const index = new Map<string, number>();
+  for (const link of values.locationLinks) {
+    const locationID = link.locationID.trim();
+    if (!locationID) continue;
+    const note = link.note.trim() || null;
+    if (index.has(locationID)) {
+      out[index.get(locationID) as number] = { location_id: locationID, note };
+    } else {
+      index.set(locationID, out.length);
+      out.push({ location_id: locationID, note });
+    }
+  }
+  return out;
+}
+
 export type CharacterFormFieldsProps = {
   values: CharacterFormValues;
   onChange: (next: CharacterFormValues) => void;
@@ -125,6 +155,8 @@ export type CharacterFormFieldsProps = {
   systemStatus: SystemFieldsStatus;
   /** 当前作品的活跃势力，供所属势力下拉使用。 */
   factionOptions?: { value: string; label: string }[];
+  /** 当前作品的活跃地点，供关联地点下拉使用。 */
+  locationOptions?: { value: string; label: string }[];
 };
 
 /** 创建与编辑共用的人物字段；体系字段按当前作品的启用类别动态渲染。 */
@@ -135,6 +167,7 @@ export function CharacterFormFields({
   categories,
   systemStatus,
   factionOptions = [],
+  locationOptions = [],
 }: CharacterFormFieldsProps) {
   function updateName(index: number, patch: Partial<CharacterNameInput>) {
     onChange({
@@ -248,6 +281,89 @@ export function CharacterFormFields({
           onChange={(event) => onChange({ ...values, factionID: event.target.value })}
         />
       </FormField>
+
+      <section className="character-form-section" aria-labelledby="character-locations-title">
+        <h3 id="character-locations-title" className="character-form-section__title">
+          {messages.characterLocationsSection}
+        </h3>
+        {values.locationLinks.length === 0 ? (
+          <p className="character-form-note">{messages.characterLocationsEmptyHint}</p>
+        ) : (
+          <div className="character-location-rows">
+            {values.locationLinks.map((link, index) => (
+              <div className="character-location-row" key={index}>
+                <Select
+                  aria-label={messages.characterLocationSelectAria(index + 1)}
+                  value={link.locationID}
+                  placeholder={messages.characterLocationPlaceholder}
+                  disabled={disabled}
+                  options={locationOptions.filter(
+                    (option) =>
+                      option.value === link.locationID ||
+                      !values.locationLinks.some(
+                        (item, position) => position !== index && item.locationID === option.value,
+                      ),
+                  )}
+                  onChange={(event) =>
+                    onChange({
+                      ...values,
+                      locationLinks: values.locationLinks.map((item, position) =>
+                        position === index ? { ...item, locationID: event.target.value } : item,
+                      ),
+                    })
+                  }
+                />
+                <Input
+                  aria-label={messages.characterLocationNoteAria(index + 1)}
+                  value={link.note}
+                  maxLength={500}
+                  placeholder={messages.characterLocationNotePlaceholder}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    onChange({
+                      ...values,
+                      locationLinks: values.locationLinks.map((item, position) =>
+                        position === index ? { ...item, note: event.target.value } : item,
+                      ),
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  className="ui-icon-button ui-icon-button--sm"
+                  aria-label={messages.characterLocationRemove(index + 1)}
+                  disabled={disabled}
+                  onClick={() =>
+                    onChange({
+                      ...values,
+                      locationLinks: values.locationLinks.filter((_, position) => position !== index),
+                    })
+                  }
+                >
+                  <X aria-hidden="true" size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="character-names-actions">
+          <button
+            type="button"
+            className="ui-button ui-button--secondary ui-button--sm"
+            disabled={disabled || values.locationLinks.length >= 50 || locationOptions.length === 0}
+            onClick={() =>
+              onChange({
+                ...values,
+                locationLinks: [...values.locationLinks, { locationID: "", note: "" }],
+              })
+            }
+          >
+            <Plus aria-hidden="true" size={14} />
+            <span>{messages.characterLocationAdd}</span>
+          </button>
+          <span className="ui-field__hint">{messages.characterLocationsHint}</span>
+        </div>
+      </section>
 
       <section className="character-form-section" aria-labelledby="character-system-title">
         <h3 id="character-system-title" className="character-form-section__title">

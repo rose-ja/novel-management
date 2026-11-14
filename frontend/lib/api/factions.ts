@@ -5,6 +5,8 @@ import type { ReviewStatus } from "./system";
 export type FactionLocationBrief = {
   id: string;
   name: string;
+  note: string | null;
+  in_trash: boolean;
 };
 
 export type FactionSummary = {

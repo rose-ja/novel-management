@@ -13,6 +13,7 @@ export type CharacterFilterValues = {
   q: string;
   systemNodeID: string;
   factionID: string;
+  locationID: string;
   pendingOnly: boolean;
   sort: CharacterSort;
   pageSize: number;
@@ -22,6 +23,7 @@ export type CharacterFiltersProps = {
   values: CharacterFilterValues;
   realmOptions: { value: string; label: string }[];
   factionOptions: { value: string; label: string }[];
+  locationOptions: { value: string; label: string }[];
   onChange: (patch: Partial<CharacterFilterValues>) => void;
   onReset: () => void;
   activeCount: number;
@@ -45,6 +47,7 @@ export function CharacterFilters({
   values,
   realmOptions,
   factionOptions,
+  locationOptions,
   onChange,
   onReset,
   activeCount,
@@ -91,6 +94,16 @@ export function CharacterFilters({
           placeholder={messages.characterFilterFactionAll}
           options={factionOptions}
           onChange={(event) => onChange({ factionID: event.target.value })}
+        />
+      </FormField>
+      <FormField id="character-location-filter" label={messages.characterLocationTitle}>
+        <Select
+          id="character-location-filter"
+          className="page-toolbar__select"
+          value={values.locationID}
+          placeholder={messages.characterLocationAll}
+          options={locationOptions}
+          onChange={(event) => onChange({ locationID: event.target.value })}
         />
       </FormField>
       <div className="character-filter-toggle">

@@ -21,7 +21,9 @@ import { toUserMessage } from "@/lib/api/errors";
 import { listCategories, listNodes } from "@/lib/api/system";
 import { listWorks } from "@/lib/api/works";
 import { listFactions } from "@/lib/api/factions";
+import { listLocations } from "@/lib/api/locations";
 import { toFactionOptions } from "@/lib/factions-tree";
+import { toLocationOptions } from "@/lib/locations-tree";
 import { messages } from "@/lib/messages";
 
 type ListStatus = "idle" | "loading" | "ready" | "error";
@@ -30,6 +32,7 @@ const DEFAULT_FILTERS: CharacterFilterValues = {
   q: "",
   systemNodeID: "",
   factionID: "",
+  locationID: "",
   pendingOnly: false,
   sort: "-updated_at",
   pageSize: 20,
@@ -49,6 +52,7 @@ export function CharacterListPage() {
   const [error, setError] = useState<Error | null>(null);
   const [realmOptions, setRealmOptions] = useState<{ value: string; label: string }[]>([]);
   const [factionOptions, setFactionOptions] = useState<{ value: string; label: string }[]>([]);
+  const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
@@ -92,15 +96,20 @@ export function CharacterListPage() {
   useEffect(() => {
     if (!workID) {
       setFactionOptions([]);
+      setLocationOptions([]);
       return;
     }
     let active = true;
-    listFactions({ workID })
-      .then((result) => {
-        if (active) setFactionOptions(toFactionOptions(result.items));
+    Promise.all([listFactions({ workID }), listLocations({ workID })])
+      .then(([factions, locations]) => {
+        if (!active) return;
+        setFactionOptions(toFactionOptions(factions.items));
+        setLocationOptions(toLocationOptions(locations.items));
       })
       .catch(() => {
-        if (active) setFactionOptions([]);
+        if (!active) return;
+        setFactionOptions([]);
+        setLocationOptions([]);
       });
     return () => {
       active = false;
@@ -129,6 +138,7 @@ export function CharacterListPage() {
       q: filters.q,
       systemNodeID: filters.systemNodeID || undefined,
       factionID: filters.factionID || undefined,
+      locationID: filters.locationID || undefined,
       reviewStatus: filters.pendingOnly ? "pending" : undefined,
       sort: filters.sort,
       page,
@@ -166,6 +176,7 @@ export function CharacterListPage() {
     if (filters.q.trim()) count += 1;
     if (filters.systemNodeID) count += 1;
     if (filters.factionID) count += 1;
+    if (filters.locationID) count += 1;
     if (filters.pendingOnly) count += 1;
     if (filters.sort !== DEFAULT_FILTERS.sort) count += 1;
     if (filters.pageSize !== DEFAULT_FILTERS.pageSize) count += 1;
@@ -173,7 +184,7 @@ export function CharacterListPage() {
   }, [filters]);
 
   const filtered =
-    filters.q.trim() !== "" || filters.systemNodeID !== "" || filters.factionID !== "" || filters.pendingOnly;
+    filters.q.trim() !== "" || filters.systemNodeID !== "" || filters.factionID !== "" || filters.locationID !== "" || filters.pendingOnly;
   const description =
     settingsStatus === "ready" && workID
       ? messages.characterDescription(workName ?? messages.characterWorkFallback)
@@ -229,6 +240,7 @@ export function CharacterListPage() {
             values={filters}
             realmOptions={realmOptions}
             factionOptions={factionOptions}
+            locationOptions={locationOptions}
             onChange={updateFilters}
             onReset={resetFilters}
             activeCount={activeCount}

@@ -325,11 +325,33 @@ export function FactionDetailPage({ factionID }: FactionDetailPageProps) {
                 </div>
                 <div className="character-relation-group">
                   <h3 className="character-relation-group__title">{messages.factionLocationsTitle}</h3>
-                  <p className="character-relation-empty">
-                    {detail.relations.locations.length === 0
-                      ? messages.factionLocationsEmpty
-                      : detail.relations.locations.map((item) => item.name).join("、")}
-                  </p>
+                  {detail.relations.locations.length === 0 ? (
+                    <p className="character-relation-empty">{messages.factionLocationsEmpty}</p>
+                  ) : (
+                    <ul className="character-relation-list">
+                      {detail.relations.locations.map((item) => (
+                        <li className="character-relation-item" key={item.id}>
+                          {item.in_trash ? (
+                            <span className="character-muted">
+                              {item.name}
+                              {messages.locationRelationInTrash}
+                            </span>
+                          ) : (
+                            <Link
+                              className="character-name-link"
+                              href={`/locations?id=${encodeURIComponent(item.id)}`}
+                              aria-label={messages.locationBookLink(item.name)}
+                            >
+                              {item.name}
+                            </Link>
+                          )}
+                          {item.note ? (
+                            <span className="character-relation-note">{item.note}</span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
             </section>

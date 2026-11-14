@@ -12,6 +12,7 @@ import {
   CharacterFormFields,
   createCharacterFormValues,
   toCharacterFactionID,
+  toCharacterLocationLinks,
   toCharacterNameInputs,
   toCharacterSystemRefs,
   useCharacterSystemFields,
@@ -30,7 +31,9 @@ import { messages } from "@/lib/messages";
 import { isApiCode, toUserMessage } from "@/lib/api/errors";
 import { getCharacter, updateCharacter, type CharacterDetail, type CharacterSystemRef } from "@/lib/api/characters";
 import { listFactions } from "@/lib/api/factions";
+import { listLocations } from "@/lib/api/locations";
 import { toFactionOptions } from "@/lib/factions-tree";
+import { toLocationOptions } from "@/lib/locations-tree";
 import { deleteCharacterImage, uploadCharacterImage } from "@/lib/api/media";
 import { undoTrash } from "@/lib/api/trash";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
@@ -50,6 +53,10 @@ function detailToForm(detail: CharacterDetail): CharacterFormValues {
     systemRefs: Object.fromEntries(
       detail.system_refs.map((ref) => [ref.category_id, ref.node.id]),
     ),
+    locationLinks: detail.location_links.map((link) => ({
+      locationID: link.location_id,
+      note: link.note ?? "",
+    })),
   };
 }
 
@@ -84,6 +91,7 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [hasConflict, setHasConflict] = useState(false);
   const [factionOptions, setFactionOptions] = useState<{ value: string; label: string }[]>([]);
+  const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -172,15 +180,20 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
   useEffect(() => {
     if (!workID) {
       setFactionOptions([]);
+      setLocationOptions([]);
       return;
     }
     let active = true;
-    listFactions({ workID })
-      .then((result) => {
-        if (active) setFactionOptions(toFactionOptions(result.items));
+    Promise.all([listFactions({ workID }), listLocations({ workID })])
+      .then(([factions, locations]) => {
+        if (!active) return;
+        setFactionOptions(toFactionOptions(factions.items));
+        setLocationOptions(toLocationOptions(locations.items));
       })
       .catch(() => {
-        if (active) setFactionOptions([]);
+        if (!active) return;
+        setFactionOptions([]);
+        setLocationOptions([]);
       });
     return () => {
       active = false;
@@ -241,6 +254,7 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
         description: values.description.trim() ? values.description : null,
         factionID: toCharacterFactionID(values),
         systemRefs: toCharacterSystemRefs(values),
+        locationLinks: toCharacterLocationLinks(values),
         version: detail.version,
       });
       let nextImage = updated.image;
@@ -415,6 +429,7 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
             categories={categories}
             systemStatus={systemStatus}
             factionOptions={factionOptions}
+            locationOptions={locationOptions}
           />
           <ImageUploader
             name={values.name || detail.name}
@@ -514,7 +529,11 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                 </div>
                 <div className="character-detail__fact">
                   <dt>{messages.characterLocationTitle}</dt>
-                  <dd>{messages.characterNoValue}</dd>
+                  <dd>
+                    {detail.location_links.length === 0
+                      ? messages.characterNoValue
+                      : detail.location_links.map((link) => link.name).join("、")}
+                  </dd>
                 </div>
               </dl>
             </section>
@@ -567,7 +586,26 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                 </div>
                 <div className="character-relation-group">
                   <h3 className="character-relation-group__title">{messages.characterLocationTitle}</h3>
-                  <p className="character-relation-empty">{messages.characterLocationEmpty}</p>
+                  {detail.location_links.length === 0 ? (
+                    <p className="character-relation-empty">{messages.characterLocationEmpty}</p>
+                  ) : (
+                    <ul className="character-relation-list">
+                      {detail.location_links.map((link) => (
+                        <li className="character-relation-item" key={link.location_id}>
+                          <Link
+                            className="character-name-link"
+                            href={`/locations?id=${encodeURIComponent(link.location_id)}`}
+                            aria-label={messages.locationBookLink(link.name)}
+                          >
+                            {link.name}
+                          </Link>
+                          {link.note ? (
+                            <span className="character-relation-note">{link.note}</span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div className="character-relation-group">
                   <h3 className="character-relation-group__title">{messages.characterRankingTitle}</h3>

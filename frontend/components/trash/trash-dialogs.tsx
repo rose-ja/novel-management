@@ -50,6 +50,8 @@ export function RestoreTrashDialog({ item, onClose, onChanged }: Callbacks & { i
         );
       } else if (isApiCode(cause, "PARENT_DELETED") && item.root_type === "faction") {
         setError(messages.trashFactionParentDeleted);
+      } else if (isApiCode(cause, "PARENT_DELETED") && item.root_type === "location") {
+        setError(messages.trashLocationParentDeleted);
       } else {
         setError(toUserMessage(cause, messages.saveFailed));
       }
