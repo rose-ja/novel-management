@@ -91,7 +91,7 @@ erDiagram
 | name | TEXT | No | — | 1–200 | 主名称 |
 | name_key | TEXT | No | — | 部分唯一 `(work_id, name_key)` | 规范化名称 |
 | description | TEXT | Yes | NULL | ≤20,000 | 简介；纯文本 |
-| faction_id | TEXT(26) | Yes | NULL | 无 FK（CHG-006 补 `factions` 外键）；API 本轮仅接受 `null` | 所属势力/分支 0..1 |
+| faction_id | TEXT(26) | Yes | NULL | FK → factions.id `ON DELETE RESTRICT`（`characters_faction_fk`）；部分索引 `(work_id, faction_id) WHERE deleted_at IS NULL` | 所属势力/分支 0..1 |
 | review_status | TEXT | No | `reviewed` | `reviewed` / `pending`（API 映射 `confirmed`/`pending`） | 导入后为 pending |
 | reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
 | reviewed_by | TEXT | Yes | NULL | 无默认值（P5b 曾计划默认 `local-author`，实现未落）；本版无用户表 | 校对者 |
@@ -122,17 +122,20 @@ erDiagram
 | Field | Type | Nullable | Default | Constraint | Description |
 |---|---|---|---|---|---|
 | id | TEXT(26) | No | — | PK | — |
-| work_id | TEXT(26) | No | — | FK → works.id；索引 | — |
-| name | TEXT | No | — | 1–200 | 名称 |
-| name_key | TEXT | No | — | 部分唯一 `(work_id, name_key)` | 规范化 |
+| work_id | TEXT(26) | No | — | FK → works.id `ON DELETE CASCADE`；索引 | — |
+| name | TEXT | No | — | CHECK 1–200 | 名称 |
+| name_key | TEXT | No | — | 部分唯一 `(work_id, name_key)` | 规范化 `lower(trim(name))` |
 | parent_id | TEXT(26) | Yes | NULL | FK → factions.id `ON DELETE RESTRICT`；同作品；禁止环 | 上级 0..1 |
 | leader_character_id | TEXT(26) | Yes | NULL | FK → characters.id `ON DELETE RESTRICT`；同作品 | 首领 0..1 |
-| description | TEXT | Yes | NULL | ≤20,000 | 简介 |
-| review_status | TEXT | No | `reviewed` | 同上 | — |
-| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间（P5b RT-04） |
-| reviewed_by | TEXT | Yes | NULL | 默认 `local-author` | 校对者（P5b RT-04） |
-| created_at / updated_at / version | — | — | — | 同人物 | — |
-| deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 软删除 |
+| description | TEXT | Yes | NULL | CHECK ≤20,000 | 简介 |
+| review_status | TEXT | No | `reviewed` | CHECK `reviewed`/`pending` | 校对状态（API 映射 `confirmed`/`pending`） |
+| reviewed_at | TIMESTAMPTZ | Yes | NULL | — | 校对确认时间 |
+| reviewed_by | TEXT | Yes | NULL | 无默认值 | 校对者（本版无用户表） |
+| version | INTEGER | No | 1 | CHECK ≥1 | 乐观锁 |
+| created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
+| deleted_at / deleted_root_id / deleted_by_action | TIMESTAMPTZ / TEXT / TEXT | Yes | NULL | CHECK 同步 | 软删除三件套 |
+
+> `0006_factions_chronicles.sql` 新建；名称长度/简介长度/软删除一致性均有命名 CHECK（`factions_name_len`、`factions_desc_len`、`factions_deleted_consistent`）。
 
 ### 3.5 locations（地点树）
 
@@ -264,7 +267,7 @@ erDiagram
 |---|---|---|---|---|---|
 | id | TEXT(26) | No | — | PK | — |
 | work_id | TEXT(26) | No | — | FK → works.id | — |
-| owner_type | TEXT | No | — | CHECK 本期仅 `character` | 归属实体类型（`faction` 未启用） |
+| owner_type | TEXT | No | — | CHECK `character` / `faction` | 归属实体类型 |
 | owner_id | TEXT(26) | No | — | 多态引用（应用层校验） | 归属实体 |
 | text | TEXT | No | — | 1–2000 | 正文 |
 | time_label | TEXT | Yes | NULL | ≤200 | 自由文本时间标签 |
@@ -273,7 +276,7 @@ erDiagram
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 | deleted_at / deleted_root_id / deleted_by_action | — | Yes | NULL | — | 随实体同根软删除 |
 
-> 本版地点/势力不做大事记（FR-16 未要求；`owner_type` CHECK 仅 `character`）。多态引用无法用 FK，删除/恢复由 service 维护。
+> 人物与势力均支持大事记（CHG-006 放宽 CHECK）；地点大事记仍不做（FR-16 未要求）。多态引用无法用 FK，删除/恢复由 service 维护。
 > 单条删除使用 `undo_tokens.root_type='chronicle'` 的 8 秒撤销，不进入回收站列表、不产生快照。
 
 ### 3.14 media_assets（图片资产）
@@ -386,7 +389,7 @@ erDiagram
 |---|---|---|
 | works | `works_name_key_uq` | `UNIQUE(name_key) WHERE deleted_at IS NULL` |
 | characters | `characters_work_name_uq` | `UNIQUE(work_id, name_key) WHERE deleted_at IS NULL` |
-| factions | `factions_work_name_uq` | 同上 |
+| factions | `factions_active_name_uq` | `UNIQUE(work_id, name_key) WHERE deleted_at IS NULL` |
 | locations | `locations_work_name_uq` | 同上 |
 | rankings | `rankings_work_name_uq` | 同上 |
 | system_categories | `categories_work_name_uq` | `UNIQUE(work_id, name_key) WHERE deleted_at IS NULL` |
@@ -406,9 +409,9 @@ erDiagram
 | 表 | 索引 | 用途 |
 |---|---|---|
 | characters | `(work_id, deleted_at, updated_at DESC)` | 列表默认排序 |
-| characters | `(work_id, faction_id, deleted_at)` | 势力成员 |
-| factions | `(work_id, parent_id, deleted_at)` | 树查询 |
-| factions | `(work_id, leader_character_id)` | 反向引用检查 |
+| characters | `characters_faction_idx` `(work_id, faction_id) WHERE deleted_at IS NULL` | 势力成员/筛选 |
+| factions | `factions_active_parent_idx` `(work_id, parent_id) WHERE deleted_at IS NULL` | 树查询/下级计数 |
+| factions | `factions_deleted_root_idx` `(deleted_root_id) WHERE deleted_root_id IS NOT NULL` | 回收站根 |
 | locations | `(work_id, parent_id, deleted_at)` | 树查询 |
 | locations | `(work_id, name_key)` | 类型/名称建议 |
 | ranking_seats | `(ranking_id, seat_no)` | 榜单详情 |
@@ -426,6 +429,8 @@ erDiagram
 | export_runs | `(status, created_at DESC)` | 最近导出 |
 | snapshots | `(created_at DESC)` | 快照列表 |
 
+> 已知缺口：`factions.leader_character_id` 反向检查（人物删除/势力列表装配）暂无专用索引，当前数据量下走顺序扫描，列入后续性能专项；需要时可补 `(work_id) WHERE leader_character_id IS NOT NULL` 部分索引。
+
 ### 4.3 CHECK 约束
 
 - `rankings.seat_count BETWEEN 1 AND 200`
@@ -441,9 +446,10 @@ erDiagram
 ### 4.4 外键与级联
 
 - **归属集合**使用 `ON DELETE CASCADE`：`character_names → characters`、`ranking_seats → rankings`、`character_system_refs → characters`、`character_locations → characters`、`location_factions → locations`。
-- **跨实体引用**使用 `ON DELETE RESTRICT`：人物→势力、势力→人物（首领）、树 `parent_id`、体系节点/类别引用、席位→人物、地点→人物关系等。
+- **跨实体引用**使用 `ON DELETE RESTRICT`：人物→势力（`characters_faction_fk`）、势力→人物（`factions.leader_character_id`）、树 `parent_id`、体系节点/类别引用、席位→人物、地点→人物关系等。
+- **双 RESTRICT FK 环**：`characters.faction_id → factions` 与 `factions.leader_character_id → characters` 互相引用。永久删除遵循：先 `UPDATE factions SET leader_character_id=NULL`（作品组内）→ 删人物 → 按势力深度倒序删势力；单势力永久删除先清已软删人物的 `faction_id` 并复核活跃成员。
 - 物理删除顺序（单事务）：
-  `检索文档 → 关系表/席位 → 大事记 → 图片元数据与文件 → 节点 → 人物/势力/地点/榜单 → 类别 → 作品`。
+  `检索文档 → 关系表/席位 → 大事记 → 图片元数据与文件 → 节点 → 人物 → 势力（深度倒序）→ 地点/榜单 → 类别 → 作品`。
 - 多态引用（`chronicles.owner_*`、`media_assets.entity_*`）无 FK，由 service 维护。
 - 同作品校验：PostgreSQL 无法用简单 FK 表达「引用双方 `work_id` 相同」，由 service 在写入前校验，返回 `CROSS_WORK_REFERENCE`。
 - 树防环：写入 `parent_id` 时自底向上遍历，命中自身或后代返回 `CYCLE_DETECTED`；体系节点额外限制父级必须为根节点。
@@ -594,5 +600,6 @@ name_key = NFKC(value).casefold().strip()
 | 2026-11-07 | v1.1 | RT-22 | CLI `migrate` 获取同一 advisory lock，锁不可用退出 `APP_RUNNING` | 避免迁移与在线写入并发 |
 | 2026-11-11 | v1.2 | CHG-004 | `characters.work_id` 为 `ON DELETE CASCADE`；`faction_id` 暂不建 FK（CHG-006）；`reviewed_by` 无默认值；`character_names.value` 上限 100；补 `image_path` 占位与 0004 回滚说明 | F10 回写审查 C-14 的三处文档漂移与实际迁移 |
 | 2026-11-13 | v1.3 | CHG-005 | 0005 删除 `characters.image_path`；`chronicles` 增加 `version` 且 `owner_type` 仅 `character`；`media_assets.mime` 实际仅 jpeg/png、`byte_size` 1–10485760、`width/height` 为重编码后尺寸；软删除 CHECK 与活跃唯一索引 | F10 回写图片/大事记实现与迁移 v5 |
+| 2026-11-14 | v1.4 | CHG-006 | 0006 新建 `factions`（父级/首领 RESTRICT、命名 CHECK、活跃名称唯一、父级与回收站根索引）；`characters.faction_id` 补 `characters_faction_fk` 与部分索引；`chronicles.owner_type` 扩为 `character/faction`；补双 RESTRICT FK 环的永久删除顺序 | F10 回写势力树、首领与势力大事记实现及迁移 v6 |
 
 > 已确认项：C-01~C-07 均已确认（2026-11-07）；D-02 检索方案已确认，V-01 待执行；P5b 修订项（RT-04/06/07/08/09/10/11/17/22）待复审。

@@ -16,7 +16,7 @@
 - Spec：SPEC-FACTION-001～004、SPEC-CHAR-001（势力字段）、SPEC-CHAR-008（首领入向阻断）、SPEC-TRASH-004（永久删除）
 - Page Spec：PG-04 势力树/列表、PG-05 势力详情、PG-12 回收站（势力根）
 - 契约：`project/api-contract.md` §2.3、§3.4、§3.8、§6.10；`project/data-model.md` §3.2/§3.4/§3.13（F10 回写实际形态）
-- 变更文档：`changes/CHG-006-factions-tree/`（proposal、design、tasks、checklist、review、verification、acceptance）
+- 变更文档：`changes/archive/CHG-006-factions-tree/`（proposal、design、tasks、checklist、review、verification、acceptance）
 
 ## 3. 范围与非目标
 

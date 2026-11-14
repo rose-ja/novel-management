@@ -107,7 +107,7 @@
 
 | ID | 验收点 | 证据 | 状态 |
 |---|---|---|---|
-| DOC-01 | SPEC-FACTION-001～004 状态与缺口在 F10 更新 | 待 F10 | ☐ |
-| DOC-02 | `api-contract.md` 回写势力 CRUD/成员/错误码与人物势力字段 | 待 F10（含 `{items,total}` 形态说明） | ☐ |
-| DOC-03 | `data-model.md` 回写 `factions`、FK、`chronicles.owner_type` | 待 F10 | ☐ |
+| DOC-01 | SPEC-FACTION-001～004 状态与缺口在 F10 更新 | F10：001/002/004 `implemented`，003 `implemented-partial`（地点关系 CHG-007） | ☑ |
+| DOC-02 | `api-contract.md` 回写势力 CRUD/成员/错误码与人物势力字段 | F10：§3.4 全面回写、§3.3/§3.8/§3.10 与错误码表更新、changelog v1.4 | ☑ |
+| DOC-03 | `data-model.md` 回写 `factions`、FK、`chronicles.owner_type` | F10：§3.4/§3.2/§3.13/§4.1/§4.2/§4.4 与 changelog v1.4 | ☑ |
 | DOC-04 | verification/review/acceptance/pr 齐全并含证据 | verification、review（F4 FAIL → F5 复审 PASS）、acceptance（ACCEPT，2026-11-13）、pr 已生成 | ☑ |

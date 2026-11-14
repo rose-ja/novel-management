@@ -90,7 +90,7 @@
 
 - 迁移：`backend/internal/migrations/0006_factions_chronicles.sql`
 - 集成：`backend/internal/integration/{factions,faction_members,faction_character,faction_chronicle,faction_lifecycle,faction_review_fix,migrations}_test.go`
-- 审查/复审：`changes/CHG-006-factions-tree/review.md`
+- 审查/复审：`changes/archive/CHG-006-factions-tree/review.md`
 - 前端单测：`frontend/lib/factions-tree.test.ts`
 - E2E：`frontend/e2e/factions.spec.ts`
 - 视觉基线：`frontend/e2e/visual.spec.ts-snapshots/`（新增 `factions-1280/1024`、`faction-detail-1280`）

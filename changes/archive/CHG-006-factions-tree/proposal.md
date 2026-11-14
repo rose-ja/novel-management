@@ -69,7 +69,7 @@
 
 - 后端：`internal/migrations/0006_*.sql`、`internal/model/{faction,errors,media}.go`、`internal/repository/{factions,characters,chronicles,works}.go`、`internal/service/{factions,characters,chronicles,trash}.go`、`internal/httpapi/{factions,characters,chronicles,request,router}.go`、`cmd/server/main.go`、`internal/integration/*_test.go`。
 - 前端：`app/factions/page.tsx`、`components/factions/*`、`components/characters/{character-detail-page,character-form-fields,character-filters,character-table}.tsx`、`components/characters/chronicle-section.tsx`（抽为通用 `components/chronicles/*`）、`components/shell/global-nav.tsx`、`app/trash/page.tsx`、`lib/api/{factions,characters,chronicles,trash}.ts`、`lib/messages.ts`、`styles/components.css`、`e2e/*`、相关单测。
-- 文档：`changes/CHG-006-factions-tree/*`（F1～F10）。
+- 文档：`changes/archive/CHG-006-factions-tree/*`（F1～F10）。
 
 ### 4.2 禁止修改
 

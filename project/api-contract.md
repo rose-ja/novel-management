@@ -94,8 +94,8 @@
 | `NAME_CONFLICT` | 409 | 同作品同类型名称重复（`name_key` 冲突） | 新建/改名/恢复/导入 |
 | `REFERENCE_CONFLICT` | 409 | 仍被其他实体引用，不能删除/停用/缩容 | 删除人物/势力/地点/类别/节点 |
 | `HAS_CHILDREN` | 409 | 存在下级节点（结构约束） | 删除势力/地点；删除体系主节点（C-01 默认阻止） |
-| `CYCLE_DETECTED` | 400 | 父级形成环 | 移动势力/地点/节点 |
-| `CROSS_WORK_REFERENCE` | 400 | 引用其他作品实体 | 人物→势力/地点/节点等 |
+| `CYCLE_DETECTED` | 422 | 父级形成环 | 移动势力/地点/节点 |
+| `CROSS_WORK_REFERENCE` | 422 | 引用其他作品实体 | 人物→势力/地点/节点等 |
 | `CATEGORY_LIMIT` | 409 | 类别已达 10 类 | 新建类别 |
 | `CATEGORY_BUILTIN_IMMUTABLE` | 409 | 内置「境界」不可改名/停用/删除 | 对应操作 |
 | `CATEGORY_DISABLED` | 409 | 引用已停用类别 | 人物保存体系引用 |
@@ -334,12 +334,12 @@
 
 ### 3.3 人物 Characters（FR-04~08）
 
-> 实现状态（2026-11-13，CHG-005）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根、主图上传/替换/移除、媒体读取与大事记。`faction_id` 仅接受 `null`（无 FK，CHG-006 补真实势力）；`location_links` 仅接受空数组（CHG-007 开放）；`review_status` 只读返回，校对确认端点延后 CHG-011。
+> 实现状态（2026-11-13，CHG-006）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根、主图上传/替换/移除、媒体读取与大事记，`faction_id` 接受真实势力（同作品、活跃，可清空）。`location_links` 仅接受空数组（CHG-007 开放）；`review_status` 只读返回，校对确认端点延后 CHG-011。人物删除已接入势力首领入向阻断，榜单席位待 CHG-008。
 
 #### GET /api/v1/characters
 - Query：`work_id`（必填）、`q`、`faction_id`、`system_node_id`、`location_id`、`review_status`、`sort`、`page`、`page_size`。
-- Response：`CharacterSummary[]`：`id, name, names:[{kind,value}], faction:{id,name}|null, system_summary:string|null, image_thumb_url:string|null, review_status, reviewed_at, updated_at, version`。
-- 说明：`names[]` 与 `version` 为 CHG-004 新增（列表展示别名/称号 chip、详情编辑携带版本）；`faction`/`image_thumb_url`/`system_summary` 在有数据前为 `null`。
+- Response：`CharacterSummary[]`：`id, name, names:[{kind,value}], faction:{id,name,in_trash}|null, system_summary:string|null, image_thumb_url:string|null, review_status, reviewed_at, updated_at, version`（列表为 `{items,total}` 包装，与作品列表一致）。
+- 说明：`names[]` 与 `version` 为 CHG-004 新增；`faction` 自 CHG-006 起为真实势力摘要（`in_trash=true` 表示势力已在回收站），无势力时为 `null`；`faction_id` 筛选只返回该势力直属成员。
 - 仅未删除；`work_id` 缺失 `422`；`q` 命中主名称/别名/称号，`%`/`_` 已转义；`sort` 支持 `-updated_at`（默认）/`name`/`-name`。
 
 #### POST /api/v1/characters
@@ -356,7 +356,7 @@
   }
   ```
 - Response `201`：`Character`；`Location: /api/v1/characters/{id}`。
-- Validation：名称必填/≤200；别名/称号值 1–100 字符、每人至多 100 条（前端软上限 20）；`system_refs` 每类别至多 1，节点必须属于类别且类别启用；全部引用同作品；`faction_id` 非 `null` → 422；`location_links` 非空 → 422。
+- Validation：名称必填/≤200；别名/称号值 1–100 字符、每人至多 100 条（前端软上限 20）；`system_refs` 每类别至多 1，节点必须属于类别且类别启用；全部引用同作品；`faction_id` 可为 `null` 或同作品活跃势力（跨作品 `CROSS_WORK_REFERENCE`、已删 `PARENT_DELETED`、不存在 422）；`location_links` 非空 → 422。
 - Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CROSS_WORK_REFERENCE`、`CATEGORY_DISABLED`、`NODE_PARENT_MISMATCH`、`PARENT_DELETED`。
 
 #### GET /api/v1/characters/{id}
@@ -372,7 +372,7 @@
 
 #### DELETE /api/v1/characters/{id}
 - Header：`If-Match: <version>` 必填；缺失或非数字 → 422，版本不一致 → 409 `VERSION_CONFLICT`。
-- Behavior：引用检查：被势力设为首领、被榜单占用 → 阻止并列出引用（当前入向检查器为空，CHG-006/008 接入）；人物自身的别名/称号、体系引用、地点关系、大事记、图片随人物软删除（不阻止）。
+- Behavior：引用检查：被势力设为首领（含回收站中的势力，`details.items[].in_trash`）、被榜单占用 → 阻止并列出引用（首领检查 CHG-006 已接入，榜单席位待 CHG-008）；人物自身的别名/称号、体系引用、地点关系、大事记、图片随人物软删除（不阻止）。
 - Response：`{ "deleted": true, "undo_token": "…" }`（8 秒一次性撤销令牌）。
 - Errors：`REFERENCE_CONFLICT`（`details` 列出首领/席位）、`ALREADY_DELETED`、`VERSION_CONFLICT`、`VALIDATION_ERROR`。
 
@@ -393,32 +393,40 @@
 
 ### 3.4 势力 Factions（FR-09~12）
 
+> 实现状态（2026-11-13，CHG-006）：已实现势力树 CRUD、搜索定位（命中 + 祖先）、首领与成员、移动环校验、删除/恢复/永久删除与势力大事记。`relations.locations` 恒为空数组（CHG-007 接入）；校对确认端点延后 CHG-011；`flat`/`page`/`page_size` 参数保留但列表始终返回当前作品扁平全量（≤1000）。
+
 #### GET /api/v1/factions
-- Query：`work_id`、`q`、`parent_id`（`root` 表示顶层）、`flat=true|false`、`review_status`、`page`、`page_size`。
-- Response：`FactionSummary[]`（含 `children_count`、`leader`、`member_count`）。
+- Query：`work_id`（必填，缺失 422）、`q`、`parent_id`（`root` 表示顶层）、`review_status`；`flat`/`page`/`page_size` 被忽略。
+- Response：`{ "items": FactionSummary[], "total": number }`，按 `parent_id` 组树所需字段扁平返回。
+- `FactionSummary`：`id, work_id, name, parent:{id,name,in_trash}|null, leader:{id,name,in_trash}|null, description, review_status, reviewed_at, children_count, member_count, created_at, updated_at, version`。
+- `q`：按名称子串匹配，返回命中节点 **及其全部祖先**（祖先 `q` 不命中但用于保持层级）；`parent_id=root` 只返回顶层节点。
 
 #### POST /api/v1/factions
 - Request：`{ "work_id", "name", "parent_id": null, "leader_character_id": null, "description": null }`。
-- Response `201`：`Faction`。
-- Errors：`NAME_CONFLICT`、`CYCLE_DETECTED`、`CROSS_WORK_REFERENCE`。
+- Response `201`：`Faction`；`Location: /api/v1/factions/{id}`。
+- Validation：名称必填 1–200、`name_key=lower(trim(name))` 同作品活跃唯一；父级/首领必须同作品且活跃；首领可为 `null`。
+- Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CROSS_WORK_REFERENCE`、`PARENT_DELETED`。
 
 #### GET /api/v1/factions/{id}
-- Response：`Faction` + `relations`：`parent`、`children`、`leader`、`locations`、`chronicle_count`。
+- Response：`FactionDetail` = `FactionSummary` + `relations`：`{ children:[{id,name,in_trash}], locations:[], chronicle_count, subtree_member_count }`。
+- `locations` 在 CHG-007 前恒为空数组；`subtree_member_count` 为整棵子树的活跃成员去重计数。
 - Errors：`NOT_FOUND`。
 
 #### PATCH /api/v1/factions/{id}
-- Request：`name`、`parent_id`、`leader_character_id`、`description`；`If-Match`。
-- 移动校验：目标父级不能是自身或后代（`CYCLE_DETECTED`）。
-- Errors：`NAME_CONFLICT`、`CYCLE_DETECTED`、`CROSS_WORK_REFERENCE`、`VERSION_CONFLICT`。
+- Header：`If-Match: <version>` 必填（缺失 428）；版本不一致 → 409 `VERSION_CONFLICT`。
+- Request：`name`、`parent_id`、`leader_character_id`、`description` 的任意子集；显式 `null` 表示清空/移到顶层，缺省表示保持不变。
+- 移动校验：目标父级不能是自身或后代（`CYCLE_DETECTED`）；同作品移动以事务级 advisory lock 串行化。
+- Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`CYCLE_DETECTED`、`CROSS_WORK_REFERENCE`、`PARENT_DELETED`、`VERSION_CONFLICT`、`NOT_FOUND`。
 
 #### DELETE /api/v1/factions/{id}
-- 校验：先检查下级（`HAS_CHILDREN`），再检查人物归属引用（`REFERENCE_CONFLICT`）；首领、地点关联不阻止，随势力删除隐藏。
-- Response：`{ "deleted": true, "undo_token": "…" }`。
-- Errors：`HAS_CHILDREN`、`REFERENCE_CONFLICT`。
+- Header：`If-Match: <version>` 必填（缺失 428）。
+- 校验：先检查下级（含已软删子节点）→ `HAS_CHILDREN`（`details.items[]` 含 `id/name/entity_type/in_trash`）；再检查活跃成员 → `REFERENCE_CONFLICT`（`details` 为引用项数组，`type=character_faction`）；首领引用与势力大事记为出向，随势力软删除隐藏，不阻止。
+- Response：`{ "deleted": true, "undo_token": "…" }`（8 秒一次性撤销，恢复势力与势力大事记）。
+- Errors：`HAS_CHILDREN`、`REFERENCE_CONFLICT`、`ALREADY_DELETED`、`VERSION_CONFLICT`、`VALIDATION_ERROR`。
 
 #### GET /api/v1/factions/{id}/members
-- Query：`scope=direct|subtree`（默认 `direct`）、`page`、`page_size`。
-- Response：`CharacterSummary[]`；`subtree` 递归包含下级节点成员（FR-10）。
+- Query：`scope=direct|subtree`（默认 `direct`）、`page`（默认 1）、`page_size`（默认 20）；非法 `scope` → 422。
+- Response：`{ "items": CharacterSummary[], "page", "page_size", "total" }`；`subtree` 递归包含下级节点成员并去重，排序稳定（`name, id`）。
 
 ### 3.5 地点 Locations（FR-13~16）
 
@@ -546,18 +554,18 @@
 
 ### 3.8 大事记 Chronicles（FR-04/11）
 
-> 实现状态（2026-11-13，CHG-005）：已实现人物大事记 CRUD、顺序、版本冲突与 8 秒撤销。`owner_type` 当前仅接受 `character`，其他值返回 422 `CHRONICLE_OWNER_UNSUPPORTED`；`root_type=chronicle` 为撤销令牌内部值，不进入回收站列表（列表请求该类型返回 422）。
+> 实现状态（2026-11-13，CHG-006）：人物/势力大事记 CRUD、顺序、版本冲突与 8 秒撤销均已实现。`owner_type` 接受 `character`/`faction`，其他值返回 422 `VALIDATION_ERROR`（字段 `owner_type`）；owner 不存在 `NOT_FOUND`、已删除 `PARENT_DELETED`。`root_type=chronicle` 为撤销令牌内部值，不进入回收站列表（列表请求该类型返回 422）。
 
 #### GET /api/v1/chronicles
-- Query：`owner_type=character`（必填）、`owner_id`（必填）；缺失 422。
+- Query：`owner_type=character|faction`（必填）、`owner_id`（必填）；缺失 422。
 - Response：`{ "items": Chronicle[] }`，按 `sort_order, id`；无条目返回空数组。
 - Errors：`NOT_FOUND`（owner 不存在）、`PARENT_DELETED`（owner 已删除）。
 
 #### POST /api/v1/chronicles
-- Request：`{ "owner_type": "character", "owner_id", "text", "time_label": null }`；`sort_order` 追加末尾。
+- Request：`{ "owner_type": "character|faction", "owner_id", "text", "time_label": null }`；`sort_order` 追加末尾。
 - Validation：`text` 必填 1–2,000 字；`time_label` 可空、≤200 字。
 - Response `201`：`Chronicle`（含 `version`）；`Location: /api/v1/chronicles/{id}`。
-- Errors：`VALIDATION_ERROR`、`NOT_FOUND`、`PARENT_DELETED`、`CHRONICLE_OWNER_UNSUPPORTED`。
+- Errors：`VALIDATION_ERROR`（含未知 `owner_type`）、`NOT_FOUND`、`PARENT_DELETED`。
 
 #### PATCH /api/v1/chronicles/{id}
 - Request：`text`、`time_label`、`sort_order` 子集；`If-Match: <version>` 必填；显式 `time_label: null` 清空。
@@ -593,7 +601,7 @@
   ```json
   { "items": [{ "root_type": "character", "root_id": "01H...", "name": "司空摘天", "deleted_at": "…", "parent_name": "山海妖族", "affected_count": 3 }], "page": 1, ... }
   ```
-- 只返回根记录；不含已永久删除。
+- 只返回根记录；不含已永久删除。`root_type=faction` 已启用；势力根的 `parent_name` 为上级势力名（顶层为 `null`），`affected_count` 为该势力及其势力大事记数量。
 
 #### POST /api/v1/trash/{root_type}/{root_id}/restore
 - Request：
@@ -613,12 +621,14 @@
 #### DELETE /api/v1/trash/{root_type}/{root_id}
 - Request：`{ "confirm": true }`；生成快照（`trash_purge`）→ 物理删除整组。
 - Response `204`。
-- Errors：`VALIDATION_ERROR`、`SNAPSHOT_FAILED`。
+- 势力根：删除前复核活跃成员（恢复人物后可能重新引用回收站势力），存在则 `409 REFERENCE_CONFLICT`；先清理已软删人物的势力引用，再删势力行与势力大事记。
+- Errors：`VALIDATION_ERROR`、`SNAPSHOT_FAILED`、`REFERENCE_CONFLICT`、`ALREADY_DELETED`、`NOT_FOUND`。
 
 #### DELETE /api/v1/trash
 - Request：`{ "confirm": "PURGE_ALL", "work_id": "01H...|null" }`；清空当前作品或全部作品回收站；先快照。
+- 已随作品组物理删除的势力/人物根按已处理跳过；势力根仍被活跃成员引用时整批 `409 REFERENCE_CONFLICT` 并回滚。
 - Response：`{ "purged": 12, "snapshot_id": "…" }`。
-- Errors：`VALIDATION_ERROR`、`SNAPSHOT_FAILED`。
+- Errors：`VALIDATION_ERROR`、`SNAPSHOT_FAILED`、`REFERENCE_CONFLICT`。
 
 #### POST /api/v1/trash/undo
 - Request：`{ "undo_token": "…" }`。
@@ -783,3 +793,4 @@
 | 2026-11-07 | v1.1 | RT-14 | DELETE 地点：下级 `HAS_CHILDREN`、人物/势力关联 `REFERENCE_CONFLICT`，全部阻止不级联；删除问号句 | 原契约保留双规则与未决问号 |
 | 2026-11-11 | v1.2 | CHG-004 | `CharacterSummary` 增加 `names[]`/`version`；DELETE 人物要求 `If-Match`；`faction_id` 仅接受 `null`、`location_links` 仅接受空数组；别名/称号值上限 100；标注 `*/image` 未实现（CHG-005） | F10 回写人物 F1 裁决 D1/D2/D8 与实现差异 |
 | 2026-11-13 | v1.3 | CHG-005 | `Character.image` 改为 `MediaView|null`（含 `thumb_url`/`byte_size`）；图片端点生效并明确 MIME/像素/尺寸与错误码；媒体 `ETag`/304 与缓存头；大事记 `owner_type` 仅 `character`、`version` + `If-Match`、`{items:[]}` 包装、`root_type=chronicle` 保留不进回收站 | F10 回写图片与大事记最终实现 |
+| 2026-11-14 | v1.4 | CHG-006 | 势力 CRUD/成员/回收站契约落地：`GET /factions` 为 `{items,total}` 扁平全量（忽略 `flat`/`page`）、`q` 命中 + 祖先；`FactionSummary/Detail` 含 `parent/leader.in_trash`、`relations.subtree_member_count`；PATCH/DELETE 要求 `If-Match`（缺失 428）；members 返回 `{items,page,page_size,total}`；`HAS_CHILDREN.details.items[].in_trash`；`CYCLE_DETECTED`/`CROSS_WORK_REFERENCE` 统一 422；`owner_type` 扩为 `character/faction`（未知值 `VALIDATION_ERROR`）；回收站新增 `root_type=faction` 与永久删除活跃成员复核 | F10 回写势力与势力大事记实现及契约偏差 |
