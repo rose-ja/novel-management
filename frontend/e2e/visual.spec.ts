@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  assignRankingSeat,
   cleanupE2E,
   createCharacter,
   createFaction,
   createLocation,
+  createRanking,
   createSystemCategory,
   createSystemNode,
   createWork,
@@ -252,6 +254,60 @@ test.describe("视觉基线 · 地点", () => {
     await expect(page).toHaveScreenshot("location-detail-1280.png", {
       fullPage: true,
       mask: [page.locator(".character-archive-meta")],
+    });
+  });
+});
+
+test.describe("视觉基线 · 榜单", () => {
+  const WORK_NAME = "E2E-视觉榜单";
+
+  test.beforeEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  for (const { width, height } of [
+    { width: 1280, height: 900 },
+    { width: 1024, height: 800 },
+  ]) {
+    test(`榜单列表 ${width}`, async ({ page, request }) => {
+      const work = await createWork(request, WORK_NAME);
+      const alpha = await createCharacter(request, work.id, "E2E-视觉甲");
+      const ranking = await createRanking(request, work.id, "E2E-视觉封神榜", 10);
+      const seat1 = ranking.seats.items.find((seat) => seat.seat_no === 1);
+      if (!seat1) throw new Error("榜单缺少第 1 席");
+      await assignRankingSeat(request, ranking.id, 1, alpha.id, seat1.version);
+
+      await page.setViewportSize({ width, height });
+      await page.goto("/rankings");
+      await expect(page.getByRole("heading", { name: "榜单", level: 1 })).toBeVisible();
+      await expect(page.locator(".ui-table tbody tr")).toHaveCount(1);
+
+      await expect(page).toHaveScreenshot(`rankings-${width}.png`, {
+        fullPage: true,
+        mask: [page.locator(".character-time")],
+      });
+    });
+  }
+
+  test("榜单详情 1280", async ({ page, request }) => {
+    const work = await createWork(request, WORK_NAME);
+    const alpha = await createCharacter(request, work.id, "E2E-视觉甲");
+    const ranking = await createRanking(request, work.id, "E2E-视觉封神榜", 10);
+    const seat1 = ranking.seats.items.find((seat) => seat.seat_no === 1);
+    if (!seat1) throw new Error("榜单缺少第 1 席");
+    await assignRankingSeat(request, ranking.id, 1, alpha.id, seat1.version);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/rankings?id=${ranking.id}`);
+    await expect(page.getByRole("heading", { name: "E2E-视觉封神榜", level: 1 })).toBeVisible();
+
+    await expect(page).toHaveScreenshot("ranking-detail-1280.png", {
+      fullPage: true,
+      mask: [page.locator(".ranking-rename")],
     });
   });
 });

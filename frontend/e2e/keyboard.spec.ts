@@ -31,6 +31,7 @@ test.describe("键盘可达", () => {
     const characters = nav.getByRole("link", { name: "人物" });
     const factions = nav.getByRole("link", { name: "势力" });
     const locations = nav.getByRole("link", { name: "地点" });
+    const rankings = nav.getByRole("link", { name: "榜单" });
     const trash = nav.getByRole("link", { name: "回收站" });
     const settings = nav.getByRole("link", { name: "设置" });
 
@@ -44,6 +45,8 @@ test.describe("键盘可达", () => {
     await expect(factions).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(locations).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(rankings).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(trash).toBeFocused();
     await page.keyboard.press("Tab");

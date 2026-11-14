@@ -89,7 +89,7 @@ export async function listWorks(request: APIRequestContext): Promise<WorkJson[]>
 
 export async function listTrash(
   request: APIRequestContext,
-  rootType?: "work" | "system_category" | "system_node" | "character" | "faction" | "location",
+  rootType?: "work" | "system_category" | "system_node" | "character" | "faction" | "location" | "ranking",
 ): Promise<TrashItemJson[]> {
   const search = new URLSearchParams({ page: "1", page_size: "100" });
   if (rootType) search.set("root_type", rootType);
@@ -423,6 +423,74 @@ export async function deleteLocation(
     headers: { ...JSON_HEADERS, "If-Match": `"${location.version}"` },
   });
   await ensure(res, `删除地点「${location.id}」`);
+  return (await res.json()) as { undo_token: string };
+}
+
+export type RankingJson = {
+  id: string;
+  work_id: string;
+  name: string;
+  seat_count: number;
+  occupied_count: number;
+  empty_count: number;
+  review_status: "confirmed" | "pending";
+  version: number;
+  seats: {
+    items: { seat_no: number; character: { id: string; name: string } | null; note: string | null; version: number }[];
+    page: number;
+    page_size: number;
+    total: number;
+  };
+};
+
+export async function createRanking(
+  request: APIRequestContext,
+  workID: string,
+  name: string,
+  seatCount = 10,
+): Promise<RankingJson> {
+  const res = await request.post("/api/v1/rankings", {
+    data: { work_id: workID, name, seat_count: seatCount },
+    headers: JSON_HEADERS,
+  });
+  await ensure(res, `创建榜单「${name}」`);
+  return (await res.json()) as RankingJson;
+}
+
+export async function getRanking(
+  request: APIRequestContext,
+  rankingID: string,
+  page = 1,
+  pageSize = 50,
+): Promise<RankingJson> {
+  const res = await request.get(`/api/v1/rankings/${rankingID}?page=${page}&page_size=${pageSize}`);
+  await ensure(res, "读取榜单");
+  return (await res.json()) as RankingJson;
+}
+
+export async function assignRankingSeat(
+  request: APIRequestContext,
+  rankingID: string,
+  seatNo: number,
+  characterID: string | null,
+  version: number,
+): Promise<{ seat_no: number; version: number }> {
+  const res = await request.put(`/api/v1/rankings/${rankingID}/seats/${seatNo}`, {
+    data: { character_id: characterID },
+    headers: { ...JSON_HEADERS, "If-Match": `"${version}"` },
+  });
+  await ensure(res, `写入榜单席位 ${seatNo}`);
+  return (await res.json()) as { seat_no: number; version: number };
+}
+
+export async function deleteRanking(
+  request: APIRequestContext,
+  ranking: Pick<RankingJson, "id" | "version">,
+): Promise<{ undo_token: string }> {
+  const res = await request.delete(`/api/v1/rankings/${ranking.id}`, {
+    headers: { ...JSON_HEADERS, "If-Match": `"${ranking.version}"` },
+  });
+  await ensure(res, "删除榜单");
   return (await res.json()) as { undo_token: string };
 }
 
