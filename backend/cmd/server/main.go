@@ -72,6 +72,7 @@ func run() error {
 	mediaService := service.NewMedia(db.Gorm, cfg.DataDir, log)
 	charactersService := service.NewCharacters(db.Gorm, mediaService)
 	factionsService := service.NewFactions(db.Gorm, charactersService)
+	locationsService := service.NewLocations(db.Gorm, charactersService)
 	router := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    log,
@@ -90,6 +91,7 @@ func run() error {
 		Media:      mediaService,
 		Chronicles: service.NewChronicles(db.Gorm),
 		Factions:   factionsService,
+		Locations:  locationsService,
 	})
 
 	srv := &http.Server{

@@ -55,6 +55,7 @@ type UpdateLocationInput struct {
 }
 
 type DeleteLocationResult struct {
+	Deleted   bool      `json:"deleted"`
 	ID        string    `json:"id"`
 	DeletedAt time.Time `json:"deleted_at"`
 	UndoToken string    `json:"undo_token"`
@@ -581,7 +582,7 @@ func (s *Locations) Delete(ctx context.Context, id, ifMatch string) (*DeleteLoca
 	if err != nil {
 		return nil, err
 	}
-	return &DeleteLocationResult{ID: id, DeletedAt: now, UndoToken: token, ExpiresAt: expires}, nil
+	return &DeleteLocationResult{Deleted: true, ID: id, DeletedAt: now, UndoToken: token, ExpiresAt: expires}, nil
 }
 
 // ListCharacters 返回地点的人物关系（含回收站人物标记）。
