@@ -27,7 +27,7 @@ export function CharacterDeleteDialog({
 }: CharacterDeleteDialogProps) {
   const [error, setError] = useState<string | null>(null);
   const [references, setReferences] = useState<
-    { id: string; name: string; inTrash: boolean; type: string }[]
+    { id: string; name: string; inTrash: boolean; type: string; field: string; value: string }[]
   >([]);
   const [versionConflict, setVersionConflict] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -49,6 +49,8 @@ export function CharacterDeleteDialog({
             name: item.name ?? messages.systemReferenceUnnamed,
             inTrash: item.in_trash,
             type: item.type,
+            field: item.field,
+            value: item.value,
           })),
         );
         setError(messages.characterDeleteReferenceTitle);
@@ -113,6 +115,14 @@ export function CharacterDeleteDialog({
                   <Link className="character-name-link" href={`/factions?id=${encodeURIComponent(item.id)}`}>
                     {item.name}
                   </Link>
+                </>
+              ) : item.type === "ranking_seat" ? (
+                <>
+                  <span>{messages.characterRankingSeatPrefix}</span>
+                  <Link className="character-name-link" href={`/rankings?id=${encodeURIComponent(item.id)}`}>
+                    {item.name}
+                  </Link>
+                  <span>· 第 {item.value} 席</span>
                 </>
               ) : (
                 <span>{item.name}</span>

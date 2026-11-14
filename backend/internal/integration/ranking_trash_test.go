@@ -165,4 +165,20 @@ func TestRankingPurgeAndWorkLifecycle(t *testing.T) {
 	if purgeWork.Code != http.StatusNoContent {
 		t.Fatalf("永久删除作品失败（status=%d）：%s", purgeWork.Code, purgeWork.Body.String())
 	}
+
+	// 单独删除榜单后再删除作品，清空回收站不应因榜单根已被作品组删除而失败。
+	secondWork := h.createWork("榜单清空")
+	secondRanking := h.createRanking(secondWork.ID, "清空榜", 5)
+	if del := h.do(http.MethodDelete, "/api/v1/rankings/"+secondRanking.ID, nil, map[string]string{
+		"If-Match": `"` + strconv.Itoa(secondRanking.Version) + `"`,
+	}); del.Code != http.StatusOK {
+		t.Fatalf("删除第二榜单失败：%s", del.Body.String())
+	}
+	if delWork := h.deleteWork(secondWork.ID, secondWork.Name, strconv.Itoa(secondWork.Version)); delWork.Code != http.StatusOK {
+		t.Fatalf("删除第二作品失败：%s", delWork.Body.String())
+	}
+	purgeAll := h.do(http.MethodDelete, "/api/v1/trash", map[string]any{"confirm": "PURGE_ALL"}, nil)
+	if purgeAll.Code != http.StatusOK {
+		t.Fatalf("清空回收站失败（status=%d）：%s", purgeAll.Code, purgeAll.Body.String())
+	}
 }

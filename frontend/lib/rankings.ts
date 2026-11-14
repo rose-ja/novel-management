@@ -8,13 +8,10 @@ export function seatPage(seatNo: number, pageSize = 50): number {
 
 /** 列表前三席格式化：`1 姓名 · 2 姓名 · 3 —`。 */
 export function formatTopSeats(topSeats: RankingTopSeat[], limit = 3): string {
-  const items: string[] = [];
-  for (let index = 0; index < limit; index += 1) {
-    const seat = topSeats[index];
-    const seatNo = seat?.seat_no ?? index + 1;
-    items.push(`${seatNo} ${seat?.character?.name ?? "—"}`);
-  }
-  return items.join(" · ");
+  return topSeats
+    .slice(0, limit)
+    .map((seat) => `${seat.seat_no} ${seat.character?.name ?? "—"}`)
+    .join(" · ");
 }
 
 /** 人物侧名次标签：`封神榜·第 3 席`。 */

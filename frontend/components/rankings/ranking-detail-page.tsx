@@ -36,6 +36,7 @@ import {
 } from "@/lib/api/rankings";
 import { undoTrash } from "@/lib/api/trash";
 import { messages } from "@/lib/messages";
+import { seatPage } from "@/lib/rankings";
 
 const SEAT_PAGE_SIZE = 50;
 
@@ -158,9 +159,12 @@ export function RankingDetailPage({ rankingID }: { rankingID: string }) {
       message: messages.rankingRemoved(removedName),
       actionLabel: messages.undo,
       onAction: () => {
-        getRanking(rankingID, 1, SEAT_PAGE_SIZE)
-          .then((loaded) => {
-            const current = loaded.seats.items.find((item) => item.seat_no === removed.seat_no);
+        listSeats(rankingID, {
+          page: seatPage(removed.seat_no, SEAT_PAGE_SIZE),
+          pageSize: SEAT_PAGE_SIZE,
+        })
+          .then((page) => {
+            const current = page.items.find((item) => item.seat_no === removed.seat_no);
             if (!current) throw new Error(messages.rankingRestoreSeatFailed);
             return putSeat(rankingID, removed.seat_no, {
               characterID: removed.character?.id ?? null,
@@ -169,7 +173,10 @@ export function RankingDetailPage({ rankingID }: { rankingID: string }) {
             });
           })
           .then(() => {
-            showToast({ tone: "success", message: messages.rankingAdjusted(removed.seat_no) });
+            showToast({
+              tone: "success",
+              message: messages.rankingSeatRestored(removed.seat_no, removedName),
+            });
             reload();
           })
           .catch((cause: unknown) => {

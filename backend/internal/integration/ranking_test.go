@@ -133,17 +133,40 @@ func TestRankingCreateListAndCapacity(t *testing.T) {
 	}, nil)
 	assertErrorCode(t, rec, http.StatusUnprocessableEntity, "VALIDATION_ERROR")
 
+	// 显式 0 不应回退为默认 100。
+	rec = h.do(http.MethodPost, "/api/v1/rankings", map[string]any{
+		"work_id": work.ID, "name": "零席榜", "seat_count": 0,
+	}, nil)
+	assertErrorCode(t, rec, http.StatusUnprocessableEntity, "VALIDATION_ERROR")
+
+	// 省略 seat_count 时使用默认 100。
+	rec = h.do(http.MethodPost, "/api/v1/rankings", map[string]any{
+		"work_id": work.ID, "name": "默认席榜",
+	}, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("省略席位数创建失败（status=%d）：%s", rec.Code, rec.Body.String())
+	}
+	if defaulted := decodeBody[rankingPayload](t, rec); defaulted.SeatCount != 100 || defaulted.Seats.Total != 100 {
+		t.Fatalf("默认席位数应为 100：%+v", defaulted)
+	}
+
 	// 列表摘要。
 	listRec := h.do(http.MethodGet, "/api/v1/rankings?work_id="+work.ID, nil, nil)
 	if listRec.Code != http.StatusOK {
 		t.Fatalf("榜单列表失败：%s", listRec.Body.String())
 	}
 	list := decodeBody[rankingListPayload](t, listRec)
-	if list.Total != 1 || list.Items[0].ID != created.ID {
+	var listedItem *rankingPayload
+	for i := range list.Items {
+		if list.Items[i].ID == created.ID {
+			listedItem = &list.Items[i]
+		}
+	}
+	if list.Total != 2 || listedItem == nil {
 		t.Fatalf("榜单列表错误：%+v", list)
 	}
-	if len(list.Items[0].TopSeats) != 3 || list.Items[0].TopSeats[0].Character != nil {
-		t.Fatalf("前三席应为 3 个空席：%+v", list.Items[0].TopSeats)
+	if len(listedItem.TopSeats) != 3 || listedItem.TopSeats[0].Character != nil {
+		t.Fatalf("前三席应为 3 个空席：%+v", listedItem.TopSeats)
 	}
 
 	// 扩容到 120。

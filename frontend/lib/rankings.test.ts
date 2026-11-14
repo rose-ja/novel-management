@@ -19,7 +19,8 @@ describe("rankings helpers", () => {
         { seat_no: 3, character: null },
       ]),
     ).toBe("1 甲 · 2 乙 · 3 —");
-    expect(formatTopSeats([])).toBe("1 — · 2 — · 3 —");
+    expect(formatTopSeats([{ seat_no: 1, character: { id: "c1", name: "甲" } }])).toBe("1 甲");
+    expect(formatTopSeats([])).toBe("");
   });
 
   it("人物名次标签与容量差值", () => {

@@ -46,7 +46,7 @@ func createRankingHandler(svc *service.Rankings) gin.HandlerFunc {
 	type request struct {
 		WorkID    string `json:"work_id"`
 		Name      string `json:"name"`
-		SeatCount int    `json:"seat_count"`
+		SeatCount *int   `json:"seat_count"`
 	}
 	return func(c *gin.Context) {
 		var body request
@@ -209,7 +209,8 @@ func parseSeatNo(c *gin.Context) (int, bool) {
 	seatNo, err := strconv.Atoi(c.Param("seat_no"))
 	if err != nil || seatNo < 1 {
 		abortErrorWithDetails(c, http.StatusBadRequest, "SEAT_OUT_OF_RANGE", "席位号超出榜单范围", gin.H{
-			"seat_no": seatNo,
+			"seat_no":    seatNo,
+			"seat_count": 0,
 		})
 		return 0, false
 	}

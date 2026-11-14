@@ -49,7 +49,7 @@ type ListRankingsInput struct {
 type CreateRankingInput struct {
 	WorkID    string
 	Name      string
-	SeatCount int
+	SeatCount *int
 }
 
 type UpdateRankingInput struct {
@@ -153,9 +153,9 @@ func (s *Rankings) Create(ctx context.Context, in CreateRankingInput) (*model.Ra
 	if err != nil {
 		return nil, err
 	}
-	seatCount := in.SeatCount
-	if seatCount == 0 {
-		seatCount = model.DefaultRankingSeats
+	seatCount := model.DefaultRankingSeats
+	if in.SeatCount != nil {
+		seatCount = *in.SeatCount
 	}
 	if err := model.NormalizeSeatCount(seatCount); err != nil {
 		return nil, err
@@ -488,7 +488,18 @@ func (s *Rankings) PutSeat(ctx context.Context, rankingID string, seatNo int, in
 		rows, err := repo.UpdateSeatWithVersion(ctx, rankingID, seatNo, version, characterID, note, now)
 		if err != nil {
 			if repository.IsUniqueViolation(err, "seats_character_uq") {
-				return &model.SeatConflictError{SeatNo: seatNo, CharacterID: *characterID}
+				existing := seatNo
+				if characterID != nil {
+					if conflict, lookupErr := repo.ConflictSeatNo(ctx, rankingID, *characterID, seatNo); lookupErr == nil && conflict != nil {
+						existing = *conflict
+					}
+					return &model.SeatConflictError{
+						SeatNo:         seatNo,
+						CharacterID:    *characterID,
+						ExistingSeatNo: existing,
+					}
+				}
+				return model.ErrSeatConflict
 			}
 			return err
 		}
