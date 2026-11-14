@@ -349,6 +349,20 @@ func (r *Rankings) SetSeatCharacter(ctx context.Context, rankingID string, seatN
 		}).Error
 }
 
+// ClearSeatCharacters 先清空多个席位的人物（保留备注），供交换规避部分唯一索引。
+func (r *Rankings) ClearSeatCharacters(ctx context.Context, rankingID string, seatNos []int, now time.Time) error {
+	if len(seatNos) == 0 {
+		return nil
+	}
+	return r.DB.WithContext(ctx).Table("ranking_seats").
+		Where("ranking_id = ? AND seat_no IN ?", rankingID, seatNos).
+		Updates(map[string]any{
+			"character_id": nil,
+			"version":      gorm.Expr("version + 1"),
+			"updated_at":   now,
+		}).Error
+}
+
 // DeleteSeatsAbove 物理删除席位号大于 target 的尾部座椅（调用方先确认均为空席）。
 func (r *Rankings) DeleteSeatsAbove(ctx context.Context, rankingID string, target int) error {
 	return r.DB.WithContext(ctx).
@@ -434,7 +448,7 @@ func (r *Rankings) OccupiedCounts(ctx context.Context, rankingIDs []string) (map
 	return out, nil
 }
 
-// TopSeats 批量返回各榜单前 limit 个已占席位（seat_no 升序）。
+// TopSeats 批量返回各榜单前 limit 个席位（seat_no 升序，空席 character 为 null）。
 func (r *Rankings) TopSeats(ctx context.Context, rankingIDs []string, limit int) (map[string][]model.RankingTopSeat, error) {
 	out := make(map[string][]model.RankingTopSeat, len(rankingIDs))
 	if len(rankingIDs) == 0 {
@@ -443,8 +457,8 @@ func (r *Rankings) TopSeats(ctx context.Context, rankingIDs []string, limit int)
 	type row struct {
 		RankingID   string
 		SeatNo      int
-		CharacterID string
-		Name        string
+		CharacterID *string
+		Name        *string
 	}
 	var rows []row
 	err := r.DB.WithContext(ctx).Raw(`
@@ -452,21 +466,20 @@ func (r *Rankings) TopSeats(ctx context.Context, rankingIDs []string, limit int)
 			SELECT rs.ranking_id, rs.seat_no, rs.character_id, c.name,
 			       row_number() OVER (PARTITION BY rs.ranking_id ORDER BY rs.seat_no ASC) AS rn
 			FROM ranking_seats rs
-			JOIN characters c ON c.id = rs.character_id
-			WHERE rs.ranking_id IN ? AND rs.character_id IS NOT NULL
+			LEFT JOIN characters c ON c.id = rs.character_id
+			WHERE rs.ranking_id IN ?
 		) ranked
-		WHERE rn <= ?`, rankingIDs, limit).Scan(&rows).Error
+		WHERE rn <= ?
+		ORDER BY ranking_id ASC, seat_no ASC`, rankingIDs, limit).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 	for _, item := range rows {
-		out[item.RankingID] = append(out[item.RankingID], model.RankingTopSeat{
-			SeatNo: item.SeatNo,
-			Character: &model.RankingTopCharacter{
-				ID:   item.CharacterID,
-				Name: item.Name,
-			},
-		})
+		top := model.RankingTopSeat{SeatNo: item.SeatNo}
+		if item.CharacterID != nil && item.Name != nil {
+			top.Character = &model.RankingTopCharacter{ID: *item.CharacterID, Name: *item.Name}
+		}
+		out[item.RankingID] = append(out[item.RankingID], top)
 	}
 	return out, nil
 }
