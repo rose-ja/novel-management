@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ export type LocationEditFormProps = {
   onCancel: () => void;
   onSaved: (updated: LocationDetail) => void;
   onRefresh: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 /** 地点内联编辑：名称、上级、类型与简介，保存使用 If-Match。 */
@@ -28,6 +29,7 @@ export function LocationEditForm({
   onCancel,
   onSaved,
   onRefresh,
+  onDirtyChange,
 }: LocationEditFormProps) {
   const [name, setName] = useState(location.name);
   const [parentID, setParentID] = useState(location.parent?.id ?? "");
@@ -36,6 +38,21 @@ export function LocationEditForm({
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const initial = {
+    name: location.name,
+    parentID: location.parent?.id ?? "",
+    typeText: location.type_text ?? "",
+    description: location.description ?? "",
+  };
+  useEffect(() => {
+    onDirtyChange?.(
+      name !== initial.name ||
+        parentID !== initial.parentID ||
+        typeText !== initial.typeText ||
+        description !== initial.description,
+    );
+  }, [name, parentID, typeText, description, initial.name, initial.parentID, initial.typeText, initial.description, onDirtyChange]);
 
   async function submit() {
     const trimmed = name.trim();

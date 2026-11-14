@@ -93,6 +93,38 @@ func (r *Locations) get(ctx context.Context, where string, args ...any) (*model.
 	return &item, nil
 }
 
+// GetActiveByWorkForShare 以 SHARE 锁读取活跃地点，与删除的 UPDATE 锁互斥，避免引用写入已删地点。
+func (r *Locations) GetActiveByWorkForShare(ctx context.Context, workID, id string) (*model.Location, error) {
+	var item model.Location
+	err := r.DB.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "SHARE"}).
+		Where("id = ? AND work_id = ? AND deleted_at IS NULL", id, workID).
+		First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+// GetForShare 以 SHARE 锁读取活跃地点（不限定作品），供关系写入前与删除互斥。
+func (r *Locations) GetForShare(ctx context.Context, id string) (*model.Location, error) {
+	var item model.Location
+	err := r.DB.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "SHARE"}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, model.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 // GetForUpdate 在事务内锁定未删除地点行，供乐观锁读取。
 func (r *Locations) GetForUpdate(ctx context.Context, id string) (*model.Location, error) {
 	var item model.Location

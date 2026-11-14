@@ -279,7 +279,7 @@ func (s *Locations) Get(ctx context.Context, id string) (*model.LocationDetail, 
 	}, nil
 }
 
-// characterViews 装配地点详情关联人物；回收站人物不展示（关系随人物删除解除）。
+// characterViews 装配地点详情关联人物；回收站人物保留并标记 in_trash，便于解释删除阻断。
 func (s *Locations) characterViews(ctx context.Context, repo *repository.Locations, locationID string) ([]model.LocationCharacterView, error) {
 	rows, err := repo.CharacterRowsForLocation(ctx, locationID)
 	if err != nil {
@@ -289,6 +289,12 @@ func (s *Locations) characterViews(ctx context.Context, repo *repository.Locatio
 	active := make([]repository.LocationCharacterRow, 0, len(rows))
 	for _, row := range rows {
 		if row.InTrash {
+			out = append(out, model.LocationCharacterView{
+				CharacterID: row.CharacterID,
+				Name:        row.Name,
+				Note:        row.Note,
+				InTrash:     true,
+			})
 			continue
 		}
 		active = append(active, row)
@@ -322,7 +328,7 @@ func (s *Locations) characterViews(ctx context.Context, repo *repository.Locatio
 	return out, nil
 }
 
-// factionViews 装配地点详情关联势力；回收站势力不展示（关系随势力删除解除）。
+// factionViews 装配地点详情关联势力；回收站势力保留并标记 in_trash，便于解释删除阻断。
 func (s *Locations) factionViews(ctx context.Context, repo *repository.Locations, locationID string) ([]model.LocationFactionView, error) {
 	rows, err := repo.FactionRowsForLocation(ctx, locationID)
 	if err != nil {
@@ -330,14 +336,11 @@ func (s *Locations) factionViews(ctx context.Context, repo *repository.Locations
 	}
 	out := make([]model.LocationFactionView, 0, len(rows))
 	for _, row := range rows {
-		if row.InTrash {
-			continue
-		}
 		out = append(out, model.LocationFactionView{
 			FactionID: row.FactionID,
 			Name:      row.Name,
 			Note:      row.Note,
-			InTrash:   false,
+			InTrash:   row.InTrash,
 		})
 	}
 	return out, nil
@@ -541,18 +544,6 @@ func (s *Locations) Delete(ctx context.Context, id, ifMatch string) (*DeleteLoca
 		if err != nil {
 			return err
 		}
-		if len(children) > 0 {
-			items := make([]model.ConflictItem, 0, len(children))
-			for _, child := range children {
-				items = append(items, model.ConflictItem{
-					ID:         child.ID,
-					Name:       child.Name,
-					EntityType: RootTypeLocation,
-					InTrash:    child.DeletedAt != nil,
-				})
-			}
-			return &model.HasChildrenError{Items: items}
-		}
 		characterRows, err := repo.CharacterRowsForLocation(ctx, id)
 		if err != nil {
 			return err
@@ -560,6 +551,41 @@ func (s *Locations) Delete(ctx context.Context, id, ifMatch string) (*DeleteLoca
 		factionRows, err := repo.FactionRowsForLocation(ctx, id)
 		if err != nil {
 			return err
+		}
+		if len(children) > 0 {
+			// 一次返回全部三类引用，避免用户先清下级、再被关系阻断。
+			items := make([]model.ConflictItem, 0, len(children)+len(characterRows)+len(factionRows))
+			for _, child := range children {
+				items = append(items, model.ConflictItem{
+					ID:         child.ID,
+					Name:       child.Name,
+					EntityType: "location_child",
+					InTrash:    child.DeletedAt != nil,
+				})
+			}
+			for _, row := range characterRows {
+				if len(items) >= model.ReferenceListLimit {
+					break
+				}
+				items = append(items, model.ConflictItem{
+					ID:         row.CharacterID,
+					Name:       row.Name,
+					EntityType: "character_location",
+					InTrash:    row.InTrash,
+				})
+			}
+			for _, row := range factionRows {
+				if len(items) >= model.ReferenceListLimit {
+					break
+				}
+				items = append(items, model.ConflictItem{
+					ID:         row.FactionID,
+					Name:       row.Name,
+					EntityType: "location_faction",
+					InTrash:    row.InTrash,
+				})
+			}
+			return &model.HasChildrenError{Items: items}
 		}
 		if err := locationReferenceConflict(item.Name, characterRows, factionRows); err != nil {
 			return err
@@ -667,52 +693,62 @@ func (s *Locations) AddFaction(ctx context.Context, locationID string, in AddLoc
 	if err != nil {
 		return nil, err
 	}
-	repo := repository.NewLocations(s.db)
-	location, err := repo.Get(ctx, locationID)
-	if err != nil {
-		return nil, err
-	}
-	faction, err := repository.NewFactions(s.db).GetActiveByWork(ctx, location.WorkID, factionID)
-	if err != nil {
-		if !errors.Is(err, model.ErrNotFound) {
-			return nil, err
-		}
-		any, anyErr := repository.NewFactions(s.db).GetAny(ctx, factionID)
-		if anyErr != nil {
-			if errors.Is(anyErr, model.ErrNotFound) {
-				return nil, &model.ValidationError{Field: "faction_id", Message: "势力不存在"}
-			}
-			return nil, anyErr
-		}
-		if any.WorkID != location.WorkID {
-			return nil, &model.CrossWorkReferenceError{Field: "faction_id", Message: "势力不属于当前作品"}
-		}
-		return nil, model.ErrParentDeleted
-	}
-	exists, err := repo.HasLocationFaction(ctx, locationID, factionID)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return nil, model.ErrDuplicateRelation
-	}
 	now := s.now().UTC()
-	item := &model.LocationFaction{
-		ID:         model.NewID(),
-		WorkID:     location.WorkID,
-		LocationID: locationID,
-		FactionID:  factionID,
-		Note:       note,
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}
-	if err := repo.InsertLocationFaction(ctx, item); err != nil {
-		if repository.IsUniqueViolation(err, "loc_fac_uq") {
-			return nil, model.ErrDuplicateRelation
+	var view *model.LocationFactionView
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := repository.NewLocations(tx)
+		// SHARE 锁与地点删除的 UPDATE 锁互斥，避免关系写入已删地点。
+		location, err := repo.GetForShare(ctx, locationID)
+		if err != nil {
+			return err
 		}
+		factionRepo := repository.NewFactions(tx)
+		faction, err := factionRepo.GetActiveByWork(ctx, location.WorkID, factionID)
+		if err != nil {
+			if !errors.Is(err, model.ErrNotFound) {
+				return err
+			}
+			any, anyErr := factionRepo.GetAny(ctx, factionID)
+			if anyErr != nil {
+				if errors.Is(anyErr, model.ErrNotFound) {
+					return &model.ValidationError{Field: "faction_id", Message: "势力不存在"}
+				}
+				return anyErr
+			}
+			if any.WorkID != location.WorkID {
+				return &model.CrossWorkReferenceError{Field: "faction_id", Message: "势力不属于当前作品"}
+			}
+			return model.ErrParentDeleted
+		}
+		exists, err := repo.HasLocationFaction(ctx, locationID, factionID)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return model.ErrDuplicateRelation
+		}
+		item := &model.LocationFaction{
+			ID:         model.NewID(),
+			WorkID:     location.WorkID,
+			LocationID: locationID,
+			FactionID:  factionID,
+			Note:       note,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		if err := repo.InsertLocationFaction(ctx, item); err != nil {
+			if repository.IsUniqueViolation(err, "loc_fac_uq") {
+				return model.ErrDuplicateRelation
+			}
+			return err
+		}
+		view = &model.LocationFactionView{FactionID: faction.ID, Name: faction.Name, Note: note}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-	return &model.LocationFactionView{FactionID: faction.ID, Name: faction.Name, Note: note}, nil
+	return view, nil
 }
 
 // UpdateFactionNote 仅更新地点-势力关系备注。
@@ -772,7 +808,7 @@ func resolveLocationParent(ctx context.Context, tx *gorm.DB, workID, raw string)
 		return nil, &model.ValidationError{Field: "parent_id", Message: "parent_id 不能为空"}
 	}
 	repo := repository.NewLocations(tx)
-	if _, err := repo.GetActiveByWork(ctx, workID, id); err != nil {
+	if _, err := repo.GetActiveByWorkForShare(ctx, workID, id); err != nil {
 		if !errors.Is(err, model.ErrNotFound) {
 			return nil, err
 		}

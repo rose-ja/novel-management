@@ -35,7 +35,10 @@ function highlighted(name: string, query: string) {
 export function LocationTree({ index, expanded, query, selectedID, onToggle, onAddChild }: LocationTreeProps) {
   function renderNodes(nodes: LocationSummary[], depth: number) {
     return (
-      <ul className="location-tree__list" role={depth === 0 ? "tree" : "group"} aria-label={depth === 0 ? messages.locationTreeAria : undefined}>
+      <ul
+        className="location-tree__list"
+        aria-label={depth === 0 ? messages.locationTreeAria : undefined}
+      >
         {nodes.map((node) => {
           const children = (index.children.get(node.id) ?? []).filter((child) => index.visible.has(child.id));
           const open = expanded.has(node.id);
@@ -43,9 +46,6 @@ export function LocationTree({ index, expanded, query, selectedID, onToggle, onA
             <li
               key={node.id}
               className="location-tree__item"
-              role="treeitem"
-              aria-selected={node.id === selectedID}
-              aria-expanded={children.length > 0 ? open : undefined}
             >
               <div
                 className={
@@ -74,7 +74,11 @@ export function LocationTree({ index, expanded, query, selectedID, onToggle, onA
                 ) : (
                   <span className="location-tree__toggle location-tree__toggle--empty" aria-hidden="true" />
                 )}
-                <Link className="location-tree__name" href={`/locations?id=${encodeURIComponent(node.id)}`}>
+                <Link
+                  className="location-tree__name"
+                  href={`/locations?id=${encodeURIComponent(node.id)}`}
+                  aria-current={node.id === selectedID ? "page" : undefined}
+                >
                   {highlighted(node.name, query)}
                 </Link>
                 <span className="location-tree__meta">

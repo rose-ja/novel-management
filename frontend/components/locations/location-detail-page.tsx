@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { LocationDeleteDialog } from "@/components/locations/location-delete-dialog";
@@ -9,6 +10,7 @@ import { LocationRelations } from "@/components/locations/location-relations";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,6 +33,7 @@ import {
   locationTypeOptions,
   toLocationOptions,
 } from "@/lib/locations-tree";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 
 type DetailStatus = "loading" | "ready" | "notfound" | "error";
@@ -47,7 +50,9 @@ function formatTime(value: string): string {
 
 /** 地点详情（PG-07）：摘要、下级、关联人物/势力、内联编辑与删除阻断。 */
 export function LocationDetailPage({ locationID }: LocationDetailPageProps) {
+  const router = useRouter();
   const { showToast } = useToast();
+  const guard = useUnsavedGuard();
   const [detail, setDetail] = useState<LocationDetail | null>(null);
   const [all, setAll] = useState<LocationSummary[]>([]);
   const [factionOptions, setFactionOptions] = useState<{ value: string; label: string }[]>([]);
@@ -126,6 +131,7 @@ export function LocationDetailPage({ locationID }: LocationDetailPageProps) {
 
   function handleDeleted(result: DeleteLocationResult) {
     setDeleted(true);
+    router.push("/locations");
     showToast({
       tone: "success",
       message: messages.locationMovedToTrash(detail?.name ?? ""),
@@ -192,7 +198,14 @@ export function LocationDetailPage({ locationID }: LocationDetailPageProps) {
         actions={
           deleted ? null : (
             <>
-              <Button variant="secondary" onClick={() => setEditing(true)} disabled={editing}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  guard.reset();
+                  setEditing(true);
+                }}
+                disabled={editing}
+              >
                 {messages.characterEdit}
               </Button>
               <Button variant="danger" onClick={() => setDeleteOpen(true)}>
@@ -226,14 +239,22 @@ export function LocationDetailPage({ locationID }: LocationDetailPageProps) {
           location={detail}
           parentOptions={parentOptions}
           typeSuggestions={typeSuggestions}
-          onCancel={() => setEditing(false)}
+          onCancel={() =>
+            guard.requestLeave(() => {
+              guard.reset();
+              setEditing(false);
+            })
+          }
+          onDirtyChange={guard.markDirty}
           onSaved={(updated) => {
+            guard.reset();
             setDetail(updated);
             setEditing(false);
             setReloadTick((value) => value + 1);
             showToast({ tone: "success", message: messages.locationUpdated(updated.name) });
           }}
           onRefresh={() => {
+            guard.reset();
             setEditing(false);
             setReloadTick((value) => value + 1);
           }}
@@ -347,6 +368,28 @@ export function LocationDetailPage({ locationID }: LocationDetailPageProps) {
           onClose={() => setDeleteOpen(false)}
           onDeleted={handleDeleted}
           onVersionConflict={() => setReloadTick((value) => value + 1)}
+        />
+      ) : null}
+
+      {guard.confirmOpen ? (
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next) guard.keepEditing();
+          }}
+          title={messages.unsavedTitle}
+          description={messages.unsavedDescription}
+          size="sm"
+          footer={
+            <>
+              <Button variant="secondary" onClick={guard.keepEditing}>
+                {messages.unsavedKeep}
+              </Button>
+              <Button variant="danger" onClick={guard.discardAndLeave}>
+                {messages.unsavedDiscard}
+              </Button>
+            </>
+          }
         />
       ) : null}
     </div>

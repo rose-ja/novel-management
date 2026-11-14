@@ -154,12 +154,18 @@ test.describe("地点删除与回收站", () => {
     const child = await createLocation(request, work.id, uniqueName("下级地点"), {
       parentID: parent.id,
     });
+    const character = await createCharacter(request, work.id, uniqueName("上级关联者"), {
+      locationLinks: [{ locationID: parent.id, note: "常驻" }],
+    });
 
     await page.goto(`/locations?id=${parent.id}`);
     await page.locator(".ui-page-header").getByRole("button", { name: "删除地点" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "删除地点" }).click();
     await expect(page.getByRole("dialog")).toContainText("仍有下级地点，无法删除");
     await expect(page.getByRole("dialog").getByRole("link", { name: child.name })).toBeVisible();
+    await expect(page.getByRole("dialog")).toContainText("关联人物（1）");
+    await expect(page.getByRole("dialog").getByRole("link", { name: character.name })).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "删除地点" })).toBeDisabled();
   });
 
   test("删除被人物关系阻挡，移除后可删除并撤销", async ({ page, request }) => {
@@ -184,6 +190,7 @@ test.describe("地点删除与回收站", () => {
     await page.locator(".ui-page-header").getByRole("button", { name: "删除地点" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "删除地点" }).click();
     await expect(page.locator(".ui-toast").filter({ hasText: `地点「${location.name}」已移入回收站` })).toBeVisible();
+    await expect(page).toHaveURL(/\/locations$/);
 
     await page.goto("/trash");
     await page.getByLabel("类型").selectOption({ label: "地点" });

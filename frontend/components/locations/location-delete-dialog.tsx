@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { referenceConflictItems } from "@/components/system/reference-dialog";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -16,37 +15,69 @@ import {
 } from "@/lib/api/locations";
 import { messages } from "@/lib/messages";
 
+type RawItem = {
+  id?: string;
+  entity_id?: string;
+  name?: string;
+  entity_type?: string;
+  type?: string;
+  in_trash?: boolean;
+};
+
 type BlockItem = {
   id: string;
   name: string;
   href: string;
-  inTrash?: boolean;
+  inTrash: boolean;
 };
 
-type HasChildrenDetails = {
-  items?: { id?: string; name?: string; in_trash?: boolean }[];
+type BlockGroup = {
+  key: string;
+  title: string;
+  items: BlockItem[];
 };
 
-function hasChildrenItems(error: unknown): BlockItem[] {
-  if (!(error instanceof ApiError) || !error.details || typeof error.details !== "object") return [];
-  const details = error.details as HasChildrenDetails;
-  if (!Array.isArray(details.items)) return [];
-  return details.items
-    .filter((item): item is { id: string; name: string; in_trash?: boolean } =>
-      Boolean(item.id && item.name),
-    )
-    .map((item) => ({
-      id: item.id,
-      name: item.name,
-      href: item.in_trash ? "/trash" : `/locations?id=${encodeURIComponent(item.id)}`,
-      inTrash: item.in_trash === true,
-    }));
+const GROUP_TITLES: Record<string, string> = {
+  location_child: messages.locationChildrenTitle,
+  character_location: messages.locationCharactersTitle,
+  location_faction: messages.locationFactionsTitle,
+};
+
+function hrefFor(type: string, id: string): string {
+  if (type === "character_location") return `/characters?id=${encodeURIComponent(id)}`;
+  if (type === "location_faction") return `/factions?id=${encodeURIComponent(id)}`;
+  if (type === "location_child") return `/locations?id=${encodeURIComponent(id)}`;
+  return "/trash";
 }
 
-function referenceHref(type: string, entityID: string): string {
-  if (type === "character_location") return `/characters?id=${encodeURIComponent(entityID)}`;
-  if (type === "location_faction") return `/factions?id=${encodeURIComponent(entityID)}`;
-  return "/trash";
+/** 同时兼容 HAS_CHILDREN（{items}）与 REFERENCE_CONFLICT（数组）两类明细。 */
+function parseGroups(error: unknown): BlockGroup[] {
+  if (!(error instanceof ApiError) || !error.details || typeof error.details !== "object") return [];
+  const details = error.details;
+  const items = Array.isArray(details)
+    ? (details as RawItem[])
+    : ((details as { items?: RawItem[] }).items ?? []);
+  if (!Array.isArray(items)) return [];
+  const groups = new Map<string, BlockGroup>();
+  for (const item of items) {
+    const type = item.entity_type ?? item.type ?? "";
+    const id = item.entity_id ?? item.id ?? "";
+    const name = item.name ?? "";
+    if (!type || !id || !name) continue;
+    const current = groups.get(type) ?? {
+      key: type,
+      title: GROUP_TITLES[type] ?? messages.locationDeleteReference,
+      items: [],
+    };
+    current.items.push({
+      id,
+      name,
+      href: item.in_trash ? "/trash" : hrefFor(type, id),
+      inTrash: item.in_trash === true,
+    });
+    groups.set(type, current);
+  }
+  return Array.from(groups.values());
 }
 
 export type LocationDeleteDialogProps = {
@@ -56,7 +87,7 @@ export type LocationDeleteDialogProps = {
   onVersionConflict: () => void;
 };
 
-/** 删除确认：HAS_CHILDREN 列出下级地点，REFERENCE_CONFLICT 列出人物/势力关系并支持跳转。 */
+/** 删除确认：按下级/人物/势力分组列出三类入向引用，冲突时禁用删除主操作。 */
 export function LocationDeleteDialog({
   location,
   onClose,
@@ -64,14 +95,14 @@ export function LocationDeleteDialog({
   onVersionConflict,
 }: LocationDeleteDialogProps) {
   const [error, setError] = useState<string | null>(null);
-  const [blocks, setBlocks] = useState<BlockItem[]>([]);
+  const [groups, setGroups] = useState<BlockGroup[]>([]);
   const [versionConflict, setVersionConflict] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function submit() {
     setSubmitting(true);
     setError(null);
-    setBlocks([]);
+    setGroups([]);
     setVersionConflict(false);
     try {
       const result = await deleteLocation(location.id, location.version);
@@ -79,17 +110,10 @@ export function LocationDeleteDialog({
       onClose();
     } catch (cause) {
       if (isApiCode(cause, "HAS_CHILDREN")) {
-        setBlocks(hasChildrenItems(cause));
+        setGroups(parseGroups(cause));
         setError(messages.locationDeleteHasChildren);
       } else if (isApiCode(cause, "REFERENCE_CONFLICT")) {
-        setBlocks(
-          referenceConflictItems(cause).map((item) => ({
-            id: `${item.type}:${item.entity_id}`,
-            name: item.name ?? messages.systemReferenceUnnamed,
-            href: referenceHref(item.type, item.entity_id),
-            inTrash: item.in_trash,
-          })),
-        );
+        setGroups(parseGroups(cause));
         setError(messages.locationDeleteReference);
       } else if (isApiCode(cause, "VERSION_CONFLICT")) {
         setVersionConflict(true);
@@ -102,6 +126,8 @@ export function LocationDeleteDialog({
     }
   }
 
+  const blocked = groups.length > 0;
+
   return (
     <Dialog
       open
@@ -110,13 +136,13 @@ export function LocationDeleteDialog({
       }}
       title={messages.locationDeleteTitle(location.name)}
       description={messages.locationDeleteDescription}
-      size="sm"
+      size={blocked ? "md" : "sm"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
             {messages.cancel}
           </Button>
-          <Button variant="danger" onClick={submit} loading={submitting}>
+          <Button variant="danger" onClick={submit} loading={submitting} disabled={blocked}>
             {messages.locationDeleteSubmit}
           </Button>
         </>
@@ -142,26 +168,34 @@ export function LocationDeleteDialog({
           }
         />
       ) : null}
-      {blocks.length > 0 ? (
-        <ul className="character-reference-list">
-          {blocks.map((item) => (
-            <li key={item.id}>
-              {item.inTrash ? (
-                <>
-                  <span className="character-muted">{item.name}{messages.locationRelationInTrash}</span>
-                  <Link className="character-name-link" href="/trash">
-                    {messages.locationGoTrash}
+      {groups.map((group) => (
+        <section key={group.key} className="character-relation-group" aria-label={group.title}>
+          <h3 className="character-relation-group__title">
+            {group.title}（{group.items.length}）
+          </h3>
+          <ul className="character-reference-list">
+            {group.items.map((item) => (
+              <li key={`${group.key}:${item.id}`}>
+                {item.inTrash ? (
+                  <>
+                    <span className="character-muted">
+                      {item.name}
+                      {messages.locationRelationInTrash}
+                    </span>
+                    <Link className="character-name-link" href="/trash">
+                      {messages.locationGoTrash}
+                    </Link>
+                  </>
+                ) : (
+                  <Link className="character-name-link" href={item.href}>
+                    {item.name}
                   </Link>
-                </>
-              ) : (
-                <Link className="character-name-link" href={item.href}>
-                  {item.name}
-                </Link>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </Dialog>
   );
 }

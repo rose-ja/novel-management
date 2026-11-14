@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -20,6 +21,7 @@ import {
   type LocationFaction,
 } from "@/lib/api/locations";
 import { messages } from "@/lib/messages";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 
 type CharacterRow = { key: string; characterID: string; note: string };
 type FactionRow = { key: string; factionID: string; note: string };
@@ -47,9 +49,12 @@ export function LocationRelations({
   onChanged,
 }: LocationRelationsProps) {
   const { showToast } = useToast();
+  const guard = useUnsavedGuard();
   const [editing, setEditing] = useState<"characters" | "factions" | null>(null);
   const [characterRows, setCharacterRows] = useState<CharacterRow[]>([]);
   const [factionRows, setFactionRows] = useState<FactionRow[]>([]);
+  const [initialCharacterRows, setInitialCharacterRows] = useState<CharacterRow[]>([]);
+  const [initialFactionRows, setInitialFactionRows] = useState<FactionRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -62,32 +67,50 @@ export function LocationRelations({
     [factionRows],
   );
 
+  useEffect(() => {
+    if (editing === "characters") {
+      guard.markDirty(JSON.stringify(characterRows) !== JSON.stringify(initialCharacterRows));
+    } else if (editing === "factions") {
+      guard.markDirty(JSON.stringify(factionRows) !== JSON.stringify(initialFactionRows));
+    } else {
+      guard.markDirty(false);
+    }
+  }, [editing, characterRows, factionRows, initialCharacterRows, initialFactionRows, guard]);
+
   function startCharacters() {
     setError(null);
+    guard.reset();
     setEditing("characters");
-    setCharacterRows(
-      characters.map((item) => ({
+    const rows = characters
+      .filter((item) => !item.in_trash)
+      .map((item) => ({
         key: `character-${item.character_id}`,
         characterID: item.character_id,
         note: item.note ?? "",
-      })),
-    );
+      }));
+    setCharacterRows(rows);
+    setInitialCharacterRows(rows);
   }
 
   function startFactions() {
     setError(null);
+    guard.reset();
     setEditing("factions");
-    setFactionRows(
-      factions.map((item) => ({
+    const rows = factions
+      .filter((item) => !item.in_trash)
+      .map((item) => ({
         key: `faction-${item.faction_id}`,
         factionID: item.faction_id,
         note: item.note ?? "",
-      })),
-    );
+      }));
+    setFactionRows(rows);
+    setInitialFactionRows(rows);
   }
 
   async function saveCharacters() {
-    const original = new Map(characters.map((item) => [item.character_id, item.note ?? ""]));
+    const original = new Map(
+      characters.filter((item) => !item.in_trash).map((item) => [item.character_id, item.note ?? ""]),
+    );
     const next = new Map(
       characterRows
         .filter((row) => row.characterID !== "")
@@ -111,6 +134,7 @@ export function LocationRelations({
         await updateCharacter(characterID, { locationLinks: links, version: detail.version });
       }
       setEditing(null);
+      guard.reset();
       onChanged();
       showToast({ tone: "success", message: messages.locationRelationSaved });
     } catch (cause) {
@@ -121,7 +145,9 @@ export function LocationRelations({
   }
 
   async function saveFactions() {
-    const original = new Map(factions.map((item) => [item.faction_id, item.note ?? ""]));
+    const original = new Map(
+      factions.filter((item) => !item.in_trash).map((item) => [item.faction_id, item.note ?? ""]),
+    );
     const next = new Map(
       factionRows
         .filter((row) => row.factionID !== "")
@@ -151,6 +177,7 @@ export function LocationRelations({
         await updateLocationFactionNote(locationID, factionID, note === "" ? null : note);
       }
       setEditing(null);
+      guard.reset();
       onChanged();
       showToast({ tone: "success", message: messages.locationRelationSaved });
     } catch (cause) {
@@ -246,7 +273,12 @@ export function LocationRelations({
             <span>{messages.locationRelationAddCharacter}</span>
           </Button>
           <div className="location-relation-actions">
-            <Button variant="secondary" size="sm" onClick={() => setEditing(null)} disabled={submitting}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => guard.requestLeave(() => setEditing(null))}
+              disabled={submitting}
+            >
               {messages.cancel}
             </Button>
             <Button size="sm" onClick={saveCharacters} loading={submitting}>
@@ -353,7 +385,12 @@ export function LocationRelations({
             <span>{messages.locationRelationAddFaction}</span>
           </Button>
           <div className="location-relation-actions">
-            <Button variant="secondary" size="sm" onClick={() => setEditing(null)} disabled={submitting}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => guard.requestLeave(() => setEditing(null))}
+              disabled={submitting}
+            >
               {messages.cancel}
             </Button>
             <Button size="sm" onClick={saveFactions} loading={submitting}>
@@ -391,6 +428,28 @@ export function LocationRelations({
           )}
         </div>
       )}
+
+      {guard.confirmOpen ? (
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next) guard.keepEditing();
+          }}
+          title={messages.unsavedTitle}
+          description={messages.unsavedDescription}
+          size="sm"
+          footer={
+            <>
+              <Button variant="secondary" onClick={guard.keepEditing}>
+                {messages.unsavedKeep}
+              </Button>
+              <Button variant="danger" onClick={guard.discardAndLeave}>
+                {messages.unsavedDiscard}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
     </section>
   );
 }

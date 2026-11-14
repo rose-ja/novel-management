@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+import { cleanupE2E, createLocation, createWork, uniqueName } from "./helpers";
+
 const pages = [
   { path: "/", name: "概览" },
   { path: "/system", name: "体系" },
@@ -24,3 +26,42 @@ for (const target of pages) {
     expect(blocking.map((violation) => `${violation.id}: ${violation.nodes.length}`)).toEqual([]);
   });
 }
+
+/** 有数据的地点树与详情需要覆盖树行、关系区与删除对话框。 */
+test.describe("地点：有数据无障碍", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test("地点树与详情无 serious/critical 问题", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("a11y地点"));
+    const root = await createLocation(request, work.id, uniqueName("东荒"), { typeText: "星域" });
+    const child = await createLocation(request, work.id, uniqueName("青丘山"), {
+      parentID: root.id,
+      typeText: "星城",
+    });
+
+    await page.goto("/locations");
+    await expect(page.locator(".location-tree__row")).toHaveCount(2);
+    let results = await new AxeBuilder({ page }).analyze();
+    let blocking = results.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    );
+    expect(blocking.map((violation) => `${violation.id}: ${violation.nodes.length}`)).toEqual([]);
+
+    await page.goto(`/locations?id=${child.id}`);
+    await expect(page.getByRole("heading", { name: child.name, level: 1 })).toBeVisible();
+    results = await new AxeBuilder({ page }).analyze();
+    blocking = results.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    );
+    expect(blocking.map((violation) => `${violation.id}: ${violation.nodes.length}`)).toEqual([]);
+
+    await page.locator(".ui-page-header").getByRole("button", { name: "删除地点" }).click();
+    results = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
+    blocking = results.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    );
+    expect(blocking.map((violation) => `${violation.id}: ${violation.nodes.length}`)).toEqual([]);
+  });
+});

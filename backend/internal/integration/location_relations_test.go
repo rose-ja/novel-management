@@ -80,15 +80,18 @@ func TestLocationCharacterRelation(t *testing.T) {
 		t.Fatalf("跨作品地点应返回 422，实际 %d：%s", rec.Code, rec.Body.String())
 	}
 
-	// 人物删除不被地点关系阻止；地点详情隐藏该人物。
+	// 人物删除不被地点关系阻止；地点详情保留关系并标记回收站。
 	rec = h.do(http.MethodDelete, "/api/v1/characters/"+character.ID, nil,
 		map[string]string{"If-Match": `"2"`})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("人物删除不应被地点关系阻止（status=%d）：%s", rec.Code, rec.Body.String())
 	}
 	detail = h.getLocation(first.ID)
-	if len(detail.Relations.Characters) != 0 {
-		t.Fatalf("人物删除后地点详情不应显示该人物：%+v", detail.Relations.Characters)
+	if len(detail.Relations.Characters) != 1 || !detail.Relations.Characters[0].InTrash {
+		t.Fatalf("人物删除后地点详情应保留关系并标记回收站：%+v", detail.Relations.Characters)
+	}
+	if detail.CharactersCount != 0 {
+		t.Fatalf("回收站人物不应计入活跃关联数，实际 %d", detail.CharactersCount)
 	}
 
 	// 关系行仍在：删除地点被阻止，并标记引用方在回收站。

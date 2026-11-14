@@ -679,7 +679,7 @@ func (s *Characters) replaceLocationLinks(ctx context.Context, tx *gorm.DB, char
 	repo := repository.NewLocations(tx)
 	if len(links) > 0 {
 		for i := range links {
-			if _, err := repo.GetActiveByWork(ctx, workID, links[i].LocationID); err != nil {
+			if _, err := repo.GetActiveByWorkForShare(ctx, workID, links[i].LocationID); err != nil {
 				if !errors.Is(err, model.ErrNotFound) {
 					return err
 				}
