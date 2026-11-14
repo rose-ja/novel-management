@@ -132,8 +132,8 @@ DROP TABLE IF EXISTS locations;
 - `List`：校验作品活跃；取当前作品全部活跃地点（≤1000）；`q` 命中后补全部祖先；`review_status=pending` 与 `type_text` 同理补祖先；批量装配父级、下级数、人物数、势力数。
 - `Create`：作品活跃；父级同作品活跃（跨作品 `CROSS_WORK_REFERENCE`，已删 `PARENT_DELETED`）；名称规范化与唯一；类型/简介规范化；同级默认追加末尾（无 `sort_order`，按 `name_key` 稳定排序，与 CHG-006 一致）。
 - `Update`：`If-Match` 必填；名称/父级/类型/简介子集；移动时 `pg_advisory_xact_lock(hashtext(work_id))` 串行化，目标不能等于自身或后代 → `CYCLE_DETECTED`；版本冲突返回当前版本。
-- `Get`：返回 `LocationDetail`，装配 parent、children（活跃）、characters（活跃人物 + 备注）、factions（活跃势力 + 备注）。
-- `Delete`：事务内：活跃下级（含软删子节点）→ `HasChildrenError`；关系行存在（人物关系/势力关系，含引用方在回收站）→ `ReferenceConflictError`（`items[]` 带 `in_trash`）；无引用 → 软删除 + 8 秒 `undo_token`。
+- `Get`：返回 `LocationDetail`，装配 parent、children（活跃）、characters（含回收站标记）、factions（含回收站标记）；回收站引用保留展示，用于解释删除阻断，但不计入活跃计数。
+- `Delete`：事务内：活跃下级（含软删子节点）→ `HasChildrenError`（`items[]` 同时包含下级与人物/势力关系，一次展示全部阻断）；无下级但存在关系行（含引用方在回收站）→ `ReferenceConflictError`（`items[]` 带 `in_trash`）；无引用 → 软删除 + 8 秒 `undo_token`。
 - `Relation` 方法：
   - `AddFaction(locationID, factionID, note)`：地点活跃、势力同作品活跃；重复 → `DUPLICATE_RELATION`。
   - `UpdateFactionNote(locationID, factionID, note)`：关系不存在 → `NOT_FOUND`。
@@ -200,7 +200,7 @@ DROP TABLE IF EXISTS locations;
 - 内联编辑：名称、上级 TreeSelect（禁用自身与后代，清空=顶层）、类型（datalist）、简介；保存先 PATCH 再刷新；失败保留输入；`VERSION_CONFLICT` 顶部 Alert。
 - 关联人物（地点页）：只读表格 + 「编辑关联」进入关系编辑面板：多选当前作品人物，每项备注；保存时对发生变化的每个人物调用 `PATCH /characters/{id}`（携带该人物完整 `location_links`），不删除人物。
 - 关联势力（地点页）：关系编辑面板：多选当前作品势力 + 备注；新增 `POST`，备注变更 `PATCH`，移除 `DELETE`。
-- 删除：`LocationDeleteDialog` 先调 DELETE；`HAS_CHILDREN` / `REFERENCE_CONFLICT` 用 `ReferenceDialog` 分组列出下级/人物/势力，提供跳转，回收站中的引用显示徽标；成功后返回 `/locations`，Toast 撤销。
+- 删除：`LocationDeleteDialog` 先调 DELETE；`HAS_CHILDREN` / `REFERENCE_CONFLICT` 按 `location_child` / `character_location` / `location_faction` 分组列出引用，提供跳转，回收站中的引用显示徽标；冲突后禁用删除主操作；成功后 `router.push("/locations")` 并在列表页 Toast 撤销。
 - 并发冲突与未保存守卫复用人物/势力实现模式。
 
 ### 4.4 人物与势力侧接入

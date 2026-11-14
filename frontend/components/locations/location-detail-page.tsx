@@ -137,14 +137,15 @@ export function LocationDetailPage({ locationID }: LocationDetailPageProps) {
       message: messages.locationMovedToTrash(detail?.name ?? ""),
       actionLabel: messages.undo,
       onAction: async () => {
-          try {
-            await undoTrash(result.undo_token);
-            setDeleted(false);
-            setReloadTick((value) => value + 1);
-            showToast({ tone: "success", message: messages.locationUndone(detail?.name ?? "") });
-          } catch (cause) {
-            showToast({ tone: "error", message: toUserMessage(cause, messages.loadFailed) });
-          }
+        try {
+          await undoTrash(result.undo_token);
+          window.dispatchEvent(new Event("locations:changed"));
+          setDeleted(false);
+          setReloadTick((value) => value + 1);
+          showToast({ tone: "success", message: messages.locationUndone(detail?.name ?? "") });
+        } catch (cause) {
+          showToast({ tone: "error", message: toUserMessage(cause, messages.loadFailed) });
+        }
       },
     });
   }

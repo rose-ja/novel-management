@@ -109,6 +109,13 @@ export function LocationListPage() {
     };
   }, [workID, reloadTick]);
 
+  // 详情页撤销删除后通知列表刷新，避免停留在旧快照。
+  useEffect(() => {
+    const handle = () => setReloadTick((value) => value + 1);
+    window.addEventListener("locations:changed", handle);
+    return () => window.removeEventListener("locations:changed", handle);
+  }, []);
+
   // 本地过滤做 300ms 防抖，避免逐键重建树。
   useEffect(() => {
     const handle = window.setTimeout(() => setQuery(queryInput), 300);
