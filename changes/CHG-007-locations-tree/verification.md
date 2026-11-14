@@ -57,23 +57,41 @@
 
 全量回归：`npx playwright test` → **85 passed**（1.2m），含 CHG-001~006 全部用例。
 
-## 4. 审查发现
+## 4. F6 全量回归（最新提交 `7f0b4c1`）
+
+| Command | Exit code | Result | Evidence |
+|---|---:|---|---|
+| `go vet ./...` | 0 | PASS | 无输出 |
+| `go build ./...` | 0 | PASS | 全部包编译通过 |
+| `go test -count=1 ./...` | 0 | PASS | 含 `model/location_test.go` |
+| `go test -count=1 -tags=integration ./internal/integration/...` | 0 | PASS | 10.3s |
+| `npm run typecheck` | 0 | PASS | 无错误 |
+| `npm run lint` | 0 | PASS | 无告警 |
+| `npm run test` | 0 | PASS | 10 文件 / 70 用例 |
+| `next build`（Node 22） | 0 | PASS | 10 页面静态导出，`/locations` 9.47 kB |
+| `docker compose build app` | 0 | PASS | 镜像 `novel-settings:dev` 重建成功 |
+| `docker compose up -d app` | 0 | PASS | 容器重建并 healthy |
+| `npx playwright test --reporter=list` | 0 | PASS | **86 passed**（1.2m），含地点 4 例、视觉 3 例、a11y/键盘各 1 例 |
+
+结论：F6 全量门禁 PASS，无回归。`gofmt -l .` 在 Windows 下因 CRLF 对既有文件有历史漂移，仅对本次改动文件执行 `gofmt -w`，无内容差异。
+
+## 5. 审查发现
 
 F4 独立审查结果见 `review.md`；F5 修复项与复审结论在 `review.md` 与 `tasks.md` 回填。
 
-## 5. 已知限制
+## 6. 已知限制
 
 - `POST /locations/{id}/review` 按 D1 延后至 CHG-011：本轮只读 `review_status`、支持筛选与 Badge，无确认按钮。
 - 地点列表一次取全量（≤1,000 节点），不做虚拟滚动；与 CHG-006 势力树一致。
 - 删除阻断清单单次最多 50 条（`ReferenceListLimit`），超出部分不展示但阻断仍生效。
 - 地点详情页编辑人物关系时，逐个调用人物 `PATCH`；人物数量很多时保存为串行请求。
 
-## 6. 回滚验证
+## 7. 回滚验证
 
 - `0007` Down 可删除 `location_factions`、`character_locations`、`locations`，不影响人物/势力本体；`TestMigrationRoundTrip` 已覆盖。
 - 代码回滚到 `d8cce2a` 可移除地点入口；已有数据从删除前快照恢复。
 - 回收站永久删除前生成 `trash_purge` 快照，失败即阻止。
 
-## 7. 结论
+## 8. 结论
 
-PASS（F3 自测）。待 F4 独立审查与 F5 修复复审后进入 F6/F7。
+PASS。F3 自测、F4 独立审查（S1 全部修复）、F5 复审、F6 全量回归（86 passed）均通过，进入 F7 人工验收。
