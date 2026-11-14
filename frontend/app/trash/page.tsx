@@ -36,6 +36,7 @@ const typeOptions = [
   { value: "character", label: messages.trashTypeCharacter },
   { value: "faction", label: messages.trashTypeFaction },
   { value: "location", label: messages.trashTypeLocation },
+  { value: "ranking", label: messages.trashTypeRanking },
 ];
 
 export default function TrashPage() {

@@ -19,6 +19,7 @@ import {
   type CharacterFormValues,
 } from "@/components/characters/character-form-fields";
 import { CharacterNameChips } from "@/components/characters/character-name-chips";
+import { CharacterRankingLinks } from "@/components/characters/character-ranking-links";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import { listFactions } from "@/lib/api/factions";
 import { listLocations } from "@/lib/api/locations";
 import { toFactionOptions } from "@/lib/factions-tree";
 import { toLocationOptions } from "@/lib/locations-tree";
+import { rankingRefLabel } from "@/lib/rankings";
 import { deleteCharacterImage, uploadCharacterImage } from "@/lib/api/media";
 import { undoTrash } from "@/lib/api/trash";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
@@ -525,7 +527,9 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                 </div>
                 <div className="character-detail__fact">
                   <dt>{messages.characterColumnRanking}</dt>
-                  <dd>{messages.characterNoValue}</dd>
+                  <dd>
+                    <CharacterRankingLinks rankings={detail.rankings} count={detail.rankings.length} />
+                  </dd>
                 </div>
                 <div className="character-detail__fact">
                   <dt>{messages.characterLocationTitle}</dt>
@@ -608,8 +612,25 @@ export function CharacterDetailPage({ characterID }: CharacterDetailPageProps) {
                   )}
                 </div>
                 <div className="character-relation-group">
-                  <h3 className="character-relation-group__title">{messages.characterRankingTitle}</h3>
-                  <p className="character-relation-empty">{messages.characterRankingEmpty}</p>
+                  <h3 className="character-relation-group__title">{messages.characterRankingsTitle}</h3>
+                  {detail.rankings.length === 0 ? (
+                    <p className="character-relation-empty">{messages.characterRankingsEmpty}</p>
+                  ) : (
+                    <ul className="character-relation-list">
+                      {detail.rankings.map((ref) => (
+                        <li className="character-relation-item" key={ref.ranking_id}>
+                          <Link
+                            className="character-name-link"
+                            href={`/rankings?id=${encodeURIComponent(ref.ranking_id)}`}
+                            aria-label={messages.characterRankingLink(ref.name, ref.seat_no)}
+                          >
+                            {rankingRefLabel(ref)}
+                          </Link>
+                          {ref.note ? <span className="character-relation-note">{ref.note}</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
             </section>

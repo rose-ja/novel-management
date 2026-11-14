@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { CharacterImage } from "@/components/characters/character-image";
+import { CharacterRankingLinks } from "@/components/characters/character-ranking-links";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -106,11 +107,7 @@ export function MemberTable({ factionID, hasChildren, refreshKey = 0 }: MemberTa
         ),
       );
     }
-    cells.push(
-      <span key="ranking" className="character-muted">
-        {messages.characterNoValue}
-      </span>,
-    );
+    cells.push(<CharacterRankingLinks key="ranking" rankings={item.rankings} count={item.ranking_count} />);
     return cells;
   });
 

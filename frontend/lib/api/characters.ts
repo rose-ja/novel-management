@@ -47,6 +47,14 @@ export type CharacterImage = {
   byte_size?: number;
 };
 
+/** 人物侧名次回显；note 为席位备注。 */
+export type CharacterRankingRef = {
+  ranking_id: string;
+  name: string;
+  seat_no: number;
+  note: string | null;
+};
+
 export type CharacterSummary = {
   id: string;
   name: string;
@@ -55,6 +63,9 @@ export type CharacterSummary = {
   /** 形如「境界 · 父层级 · 子层级」；无引用时为 null。 */
   system_summary: string | null;
   image_thumb_url: string | null;
+  /** 最多两条名次，完整数量见 ranking_count。 */
+  rankings: CharacterRankingRef[];
+  ranking_count: number;
   review_status: ReviewStatus;
   reviewed_at: string | null;
   updated_at: string;
@@ -70,6 +81,7 @@ export type CharacterDetail = {
   faction: FactionBrief | null;
   system_refs: CharacterSystemRef[];
   location_links: CharacterLocationLink[];
+  rankings: CharacterRankingRef[];
   image: CharacterImage | null;
   review_status: ReviewStatus;
   reviewed_at: string | null;

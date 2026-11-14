@@ -52,6 +52,8 @@ export function RestoreTrashDialog({ item, onClose, onChanged }: Callbacks & { i
         setError(messages.trashFactionParentDeleted);
       } else if (isApiCode(cause, "PARENT_DELETED") && item.root_type === "location") {
         setError(messages.trashLocationParentDeleted);
+      } else if (isApiCode(cause, "REFERENCE_MISSING") && item.root_type === "ranking") {
+        setError(messages.trashRankingRestoreHint);
       } else {
         setError(toUserMessage(cause, messages.saveFailed));
       }

@@ -1,5 +1,5 @@
 import { requestJson } from "./client";
-import type { FactionBrief } from "./characters";
+import type { CharacterRankingRef, FactionBrief } from "./characters";
 import type { ReviewStatus } from "./system";
 
 export type FactionLocationBrief = {
@@ -83,6 +83,8 @@ export type FactionMember = {
   faction: FactionBrief | null;
   system_summary: string | null;
   image_thumb_url: string | null;
+  rankings: CharacterRankingRef[];
+  ranking_count: number;
 };
 
 export type FactionMemberPage = {

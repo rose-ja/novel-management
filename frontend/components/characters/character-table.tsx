@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { CharacterImage } from "@/components/characters/character-image";
 import { CharacterNameChips } from "@/components/characters/character-name-chips";
+import { CharacterRankingLinks } from "@/components/characters/character-ranking-links";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -37,7 +38,7 @@ export type CharacterTableProps = {
   onClearFilters: () => void;
 };
 
-/** 人物列表表格；势力与榜单在本轮为占位（CHG-004 D4）。 */
+/** 人物列表表格；榜单名次最多展示两条 +N。 */
 export function CharacterTable({
   items,
   loading = false,
@@ -79,9 +80,7 @@ export function CharacterTable({
         {messages.characterNoValue}
       </span>
     ),
-    <span key="ranking" className="character-muted">
-      {messages.characterNoValue}
-    </span>,
+    <CharacterRankingLinks key="ranking" rankings={item.rankings} count={item.ranking_count} />,
     item.review_status === "pending" ? (
       <Badge key="review" tone="warning" outlined>
         {messages.characterReviewPending}
