@@ -18,7 +18,7 @@ P6 启动时按 [00-operating-manual.md](file:///d:/Project/novel-management/wor
 | C-02 | 作品名称上限：PG-00 1–100 vs data-model/API `/meta` 1–200；简介 2,000 vs 20,000 | PG-00、data-model、api-contract | 采用 200 / 20,000（数据与 API 契约权威） | 已同步 PG-00；本路线图与 Spec 按 1–200 |
 | C-03 | architecture §10 追溯矩阵验收列整体错位（FR-09~12→AC-05、FR-21~26→AC-10 等） | architecture、requirements | 以 requirements AC 语义为准重建矩阵 | 已修正 architecture §10；P6 追踪矩阵见 §6 |
 
-**非冲突但已记录的残留**：P5 的 V-02（检索 P95 基线）、V-03（axe 扫描）尚未执行，作为 CHG-009/CHG-012 的验收前置；`PG-11` 的 Markdown 单文件大小仍无独立上限，导入以 zip ≤6GB 与单图 ≤10MB 为硬约束，md 文件大小不单列验收。页面规格原标「P5b 待复审」，经 2026-11-07 人工确认已统一改为 `Approved`（仅元数据同步，内容未改，见 §9 Q-04）。
+**非冲突但已记录的残留**：P5 的 V-02（检索 P95 基线）已于 2026-11-15 由 CHG-009 执行（1000 人物 P95 7.11ms）；V-03（axe 扫描）尚未执行，作为 CHG-012 的验收前置；`PG-11` 的 Markdown 单文件大小仍无独立上限，导入以 zip ≤6GB 与单图 ≤10MB 为硬约束，md 文件大小不单列验收。页面规格原标「P5b 待复审」，经 2026-11-07 人工确认已统一改为 `Approved`（仅元数据同步，内容未改，见 §9 Q-04）。
 
 ---
 
@@ -52,7 +52,7 @@ P6 启动时按 [00-operating-manual.md](file:///d:/Project/novel-management/wor
 
 **交付策略（2026-11-07 已确认）**：一次性按拓扑序推进 `CHG-001~012`，不在批次之间设置人工闸门。`CHG-001~004` 仍作为首个可用里程碑：完成后系统可启动、创建多作品、配置体系、维护人物档案并使用回收站恢复，可先进行真实试用；后续变更在其上连续叠加。「批次」列只表示建议节奏，不作为开工前置条件。
 
-**进度（2026-11-14）**：CHG-001～CHG-008 已完成、验收并归档（CHG-008 已推送 `origin/main` `49686d9`；迁移 v8、8 个榜单端点、`/rankings` 列表与详情）；下一个变更为 CHG-009（快速搜索与条件检索）。
+**进度（2026-11-15）**：CHG-001～CHG-009 已完成、验收并归档（CHG-009 迁移 v9、`GET /search`、`cli reindex`、`/search` 与系统深链；1000 人物 P95 7.11ms）；下一个变更为 CHG-010（导出、CLI 恢复与快照收口）。
 
 ---
 
@@ -288,6 +288,7 @@ graph TD
 - **复杂度**：L。
 - **风险**：中文短词检索质量、索引漂移、分组分页游标、性能基线。
 - **回滚**：关闭导航搜索入口，回退 `0009`；实体数据不变；可降级为按名称 SQL 查询。
+- **落地记录（2026-11-15）**：实际文件为 `internal/{model/search,search/refresher,search/query,service/search,httpapi/search}.go`、`migrations/0009_search_documents.sql`、`cmd/cli/main.go`、`frontend/{app/search,components/search,lib/api/search,lib/search}.*`；迁移 **v9**；整作品重建 + 作品级 advisory 锁；分页为稳定 offset（未实现游标）；`X-Cache` 固定 `BYPASS`；验收证据见 `changes/archive/CHG-009-search/`（集成全量 PASS、前端单测 86 PASS、E2E 105 PASS、P95 7.11ms）。
 
 ### CHG-010 导出、CLI 恢复与快照收口
 

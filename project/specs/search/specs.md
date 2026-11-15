@@ -1,13 +1,13 @@
 # search — 快速搜索与条件检索
 
-- 域状态：`planned`（P6，2026-11-07）
+- 域状态：`implemented`（2026-11-15，CHG-009 交付 `search_documents` + pg_trgm、整作品同事务刷新、`GET /search` 查询、`cli reindex`、`/search` 前端与体系节点深链；校对确认端点见 CHG-011）
 - 目标行为：单一入口覆盖人物/势力/地点/榜单/体系节点；别名/称号可命中；结果可分组、排序、分页、跳转。
 - 关联页面：PG-01；关联验收：AC-08、AC-23。
-- 说明：本文件中的 Spec 均为待实现目标，不代表当前系统能力。
+- 说明：本文件中的 Spec 均为已实现能力；`planned` 标记仅保留在未交付域。
 
 ## SPEC-SEARCH-001 快速搜索语义与范围
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-009，2026-11-15 验收；`GET /search` 空格分词 AND、英文大小写不敏感、人物/势力/地点/榜单/体系节点五类字段与关联名命中；不检索大事记；当前作品隔离）
 - 来源：FR-27、FR-28、FR-29、FR-33；US-007；PG-01 §3/§4；API `GET /api/v1/search?q=`；Data `search_documents` + pg_trgm；AC-08
 - 行为：
   - 输入 ≥1 字符、300ms 防抖后搜索；`q` 去首尾空格、按空白切词，词间 AND。
@@ -23,11 +23,11 @@
   3. Given 输入 `SWORD`，When 人物名为 `sword`，Then 命中（英文不区分大小写，AC-08）。
   4. Given 大事记正文含关键词、人物字段不含，When 搜索该词，Then 不因大事记命中人物（FR-27）。
   5. Given 其他作品有同名实体，When 搜索，Then 结果只含当前作品实体（AC-01）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-15 — CHG-009 实现并验收，状态转 `implemented`。
 
 ## SPEC-SEARCH-002 条件检索与筛选语义
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-009，2026-11-15 验收；后端支持 `entity_types`、`faction_id`+`faction_scope`、`system_node_id`+`system_category_id`、`location_id`、`ranking_id`、`review_status`，AND 组合；前端暴露势力直属/含下级、境界节点、地点、榜单；失效 ID 返回 422 `VALIDATION_ERROR` 并在前端移除 chip 重试）
 - 来源：FR-30、FR-32；US-007；PG-01 §4.3；API `GET /api/v1/search?type=&faction_id=&system_category_id=&location_id=&ranking_id=&review_status=`；Data 实体关系表；AC-08
 - 行为：
   - 条件：类型（人物/势力/地点/榜单/体系节点）、势力/分支、境界（体系类别）、地点、榜单、校对状态；多条件 AND。
@@ -44,11 +44,11 @@
   2. Given 势力条件下拉切换「含下级」，When 应用，Then 结果包含下级成员且标注口径（FR-32）。
   3. Given 地点条件为空、关键词为空，When 打开检索页，Then 展示空查询态而非全量结果（FR-31）。
   4. Given 筛选 ID 已删除，When 提交，Then 清除失效条件并提示（EX-26）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-15 — CHG-009 实现并验收。
 
 ## SPEC-SEARCH-003 结果分组、排序、分页、摘要与跳转
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-009，2026-11-15 验收；跨类型全局 `page` 固定 20/页，组头返回组总命中、`items` 仅当前页切片；排序 `score DESC, updated_at DESC, id ASC`；命中字段摘要与 `<mark>` 高亮；结果 URL 为查询参数路由；分页使用 offset 而非游标，见偏差说明）
 - 来源：FR-31、FR-34、FR-35；US-007、US-008；PG-01 §4.4/§6；API `GET /api/v1/search`（`page`、`page_size=20`、`cursor`）；Data `search_documents`；AC-08、AC-09
 - 行为：
   - 按类型分组展示，组内排序：名称命中 > 别名/称号命中 > 简介命中 > 关联实体名命中；同权重 `updated_at DESC`，再按 `id ASC` 稳定。
@@ -63,11 +63,11 @@
   2. Given 同名人物与势力，When 搜索，Then 分属不同组；人物结果包含所属势力消歧（FR-31）。
   3. Given 翻到第 2 页，When 数据更新前使用游标，Then 不出现跨页重复/漏项（RT-06）。
   4. Given 点击结果，When 跳转，Then 到达对应详情并保留返回检索态（FR-35）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-15 — CHG-009 实现并验收；分页由稳定游标调整为 offset（固定排序下不重复/漏项），作为已知偏差登记。
 
 ## SPEC-SEARCH-004 空查询、无结果、错误与性能
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-009，2026-11-15 验收；空查询不请求、无结果与清除筛选、500 错误重试；1000 人物 100 次抽样 P95 7.11ms、首屏可交互 200ms）
 - 来源：FR-31、NFR 性能；US-007、US-012；PG-01 §6；API `GET /api/v1/search`；Data pg_trgm 索引；AC-08、AC-23、EX-27
 - 行为：
   - 空查询：展示「输入关键词开始搜索」与最近浏览，不请求全量。
@@ -82,11 +82,11 @@
   2. Given 关键词无命中，When 返回，Then 显示无结果与放宽建议，无空分组（FR-31）。
   3. Given 网络失败，When 搜索，Then 显示错误与重试，关键词不丢失（EX-03）。
   4. Given 1000 人物基线，When 压测关键词检索，Then P95 ≤150ms（AC-23）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-15 — CHG-009 实现并验收。
 
 ## SPEC-SEARCH-005 检索文档维护与回收站/隔离
 
-- 状态：`planned`
+- 状态：`implemented`（CHG-009，2026-11-15 验收；所有可检索写入口在同一事务内整作品重建，作品级 advisory 锁串行化；回收站 Restore/Undo/Purge/PurgeAll、作品删除/恢复同步 `is_deleted`；`cli reindex [--check] [--work]` 提供重建与漂移检查）
 - 来源：FR-29、FR-62；US-007、US-011；API 内部检索维护；Data `search_documents`；AC-08、AC-13
 - 行为：
   - 实体新增/编辑/改名/删除/恢复后同步维护 `search_documents`；同一事务或可靠补偿，不允许长期漂移。
@@ -101,4 +101,4 @@
   2. Given 人物进入回收站，When 检索，Then 不出现；恢复后重新出现（AC-13）。
   3. Given 整本作品删除，When 检索其他作品，Then 结果不混入被删作品（AC-01）。
   4. Given 导入完成或恢复完成，When 运行一致性检查，Then 文档数与实体数一致（FR-62）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-15 — CHG-009 实现并验收；刷新粒度调整为「整作品重建」以保证引用方文本一致，代价为写放大（单作品实体规模内可接受）。

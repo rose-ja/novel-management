@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.3 |
-| 状态 | 修订（F10 回写 CHG-005，2026-11-13） |
-| 日期 | 2026-11-13 |
+| 文档版本 | v1.6 |
+| 状态 | 修订（F10 回写 CHG-009，2026-11-15） |
+| 日期 | 2026-11-15 |
 | 数据库 | PostgreSQL 16（UTF-8；`pg_trgm` 扩展；`timezone=UTC`） |
 | ORM / 迁移 | gorm v1.25+（postgres driver）+ goose v3（嵌入式 SQL 迁移） |
 | 上游 | [requirements.md](file:///d:/Project/novel-management/project/requirements.md) §6、[architecture.md](file:///d:/Project/novel-management/project/architecture.md)、[tech-stack.md](file:///d:/Project/novel-management/project/tech-stack.md) |
@@ -318,14 +318,15 @@ erDiagram
 | title_text | TEXT | Yes | NULL | — | 称号拼接 |
 | desc_text | TEXT | Yes | NULL | — | 简介（不截断，≤20k） |
 | relation_text | TEXT | Yes | NULL | — | 关联实体名：势力、地点、榜单、体系节点 |
+| review_status | TEXT | No | `reviewed` | CHECK `reviewed` / `pending` | 与源实体校对状态同步 |
 | updated_at | TIMESTAMPTZ | No | `now()` | — | 排序用 |
-| is_deleted | BOOLEAN | No | `false` | — | 与源实体软删除同步 |
+| is_deleted | BOOLEAN | No | `false` | — | 与源实体/作品软删除同步 |
 
 - 检索索引：对 `name_text`、`alias_text`、`title_text`、`desc_text`、`relation_text` 各建 `GIN (… gin_trgm_ops)`，并加 `WHERE is_deleted = false` 的部分索引。
 - 查询：3 字符以上走 `ILIKE '%token%'`（可由 GIN trigram 索引加速）；1–2 字走同一 `ILIKE` 但预计走顺序扫描（1500 行量级可接受）。空格分词后逐词 AND。
 - 排序权重：`name_text` 命中 4 > `alias_text`/`title_text` 3 > `desc_text` 2 > `relation_text` 1；最终排序 `score DESC, updated_at DESC, id ASC`（FR-30、P5b RT-11）。
-- 写事务内由 `search.Refresher` 重建受影响文档；被引用实体**改名、删除、恢复**时，均在**同一事务**内重建所有引用方文档（不只改名场景），确保回收站数据不参与检索与关系跳转（P5b RT-10）。`cmd/cli reindex` 可全量重建。
-- 删除/恢复规模较大时按引用方集合分批（每批 200）重建，仍在原事务内完成。
+- 写事务内由 `search.Refresher` **整作品重建**：5 条集合式 `INSERT … ON CONFLICT DO UPDATE` + 清理源实体已不存在的水位；作品级 `pg_advisory_xact_lock(hashtext(work_id))` 串行化同作品刷新。所有可检索写入口（含回收站 Restore/Undo/Purge、作品删除/恢复、`PurgeAll`）均在同一事务内触发（P5b RT-10）。
+- 查询在 SQL 完成作品/回收站/筛选过滤，Go 完成评分、排序、分组与 offset 分页切片；单作品 1500 行量级内可接受。`cmd/cli reindex [--work] [--check]` 可全量重建与漂移检查。
 - 回收站记录置 `is_deleted=true` 且不参与查询；恢复时置 `false` 并刷新文本。
 - 大事记正文不进入 `desc_text`（FR-28）。
 
@@ -607,5 +608,6 @@ name_key = NFKC(value).casefold().strip()
 | 2026-11-13 | v1.3 | CHG-005 | 0005 删除 `characters.image_path`；`chronicles` 增加 `version` 且 `owner_type` 仅 `character`；`media_assets.mime` 实际仅 jpeg/png、`byte_size` 1–10485760、`width/height` 为重编码后尺寸；软删除 CHECK 与活跃唯一索引 | F10 回写图片/大事记实现与迁移 v5 |
 | 2026-11-14 | v1.4 | CHG-006 | 0006 新建 `factions`（父级/首领 RESTRICT、命名 CHECK、活跃名称唯一、父级与回收站根索引）；`characters.faction_id` 补 `characters_faction_fk` 与部分索引；`chronicles.owner_type` 扩为 `character/faction`；补双 RESTRICT FK 环的永久删除顺序 | F10 回写势力树、首领与势力大事记实现及迁移 v6 |
 | 2026-11-14 | v1.5 | CHG-007 | 0007 新建 `locations`（自引用父级 RESTRICT、`type_text` 与简介 CHECK、软删 CHECK、`locations_active_name_uq`/`locations_active_parent_idx`/`locations_deleted_root_idx`）与 `character_locations`（人物 CASCADE、地点 RESTRICT、备注 ≤500、`char_loc_uq`）、`location_factions`（地点 CASCADE、势力 RESTRICT、备注 ≤500、`loc_fac_uq`）；关系表不加删除列，可见性由父实体过滤；势力永久删除前显式清理 `location_factions` | F10 回写地点垂直切片实现及迁移 v7 |
+| 2026-11-15 | v1.6 | CHG-009 | 0009 新建 `search_documents`（`UNIQUE(work_id,entity_type,entity_id)`、`review_status` CHECK、5 个部分 GIN `gin_trgm_ops`、`(work_id,entity_type,is_deleted)` 索引）；刷新改为整作品重建 + 作品级 advisory 锁；作品软删除同步 `is_deleted=true`；查询 offset 分页 | F10 回写检索实现与迁移 v9 |
 
-> 已确认项：C-01~C-07 均已确认（2026-11-07）；D-02 检索方案已确认，V-01 待执行；P5b 修订项（RT-04/06/07/08/09/10/11/17/22）待复审。
+> 已确认项：C-01~C-07 均已确认（2026-11-07）；D-02 检索方案已确认，V-01 已于 2026-11-15 执行（1000 人物 P95 7.11ms）；P5b 修订项（RT-04/06/07/08/09/10/11/17/22）待复审。

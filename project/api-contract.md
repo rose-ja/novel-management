@@ -52,7 +52,7 @@
 - 分页：`page` 默认 1；`page_size` 默认 20、最大 100（检索固定 20，FR-30）。
 - 排序：`sort` 取值白名单（`updated_at:desc` 默认、`name:asc`）；非法值 `422`。
 - 空值：可选字段用 `null`，不省略键（便于前端类型稳定）。
-- 缓存提示：`GET /search` 与作品摘要响应带 `X-Cache: HIT|MISS|BYPASS`；`BYPASS` 表示 Redis 不可用或未启用，不影响响应正确性（QA-07）。
+- 缓存提示：`GET /search` 与作品摘要响应带 `X-Cache: HIT|MISS|BYPASS`；`BYPASS` 表示 Redis 不可用或未启用，不影响响应正确性（QA-07）。当前 CHG-009 检索实现固定返回 `BYPASS`（未启用检索缓存）。
 - 请求追踪：所有响应带 `X-Request-Id`，与错误体 `request_id` 一致。
 
 ### 1.3 错误响应
@@ -259,6 +259,8 @@
           "snippet": "司空摘天（神逆）· 山海妖族",
           "score": 100,
           "updated_at": "…",
+          "review_status": "reviewed",
+          "image_thumb_url": "/files/thumbs/01H....png",
           "url": "/characters?id=01H..."
         }
       ]
@@ -275,6 +277,9 @@
 - 顶层 `total/page/page_size` 为跨组汇总与分页信息；排序固定 `score DESC, updated_at DESC, id ASC`，保证翻页稳定（P5b RT-11）。
 - `matched_fields` 为命中字段列表：`field` 取值 `name|alias|title|desc|relation`，`matched_text` 为该字段中的命中原文；`snippet` 必含至少一个 `matched_text`，供前端高亮与解释命中原因。
 - 每条 `url` 使用查询参数详情路由（如 `/characters?id=01H...`），与静态导出兼容（P5b RT-01）。
+- `review_status` 取 `reviewed|pending`；`image_thumb_url` 仅人物且存在主图时返回（省略字段）。
+- 仅筛选无关键词时：`query.tokens=[]`、`matched_fields=[]`、`snippet=""`（不伪造摘要）。
+- 当前页没有条目的类型不返回分组，避免空组头；`groups[].total` 仍为组总命中。
 
 ---
 
@@ -609,17 +614,19 @@
 #### GET /api/v1/search
 - Query：
   - `work_id`（必填）
-  - `q`（可选；为空且无筛选 → `400 VALIDATION_ERROR`，前端显示 FR-31 提示）
+  - `q`（可选；与任一筛选同时为空 → `400 VALIDATION_ERROR`，前端显示 FR-31 提示）
   - `entity_types`（逗号分隔：`character,faction,location,ranking,system_node`；默认全部）
-  - `faction_id`、`system_node_id`、`location_id`、`ranking_id`（条件检索，AND）
-  - `page`（固定 20/页）
-- 语义：空格分词 AND；每个词需命中名称/别名/称号/简介/关联实体名；不搜大事记（FR-28）。
-- 实现：PostgreSQL `search_documents` + `pg_trgm` GIN 索引；3 字符以上走 `ILIKE '%token%'`，1–2 字走同一匹配（预计顺序扫描，数据量 1500 行内可接受）。V-01 未通过前不冻结该实现（ADR-003）。
+  - `faction_id`（可选，仅人物）；`faction_scope=direct|subtree`（默认 `direct`）
+  - `system_node_id`、`system_category_id`（可选，仅人物；类别匹配任一子节点）
+  - `location_id`、`ranking_id`、`review_status=reviewed|pending`（可选，仅人物）
+  - `page`（正整数，默认 1；固定 20/页；非法值 `422 VALIDATION_ERROR`）
+- 语义：空格分词 AND；每个词需命中名称/别名/称号/简介/关联实体名；不搜大事记（FR-28）。仅筛选时允许无关键词。
+- 实现：PostgreSQL `search_documents` + `pg_trgm` GIN 索引；逐词 `ILIKE '%token%'`；SQL 负责作品/回收站/筛选过滤，Go 负责评分、排序、分组与分页切片（1500 行量级内可接受）。
 - Response：`SearchResult`（§2.7），按实体类型分组；`total` 为全部匹配数；响应头 `X-Cache`。
 - 排序：`score DESC, updated_at DESC, id ASC`（score：名称 4 > 别名/称号 3 > 简介 2 > 关联实体名 1），稳定分页（FR-30、P5b RT-11）。
-- 缓存：key 由 `work_id` + 检索参数哈希构成，TTL 60s；作品任何写操作递增 epoch 使旧键失效；Redis 故障时旁路。
-- Errors：`VALIDATION_ERROR`（空查询/非法类型）。
-- 性能：P95 ≤150ms（V-01）。
+- 缓存：当前版本检索直接查库，固定 `X-Cache: BYPASS`；Redis 检索缓存作为后续优化保留（D-08）。
+- Errors：`400 VALIDATION_ERROR`（空查询）、`422 VALIDATION_ERROR`（非法 `page`/类型/筛选 ID 失效或跨作品）、`404 NOT_FOUND`（作品不存在或已删除）。
+- 性能：1000 人物 100 次抽样 P95 7.11ms（V-01 基线，2026-11-15）。
 
 ### 3.10 回收站 Trash（FR-57~63）
 
@@ -824,3 +831,4 @@
 | 2026-11-14 | v1.4 | CHG-006 | 势力 CRUD/成员/回收站契约落地：`GET /factions` 为 `{items,total}` 扁平全量（忽略 `flat`/`page`）、`q` 命中 + 祖先；`FactionSummary/Detail` 含 `parent/leader.in_trash`、`relations.subtree_member_count`；PATCH/DELETE 要求 `If-Match`（缺失 428）；members 返回 `{items,page,page_size,total}`；`HAS_CHILDREN.details.items[].in_trash`；`CYCLE_DETECTED`/`CROSS_WORK_REFERENCE` 统一 422；`owner_type` 扩为 `character/faction`（未知值 `VALIDATION_ERROR`）；回收站新增 `root_type=faction` 与永久删除活跃成员复核 | F10 回写势力与势力大事记实现及契约偏差 |
 | 2026-11-14 | v1.5 | CHG-007 | 地点契约落地：`GET /locations` 为 `{items,total}` 扁平全量（忽略 `flat`/`page`）+ `type_text` 筛选与祖先补齐；`LocationSummary/Detail` 含 `parent/type_text/children_count/characters_count/factions_count`、`relations.characters/factions` 含 `note`/`in_trash`；PATCH/DELETE 要求 `If-Match`；`DELETE /locations/{id}` 在下级存在时 `HAS_CHILDREN` 同时返回三类引用（`entity_type`）；无下级但有关系时 `REFERENCE_CONFLICT`；新增 `PATCH /locations/{id}/factions/{faction_id}`（仅备注）与 `DUPLICATE_RELATION`；人物 `location_links` 开放为 `{location_id,note}` 全量替换；`FactionDetail.relations.locations` 返回真实关系；回收站新增 `root_type=location` | F10 回写地点垂直切片实现 |
 | 2026-11-14 | v1.6 | CHG-008 | §3.6 榜单 8 端点落地、列表 `q`/`sort`/`top_seats`、席位分页 50/100、`seat_count` 省略默认 100、`PUT seat` 省略/null 语义；人物新增 `rankings`/`ranking_count`；删除人物新增 `ranking_seat` 入向阻断；校对端点延后 CHG-011 | F10 回写榜单实现状态与数据模型 v8 |
+| 2026-11-15 | v1.7 | CHG-009 | §3.9 检索落地：`faction_scope`/`system_category_id`/`review_status` 参数；仅筛选允许空 `q`；非法 `page` 422；`X-Cache` 固定 `BYPASS`；`SearchResult` 增加 `review_status`/`image_thumb_url`；仅筛选时 `tokens=[]`、`snippet=""`；不返回当前页空分组；P95 实测 7.11ms | F10 回写检索实现与性能基线 |

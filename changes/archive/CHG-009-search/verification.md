@@ -39,6 +39,8 @@
 | 视觉基线 | `npx playwright test e2e/visual.spec.ts` | **20 PASS**（新增 `search-1280/1024.png`） |
 | 检索性能（1000 人物） | 100 次 `GET /api/v1/search?q=角色` | **avg 6.28ms、p50 6.18ms、p95 7.11ms、max 10.12ms、total=1000** |
 | 首屏可交互 | Playwright 导航 `/search` 至输入框可用并聚焦 | **200ms**；输入到首条结果 828ms（含 300ms 防抖） |
+| 容器 Smoke | `GET /api/v1/health`、`GET /search` | health 200（db/cache ok）、页面 200 |
+| CLI 一致性 | 停止 app 后 `docker compose run --rm --entrypoint ./cli app reindex --check` | **一致性检查通过** |
 
 ## 3. 验收点证据
 
@@ -78,6 +80,7 @@
 5. `faction_scope`/`system_category_id` 后端参数已支持，前端仅暴露 `system_node_id`（境界）与势力直属/含下级。
 6. 启动时 `RebuildAll` 失败只记录告警，不阻断服务启动；可用 `cli reindex` 修复。
 7. 检索相关新增/修改文件已 `gofmt`；仓库既有 CRLF 文件未批量格式化。
+8. `cli reindex` 与 `migrate` 共用数据库 advisory 锁，需先停止 app（`docker compose stop app`）再运行；运行示例如 `docker compose run --rm --entrypoint ./cli app reindex --check`。
 
 ## 6. 复现命令
 
@@ -94,4 +97,9 @@ cd ..
 docker compose build app; docker compose up -d app
 cd frontend
 npx playwright test --reporter=list
+
+# CLI 一致性检查（需先停止 app 释放 advisory lock）
+docker compose stop app
+docker compose run --rm --entrypoint ./cli app reindex --check
+docker compose start app
 ```
