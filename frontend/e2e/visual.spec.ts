@@ -346,3 +346,42 @@ test.describe("视觉基线 · 体系", () => {
     });
   }
 });
+
+test.describe("视觉基线 · 检索", () => {
+  const WORK_NAME = "E2E-视觉检索";
+
+  test.beforeEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  for (const { width, height } of [
+    { width: 1280, height: 900 },
+    { width: 1024, height: 800 },
+  ]) {
+    test(`检索结果 ${width}`, async ({ page, request }) => {
+      const work = await createWork(request, WORK_NAME);
+      const faction = await createFaction(request, work.id, "E2E-视觉狐族");
+      await createCharacter(request, work.id, "E2E-视觉陆沉", {
+        names: [
+          { kind: "alias", value: "沉舟" },
+          { kind: "title", value: "剑主" },
+        ],
+        description: "青丘之主。",
+        factionID: faction.id,
+      });
+      await createCharacter(request, work.id, "E2E-视觉顾清寒");
+
+      await page.setViewportSize({ width, height });
+      await page.goto("/search?q=沉");
+      await expect(page.getByRole("heading", { name: "检索", level: 1 })).toBeVisible();
+      await expect(page.locator(".search-result")).toHaveCount(1);
+      await expect(page.locator(".search-result")).toContainText("E2E-视觉陆沉");
+
+      await expect(page).toHaveScreenshot(`search-${width}.png`, { fullPage: true });
+    });
+  }
+});

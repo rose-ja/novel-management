@@ -20,6 +20,7 @@ import { messages } from "@/lib/messages";
 export type CategoryDetailProps = {
   category: SystemCategory | null;
   loading?: boolean;
+  initialNodeID?: string | null;
   onRename: (category: SystemCategory) => void;
   onDisable: (category: SystemCategory) => void;
   onEnable: (category: SystemCategory) => void;
@@ -65,6 +66,7 @@ function findNodeVersion(items: SystemNode[], id: string): number | null {
 export function CategoryDetail({
   category,
   loading = false,
+  initialNodeID = null,
   onRename,
   onDisable,
   onEnable,
@@ -257,6 +259,7 @@ export function CategoryDetail({
         <NodeTree
           category={category}
           nodes={nodes}
+          initialNodeID={initialNodeID}
           loading={nodeStatus === "loading" || nodeStatus === "idle"}
           error={nodeStatus === "error" ? nodeError : null}
           pendingOnly={pendingOnly}

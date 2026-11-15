@@ -53,7 +53,13 @@ function SystemSkeleton() {
 }
 
 /** 体系页编排：读取当前作品、类别列表与选中类别，统一处理加载/空/错误状态（PG-10）。 */
-export function SystemPage() {
+export function SystemPage({
+  initialCategoryID = null,
+  initialNodeID = null,
+}: {
+  initialCategoryID?: string | null;
+  initialNodeID?: string | null;
+}) {
   const { settings, status: settingsStatus, error: settingsError, reload } = useSettings();
   const { showToast } = useToast();
   const workID = settings.current_work_id;
@@ -86,10 +92,12 @@ export function SystemPage() {
 
   const applyCategories = useCallback((items: SystemCategory[]) => {
     setCategories(items);
-    setSelectedID((current) =>
-      current && items.some((item) => item.id === current) ? current : (items[0]?.id ?? null),
-    );
-  }, []);
+    setSelectedID((current) => {
+      if (current && items.some((item) => item.id === current)) return current;
+      if (initialCategoryID && items.some((item) => item.id === initialCategoryID)) return initialCategoryID;
+      return items[0]?.id ?? null;
+    });
+  }, [initialCategoryID]);
 
   const load = useCallback(async () => {
     if (!workID) return;
@@ -253,6 +261,7 @@ export function SystemPage() {
               />
               <CategoryDetail
                 category={selectedCategory}
+                initialNodeID={initialNodeID}
                 onRename={(category) => setDialog({ mode: "rename", category })}
                 onDisable={(category) => setDialog({ mode: "disable", category })}
                 onEnable={(category) => void handleEnable(category)}

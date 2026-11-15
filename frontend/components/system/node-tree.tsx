@@ -24,6 +24,7 @@ import { messages } from "@/lib/messages";
 export type NodeTreeProps = {
   category: SystemCategory;
   nodes: SystemNode[];
+  initialNodeID?: string | null;
   loading: boolean;
   error: Error | null;
   /** 仅看待校对时后端返回平铺列表，此时同级顺序不完整，禁用排序入口。 */
@@ -91,6 +92,7 @@ function replaceSiblings(roots: SystemNode[], parentID: string | null, ordered: 
 export function NodeTree({
   category,
   nodes,
+  initialNodeID = null,
   loading,
   error,
   pendingOnly,
@@ -121,6 +123,14 @@ export function NodeTree({
   const rows = useMemo(() => buildRows(items, collapsed), [items, collapsed]);
   const activeID =
     selectedID && rows.some((row) => row.node.id === selectedID) ? selectedID : (rows[0]?.node.id ?? null);
+
+  // 检索结果深链定位节点：展开后滚动到可见区域。
+  useEffect(() => {
+    if (!initialNodeID) return;
+    if (!rows.some((row) => row.node.id === initialNodeID)) return;
+    setSelectedID(initialNodeID);
+    rowRefs.current.get(initialNodeID)?.scrollIntoView({ block: "center" });
+  }, [initialNodeID, rows]);
 
   const focusRow = useCallback((id: string) => {
     setSelectedID(id);

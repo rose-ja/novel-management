@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   cleanupE2E,
+  createCharacter,
   createLocation,
   createSystemCategory,
   createSystemNode,
@@ -27,6 +28,7 @@ test.describe("键盘可达", () => {
 
     const nav = page.getByRole("navigation", { name: "主导航" });
     const overview = nav.getByRole("link", { name: "概览" });
+    const search = nav.getByRole("link", { name: "检索" });
     const system = nav.getByRole("link", { name: "体系" });
     const characters = nav.getByRole("link", { name: "人物" });
     const factions = nav.getByRole("link", { name: "势力" });
@@ -37,6 +39,8 @@ test.describe("键盘可达", () => {
 
     await overview.focus();
     await expect(overview).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(search).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(system).toBeFocused();
     await page.keyboard.press("Tab");
@@ -181,5 +185,42 @@ test.describe("体系页键盘", () => {
     await page.keyboard.press("ArrowRight");
     await expect(parentRow).toHaveAttribute("aria-expanded", "true");
     await expect(items).toHaveCount(3);
+  });
+});
+
+/** 检索页键盘：自动聚焦、Esc 清空、Tab 顺序与模式切换（PG-01 §12）。 */
+test.describe("检索页键盘", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test("输入框自动聚焦，Esc 清空，Tab 顺序可达模式与筛选", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("键盘检索"));
+    await createCharacter(request, work.id, uniqueName("陆沉"));
+
+    await page.goto("/search");
+    const input = page.getByLabel("检索关键词");
+    await expect(input).toBeFocused();
+
+    await input.fill("E2E-键盘检索");
+    const clearButton = page.getByRole("button", { name: "清除关键词" });
+    await expect(clearButton).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(input).toHaveValue("");
+    await expect(input).toBeFocused();
+
+    await input.fill("陆沉");
+    await expect(page.locator(".search-result").first()).toBeVisible();
+
+    await page.keyboard.press("Tab");
+    await expect(clearButton).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "快速搜索" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "条件检索" })).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: "条件检索" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByLabel("实体类型")).toBeVisible();
   });
 });

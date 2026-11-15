@@ -1,10 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-import { cleanupE2E, createLocation, createWork, uniqueName } from "./helpers";
+import { cleanupE2E, createCharacter, createFaction, createLocation, createWork, uniqueName } from "./helpers";
 
 const pages = [
   { path: "/", name: "概览" },
+  { path: "/search", name: "检索" },
   { path: "/system", name: "体系" },
   { path: "/characters", name: "人物" },
   { path: "/factions", name: "势力" },
@@ -60,6 +61,45 @@ test.describe("地点：有数据无障碍", () => {
 
     await page.locator(".ui-page-header").getByRole("button", { name: "删除地点" }).click();
     results = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
+    blocking = results.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    );
+    expect(blocking.map((violation) => `${violation.id}: ${violation.nodes.length}`)).toEqual([]);
+  });
+});
+
+/** 有数据的检索结果与条件筛选需要覆盖分组、高亮与筛选 chip。 */
+test.describe("检索：有数据无障碍", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test("检索结果与条件筛选无 serious/critical 问题", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("a11y检索"));
+    const faction = await createFaction(request, work.id, uniqueName("狐族"));
+    await createCharacter(request, work.id, uniqueName("陆沉"), {
+      names: [{ kind: "alias", value: "沉舟" }],
+      description: "青丘之主。",
+      factionID: faction.id,
+    });
+    await createLocation(request, work.id, uniqueName("青丘山"));
+
+    await page.goto("/search");
+    await page.getByLabel("检索关键词").fill("沉");
+    await expect(page.locator(".search-result")).toHaveCount(1);
+
+    let results = await new AxeBuilder({ page }).analyze();
+    let blocking = results.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    );
+    expect(blocking.map((violation) => `${violation.id}: ${violation.nodes.length}`)).toEqual([]);
+
+    await page.getByRole("button", { name: "条件检索" }).click();
+    await page.getByLabel("实体类型").selectOption({ label: "人物" });
+    await page.getByLabel("势力/分支").selectOption({ label: faction.name });
+    await expect(page.locator(".search-chip")).toHaveCount(1);
+
+    results = await new AxeBuilder({ page }).analyze();
     blocking = results.violations.filter(
       (violation) => violation.impact === "serious" || violation.impact === "critical",
     );
