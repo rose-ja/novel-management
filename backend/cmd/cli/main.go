@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/observability"
 	"novel-management/backend/internal/search"
+	"novel-management/backend/internal/service"
 )
 
 func main() {
@@ -32,7 +34,7 @@ func newRootCmd() *cobra.Command {
 		Short:        "小说设定管理系统运维 CLI",
 		SilenceUsage: true,
 	}
-	root.AddCommand(newMigrateCmd(), newDoctorCmd(), newReindexCmd(), newVersionCmd())
+	root.AddCommand(newMigrateCmd(), newDoctorCmd(), newReindexCmd(), newRestoreCmd(), newRestoreSnapshotCmd(), newVersionCmd())
 	return root
 }
 
@@ -160,6 +162,83 @@ func listReindexWorks(ctx context.Context, db *gorm.DB, workID string) ([]string
 		return nil, err
 	}
 	return ids, nil
+}
+
+func newRestoreCmd() *cobra.Command {
+	var force bool
+	cmd := &cobra.Command{
+		Use:   "restore <zip>",
+		Short: "从导出 zip 全量恢复（需先停止 app）",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRestore(args[0], force, false)
+		},
+	}
+	cmd.Flags().BoolVar(&force, "yes", false, "实例非空时确认覆盖")
+	return cmd
+}
+
+func newRestoreSnapshotCmd() *cobra.Command {
+	var force bool
+	cmd := &cobra.Command{
+		Use:   "restore-snapshot <dir>",
+		Short: "从自动快照目录全量恢复（需先停止 app）",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRestore(args[0], force, true)
+		},
+	}
+	cmd.Flags().BoolVar(&force, "yes", false, "实例非空时确认覆盖")
+	return cmd
+}
+
+func runRestore(source string, force, snapshot bool) error {
+	cfg, log, err := load()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	db, err := database.Open(ctx, cfg.DatabaseURL, 10*time.Second, log)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.SQL.Close() }()
+
+	unlock, err := db.TryAdvisoryLock(ctx, database.AdvisoryLockID)
+	if err != nil {
+		if errors.Is(err, database.ErrLockBusy) {
+			return fmt.Errorf("应用仍在运行或正在执行其他任务，请先执行 docker compose stop app")
+		}
+		return err
+	}
+	defer unlock()
+
+	snapshots := service.NewSnapshot(db.Gorm, cfg, log, service.PGDumper{})
+	restore := service.NewRestore(db.Gorm, cfg, log, snapshots, nil)
+	options := service.RestoreOptions{Force: force}
+
+	var summary *service.RestoreSummary
+	if snapshot {
+		summary, err = restore.RestoreSnapshot(ctx, source, options)
+	} else {
+		summary, err = restore.RestoreArchive(ctx, source, options)
+	}
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("恢复完成：%s\n", summary.Source)
+	fmt.Printf("数据版本：%d\n", summary.SchemaVersion)
+	fmt.Printf("恢复前快照：%s\n", summary.SnapshotPath)
+	fmt.Printf("作品：%d，人物：%d，图片：%d\n",
+		summary.Counts["works"], summary.Counts["characters"], summary.Counts["images"])
+	if summary.Legacy {
+		fmt.Println("提示：旧快照缺少 schema_version，已按兼容模式恢复")
+	}
+	fmt.Printf("耗时：%s\n", summary.Elapsed.Round(time.Millisecond))
+	return nil
 }
 
 func newDoctorCmd() *cobra.Command {

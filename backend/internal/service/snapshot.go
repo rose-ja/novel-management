@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm"
 
 	"novel-management/backend/internal/config"
+	"novel-management/backend/internal/migrations"
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/repository"
 )
@@ -108,8 +109,10 @@ type manifestFile struct {
 }
 
 type manifest struct {
-	CreatedAt string         `json:"created_at"`
-	Files     []manifestFile `json:"files"`
+	CreatedAt     string         `json:"created_at"`
+	SchemaVersion int            `json:"schema_version"`
+	AppVersion    string         `json:"app_version"`
+	Files         []manifestFile `json:"files"`
 }
 
 // Create 产出快照并落记录；任何失败都返回 ErrSnapshotFailed，调用方据此阻止破坏性操作。
@@ -201,8 +204,10 @@ func (s *Snapshot) produce(ctx context.Context, dir string, record *model.Snapsh
 		return err
 	}
 	if err := writeJSON(filepath.Join(dir, "manifest.json"), manifest{
-		CreatedAt: record.CreatedAt.Format(time.RFC3339),
-		Files:     files,
+		CreatedAt:     record.CreatedAt.Format(time.RFC3339),
+		SchemaVersion: migrations.LatestVersion,
+		AppVersion:    s.cfg.Version,
+		Files:         files,
 	}); err != nil {
 		return err
 	}
