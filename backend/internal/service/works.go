@@ -14,6 +14,7 @@ import (
 
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/repository"
+	"novel-management/backend/internal/search"
 )
 
 const (
@@ -211,6 +212,10 @@ func (s *Works) Delete(ctx context.Context, id string, in DeleteWorkInput) (*Del
 			CreatedAt: now,
 			ExpiresAt: expires,
 		}); err != nil {
+			return err
+		}
+		// 作品软删除后同步标记检索文档，避免 is_deleted 与源状态漂移。
+		if err := search.NewRefresher(tx).RefreshWork(ctx, id); err != nil {
 			return err
 		}
 		return repository.NewSettings(tx).ClearCurrentWorkIf(ctx, id, now)

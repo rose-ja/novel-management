@@ -20,11 +20,15 @@ func NewRefresher(db *gorm.DB) *Refresher {
 }
 
 // RefreshWork 重建指定作品的全部检索文档，并清理源实体已物理不存在的水位。
+// 以作品级 advisory 锁串行化同作品刷新，避免并发写事务互相覆盖旧快照。
 func (r *Refresher) RefreshWork(ctx context.Context, workID string) error {
 	if workID == "" {
 		return nil
 	}
 	db := r.db.WithContext(ctx)
+	if err := db.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", workID).Error; err != nil {
+		return fmt.Errorf("锁定检索文档失败：%w", err)
+	}
 	for _, statement := range refreshStatements {
 		if err := db.Exec(statement, workID).Error; err != nil {
 			return fmt.Errorf("刷新检索文档失败：%w", err)

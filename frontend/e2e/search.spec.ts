@@ -124,6 +124,20 @@ test.describe("检索", () => {
     await expect(resultLink(page, CHARACTER_NAME)).toHaveCount(0);
   });
 
+  test("条件检索：仅输入关键词可提交检索", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("检索条件词"));
+    await createCharacter(request, work.id, CHARACTER_NAME);
+
+    await page.goto("/search");
+    await page.getByRole("button", { name: "条件检索" }).click();
+    await page.getByLabel("检索关键词").fill("陆沉");
+
+    const submit = page.getByRole("button", { name: "检索", exact: true });
+    await expect(submit).toBeEnabled();
+    await submit.click();
+    await expect(resultLink(page, CHARACTER_NAME)).toBeVisible();
+  });
+
   test("空查询不请求、无结果与清除筛选", async ({ page, request }) => {
     await createWork(request, uniqueName("检索空态"));
 

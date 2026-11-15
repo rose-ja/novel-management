@@ -5,6 +5,7 @@ package integration
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"novel-management/backend/internal/model"
@@ -69,6 +70,28 @@ func TestSearchDocumentsFollowTrashLifecycle(t *testing.T) {
 		}
 		if consistency.Drift != 0 {
 			t.Fatalf("作品 %s 一致性漂移应为 0，实际 %d（%+v）", workID, consistency.Drift, consistency.ByType)
+		}
+	}
+
+	// 作品软删除同步文档 is_deleted，恢复后还原。
+	deleted := h.deleteWork(work.ID, work.Name, strconv.Itoa(work.Version))
+	if deleted.Code != http.StatusOK {
+		t.Fatalf("删除作品失败（status=%d）：%s", deleted.Code, deleted.Body.String())
+	}
+	docs = mustLoadDocs(t, h, work.ID)
+	for key, doc := range docs {
+		if !doc.IsDeleted {
+			t.Fatalf("作品软删除后文档 %s 应标记 is_deleted=true", key)
+		}
+	}
+	restoreWork := h.do(http.MethodPost, "/api/v1/trash/work/"+work.ID+"/restore", map[string]any{}, nil)
+	if restoreWork.Code != http.StatusOK {
+		t.Fatalf("恢复作品失败（status=%d）：%s", restoreWork.Code, restoreWork.Body.String())
+	}
+	docs = mustLoadDocs(t, h, work.ID)
+	for key, doc := range docs {
+		if doc.IsDeleted {
+			t.Fatalf("恢复作品后文档 %s 应标记 is_deleted=false", key)
 		}
 	}
 }

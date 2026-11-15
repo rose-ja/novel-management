@@ -112,8 +112,8 @@ func TestSearchAPIMatchingGroupsAndURLs(t *testing.T) {
 		t.Fatalf("人物链接不正确：%q", item.URL)
 	}
 	assertMatchedField(t, item, "alias", "小圣")
-	if item.Subtitle == "" || item.Subtitle == "人物" {
-		t.Fatalf("人物副标题应包含势力/境界，实际 %q", item.Subtitle)
+	if !strings.HasPrefix(item.Subtitle, "人物 · ") {
+		t.Fatalf("人物副标题应以「人物 · 」开头，实际 %q", item.Subtitle)
 	}
 
 	// 英文大小写不敏感，命中主名称。
@@ -210,6 +210,11 @@ func TestSearchAPIFiltersErrorsAndPagination(t *testing.T) {
 			t.Fatalf("筛选 %+v 应命中人物 A，实际 %+v", params, result.Groups)
 		}
 	}
+	// 仅筛选时 tokens 必须是空数组而不是 null。
+	filterOnly := getSearch(t, h, fixture.work.ID, map[string]string{"entity_types": "character", "faction_id": fixture.faction.ID})
+	if filterOnly.Query.Tokens == nil || len(filterOnly.Query.Tokens) != 0 {
+		t.Fatalf("仅筛选时 tokens 应为空数组，实际 %+v", filterOnly.Query.Tokens)
+	}
 
 	// 失效筛选返回 422 字段级错误。
 	values := url.Values{
@@ -273,6 +278,42 @@ func TestSearchAPIFiltersErrorsAndPagination(t *testing.T) {
 			t.Fatalf("分页出现重复项：%s", item.EntityID)
 		}
 		seen[item.EntityID] = true
+	}
+
+	// 当前页无条目的类型不返回空分组。
+	h.createFaction(fixture.work.ID, "批量势力", nil, nil)
+	all1 := getSearch(t, h, fixture.work.ID, map[string]string{"q": "批量", "page": "1"})
+	all2 := getSearch(t, h, fixture.work.ID, map[string]string{"q": "批量", "page": "2"})
+	if all1.Total != 26 || all2.Total != 26 {
+		t.Fatalf("合计应为 26，实际 page1=%d page2=%d", all1.Total, all2.Total)
+	}
+	if findGroup(all2, model.SearchEntityFaction) != nil {
+		t.Fatalf("第 2 页不应出现空势力分组：%+v", all2.Groups)
+	}
+	if len(all2.Groups) != 1 || len(all2.Groups[0].Items) != 6 {
+		t.Fatalf("第 2 页应仅返回 6 条人物，实际 %+v", all2.Groups)
+	}
+
+	// 非法 page 返回 422；超大 page 不溢出且返回空切片。
+	for _, raw := range []string{"abc", "0", "-2"} {
+		rec = h.do(http.MethodGet, "/api/v1/search?"+url.Values{
+			"work_id": {fixture.work.ID}, "q": {"批量"}, "page": {raw},
+		}.Encode(), nil, nil)
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("page=%s 应返回 422，实际 %d：%s", raw, rec.Code, rec.Body.String())
+		}
+	}
+	huge := getSearch(t, h, fixture.work.ID, map[string]string{"q": "批量", "page": "9223372036854775807"})
+	if huge.Total != 26 || len(huge.Groups) != 0 {
+		t.Fatalf("超大 page 应返回空切片，实际 total=%d groups=%+v", huge.Total, huge.Groups)
+	}
+
+	// 非法 review_status 返回 422。
+	rec = h.do(http.MethodGet, "/api/v1/search?"+url.Values{
+		"work_id": {fixture.work.ID}, "q": {"批量"}, "review_status": {"bad"},
+	}.Encode(), nil, nil)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("非法 review_status 应返回 422，实际 %d：%s", rec.Code, rec.Body.String())
 	}
 }
 

@@ -55,6 +55,9 @@ func (s *Search) Search(ctx context.Context, in SearchInput) (*model.SearchResul
 		return nil, &model.ValidationError{Field: "q", Message: "关键词不能超过 200 个字符"}
 	}
 	tokens := strings.Fields(query)
+	if tokens == nil {
+		tokens = []string{}
+	}
 
 	entityTypes, err := parseSearchEntityTypes(in.EntityTypes)
 	if err != nil {
@@ -96,7 +99,11 @@ func (s *Search) Search(ctx context.Context, in SearchInput) (*model.SearchResul
 	search.RankDocs(docs, tokens)
 
 	total := int64(len(docs))
-	start := (page - 1) * model.SearchPageSize
+	// 超大 page 时避免 (page-1)*20 溢出；超出末页直接返回空切片。
+	start := len(docs)
+	if page-1 <= len(docs)/model.SearchPageSize {
+		start = (page - 1) * model.SearchPageSize
+	}
 	if start > len(docs) {
 		start = len(docs)
 	}
@@ -120,13 +127,14 @@ func (s *Search) Search(ctx context.Context, in SearchInput) (*model.SearchResul
 		if totals[entityType] == 0 {
 			continue
 		}
+		// 当前页切片为空的组不渲染组头，避免翻页后出现空分组。
+		if len(items[entityType]) == 0 {
+			continue
+		}
 		group := model.SearchGroup{
 			EntityType: entityType,
 			Total:      totals[entityType],
 			Items:      items[entityType],
-		}
-		if group.Items == nil {
-			group.Items = []model.SearchItem{}
 		}
 		groups = append(groups, group)
 	}
@@ -411,7 +419,8 @@ func (s *Search) buildItems(ctx context.Context, docs []model.SearchDocument, to
 }
 
 func characterSubtitle(summary model.CharacterSummary) string {
-	parts := make([]string, 0, 3)
+	parts := make([]string, 0, 4)
+	parts = append(parts, "人物")
 	if summary.Faction != nil && summary.Faction.Name != "" {
 		parts = append(parts, summary.Faction.Name)
 	}
@@ -420,9 +429,6 @@ func characterSubtitle(summary model.CharacterSummary) string {
 	}
 	if len(summary.Rankings) > 0 {
 		parts = append(parts, summary.Rankings[0].Name)
-	}
-	if len(parts) == 0 {
-		return "人物"
 	}
 	return strings.Join(parts, " · ")
 }

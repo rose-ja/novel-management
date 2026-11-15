@@ -288,7 +288,7 @@ export function SearchPage({ initial }: { initial: SearchState }) {
                   options={options}
                   optionsError={optionsError}
                   submitting={status === "loading"}
-                  submitDisabled={!criteria}
+                  submitDisabled={!criteria && queryInput.trim() === ""}
                   onChange={updateState}
                   onReset={handleReset}
                   onSubmit={handleSubmit}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -17,7 +18,15 @@ func registerSearch(api *gin.RouterGroup, svc *service.Search) {
 
 func searchHandler(svc *service.Search) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		page, _ := strconv.Atoi(c.Query("page"))
+		page := 0
+		if raw := strings.TrimSpace(c.Query("page")); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed < 1 {
+				abortErrorWithDetails(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "page 必须为正整数", gin.H{"field": "page"})
+				return
+			}
+			page = parsed
+		}
 		result, err := svc.Search(c.Request.Context(), service.SearchInput{
 			WorkID:           c.Query("work_id"),
 			Query:            c.Query("q"),
