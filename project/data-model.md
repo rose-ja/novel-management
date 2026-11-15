@@ -353,27 +353,31 @@ erDiagram
 
 | Field | Type | Nullable | Default | Constraint | Description |
 |---|---|---|---|---|---|
-| id | TEXT(26) | No | — | PK | — |
+| id | TEXT | No | — | PK | ULID（26 位） |
 | status | TEXT | No | `queued` | CHECK `queued` / `running` / `completed` / `failed` | — |
 | include_trash | BOOLEAN | No | `true` | — | 是否包含回收站数据 |
-| file_path | TEXT | Yes | NULL | 相对 `DATA_DIR` | 成品 zip |
-| byte_size | BIGINT | Yes | NULL | — | — |
-| error_code | TEXT | Yes | NULL | — | — |
+| file_name | TEXT | Yes | NULL | — | 成品 zip 文件名（`novel-settings-YYYYMMDD-HHmmss.zip`） |
+| file_path | TEXT | Yes | NULL | 相对 `DATA_DIR` | 成品 zip 逻辑路径 |
+| byte_size | BIGINT | Yes | NULL | CHECK ≥0 | — |
+| error_code | TEXT | Yes | NULL | — | `EXPORT_IN_PROGRESS` / `EXPORT_NO_WORK` / `EXPORT_INTERRUPTED` / `EXPORT_INSUFFICIENT_STORAGE` / `EXPORT_FAILED` |
 | created_at | TIMESTAMPTZ | No | `now()` | — | — |
 | finished_at | TIMESTAMPTZ | Yes | NULL | — | — |
+
+索引：`(status, created_at DESC)`、`(created_at DESC)`。CHG-010 迁移 `0010_export_runs`。
 
 ### 3.18 snapshots（快照）
 
 | Field | Type | Nullable | Default | Constraint | Description |
 |---|---|---|---|---|---|
-| id | TEXT(26) | No | — | PK | — |
-| reason | TEXT | No | — | CHECK `restore` / `import` / `work_delete` / `trash_purge` / `manual` | 来源动作 |
-| dir_path | TEXT | No | — | 相对 `DATA_DIR` | 快照目录：固定含 `app.dump`、`images/`、`snapshot.json`、`manifest.json`、`checksums.sha256` |
-| db_bytes | BIGINT | No | — | — | 数据库转储大小 |
+| id | TEXT | No | — | PK | ULID（26 位） |
+| reason | TEXT | No | — | CHECK `work_delete` / `trash_purge` / `purge_all` / `import` / `cli_restore` | 来源动作 |
+| path | TEXT | No | — | 绝对路径 | 快照目录：固定含 `app.dump`、`images/`、`snapshot.json`、`manifest.json`、`checksums.sha256` |
+| db_bytes | BIGINT | No | 0 | — | 数据库转储大小 |
 | image_count | INTEGER | No | 0 | ≥0 | 图片数量 |
+| status | TEXT | No | `ok` | CHECK `ok` / `failed` | 失败记录不参与保留裁剪 |
 | created_at | TIMESTAMPTZ | No | `now()` | — | — |
 
-全局表，无 `work_id`；保留最近 3 份由 `SnapshotService` 维护。
+全局表，无 `work_id`；保留最近 3 份由 `SnapshotService` 维护。CHG-010 起 manifest 额外记录 `schema_version`、`app_version`；旧快照缺少 `schema_version` 时恢复按兼容处理。
 
 ### 3.19 app_settings（应用设置）
 

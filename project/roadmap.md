@@ -4,7 +4,7 @@
 - 状态：已确认（2026-11-07，见 §9）
 - 上游基线：requirements v1.0、product-brief、user-stories、mvp-scope、architecture v1.2、data-model、api-contract、design-system v1.0、P5 审查结论
 - Spec 目录：[project/specs](file:///d:/Project/novel-management/project/specs/README.md)
-- 说明：CHG-001～005 已交付并本地合并（截至 2026-11-13），其余变更仍为「计划」状态；计划不代表已实现。
+- 说明：CHG-001～CHG-010 已交付并验收（截至 2026-11-15），其余变更仍为「计划」状态；计划不代表已实现。
 
 ---
 
@@ -52,7 +52,7 @@ P6 启动时按 [00-operating-manual.md](file:///d:/Project/novel-management/wor
 
 **交付策略（2026-11-07 已确认）**：一次性按拓扑序推进 `CHG-001~012`，不在批次之间设置人工闸门。`CHG-001~004` 仍作为首个可用里程碑：完成后系统可启动、创建多作品、配置体系、维护人物档案并使用回收站恢复，可先进行真实试用；后续变更在其上连续叠加。「批次」列只表示建议节奏，不作为开工前置条件。
 
-**进度（2026-11-15）**：CHG-001～CHG-009 已完成、验收并归档（CHG-009 迁移 v9、`GET /search`、`cli reindex`、`/search` 与系统深链；1000 人物 P95 7.11ms）；下一个变更为 CHG-010（导出、CLI 恢复与快照收口）。
+**进度（2026-11-15）**：CHG-001～CHG-010 已完成、验收并归档（CHG-009 迁移 v9、`GET /search`、`cli reindex`、`/search` 与系统深链；CHG-010 迁移 v10、`export_runs`、导出/下载、`cli restore`/`restore-snapshot` 与 PG-13）；下一个变更为 CHG-011（飞书《正文》迁移导入与校对）。
 
 ---
 
@@ -294,11 +294,11 @@ graph TD
 
 - **目标**：用户可全量导出（可选含回收站），并在空环境用 CLI 恢复；快照可查看与回滚。
 - **关联 Spec**：SPEC-BACKUP-001~SPEC-BACKUP-004。
-- **范围**：导出 zip 五件套 + 可选 `trash/`；后台任务与下载；CLI `restore` / `restore-snapshot`；manifest/checksum/schema 校验；恢复前快照；设置页完整展示与空环境演练。
+- **范围**：导出 zip（`manifest.json`、`checksums.sha256`、`data/app.dump`、`images/`、`README.txt`，ADR-006）；含/不含回收站两种模式；后台任务与下载；CLI `restore` / `restore-snapshot`；manifest/checksum/schema 校验；恢复前快照；设置页完整展示与空环境演练。
 - **非目标**：增量导出、云备份、GUI 恢复按钮、定时快照、超过 3 份保留。
-- **模块/文件预期**：`internal/{exports,service/export,httpapi/exports}.go`、`snapshots/*`、`cmd/cli/{restore,restore_snapshot,migrate,reindex,doctor}.go`、`migrations/0010_exports.*`、`web/features/settings/*`。
+- **模块/文件预期**：`internal/backup/*`、`service/{export,restore}.go`、`httpapi/exports.go`、`cmd/cli`（restore/restore-snapshot）、`migrations/0010_export_runs.sql`、`frontend/components/settings/*`。
 - **UI/设计系统任务**：PG-13 导出开关/进度/下载/失败重试、快照列表、恢复命令复制、空态；复用 Toast/Progress/Card/Table。
-- **DoD**：导出含五件套与正确计数；含/不含回收站开关生效；CLI 空环境恢复成功；schema 不兼容拒绝；恢复前快照存在；最近 3 份保留。
+- **DoD**：导出含五件套与正确计数；含/不含回收站开关生效；CLI 空环境恢复成功；schema 不兼容拒绝；恢复前快照存在；最近 3 份保留。**状态：已完成（2026-11-15，E2E 109/109；zip 恢复 515ms、快照恢复 505ms）。**
 - **测试与验证**：集成（导出内容/checksum、恢复、快照清理）；E2E-10；AC-12、AC-22；人工空容器演练。
 - **依赖**：CHG-002、CHG-008（全实体导出验收）。
 - **复杂度**：M。

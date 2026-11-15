@@ -720,14 +720,18 @@
   - 两种导出包均可用同一 CLI 恢复（AC-12）；`manifest.json` 记录 `includes_trash`。
 
 #### GET /api/v1/exports
-- Response：最近任务列表（`id, status, include_trash, byte_size, created_at, finished_at`）。
+- Response：最近 20 条任务（`id, status, include_trash, file_name, file_path, byte_size, error_code, created_at, finished_at`）。
 
 #### GET /api/v1/exports/{export_id}
-- Response：任务详情 + `file_name`（如 `novel-settings-20261107-101530.zip`）+ `file_path`（逻辑路径）。
+- Response：任务详情 + `file_name`（如 `novel-settings-20261107-101530.zip`）+ `file_path`（相对 `DATA_DIR` 的逻辑路径）。
+- Errors：`NOT_FOUND`。
 
 #### GET /api/v1/exports/{export_id}/download
 - Response：`application/zip` 流式下载；`Content-Disposition: attachment; filename="…"`。
 - Errors：`NOT_FOUND`（未完成/失败）。
+
+#### GET /api/v1/export/status
+- Response：`{ "active": ExportRun|null, "last": ExportRun|null }`；供设置页恢复进度与展示最近结果，字段同上。
 
 ### 3.13 快照 Snapshots（FR-55）
 
@@ -735,7 +739,8 @@
 - Response：`[{ "id", "reason", "created_at", "db_bytes", "image_count", "path" }]`，按时间倒序；最多展示 10 条，保留 3 份。
 - 只读；不提供页内恢复（D-05）。
 - 快照目录固定包含：`app.dump`、`images/`、`snapshot.json`、`manifest.json`、`checksums.sha256`（P5b RT-06）。
-- 恢复入口为 CLI：`docker compose run --rm cli restore-snapshot /data/snapshots/{ts}-{reason}`；成功后写 `app_settings.last_restore_at`，设置页展示（P5b RT-06）。
+- 恢复入口为 CLI：`docker compose run --rm cli restore-snapshot /data/snapshots/{ts}-{reason} --yes`；成功后写 `app_settings.last_restore_at`，设置页展示（P5b RT-06 / CHG-010）。
+- CHG-010 起 `manifest.json` 记录 `schema_version/app_version`；旧快照缺少版本字段时兼容恢复并告警。
 - 快照触发以 requirements FR-55 为准：CLI 全量恢复、导入、删除作品、永久删除、清空回收站；回收站单项恢复不生成；手动快照仅 CLI 可选，无页面入口（P5b RT-17）。
 
 ### 3.14 校对 Reviews（FR-44）
