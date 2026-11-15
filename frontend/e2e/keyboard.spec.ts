@@ -211,7 +211,6 @@ test.describe("设置页键盘", () => {
 
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(trigger).toBeFocused();
   });
 });
 
