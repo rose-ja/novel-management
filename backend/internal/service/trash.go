@@ -11,6 +11,7 @@ import (
 
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/repository"
+	"novel-management/backend/internal/search"
 )
 
 // Trash 负责回收站列表、整组恢复、永久删除、清空与撤销。
@@ -403,6 +404,9 @@ func (s *Trash) restoreWork(ctx context.Context, tx *gorm.DB, rootID string, in 
 	if err != nil {
 		return nil, err
 	}
+	if err := search.NewRefresher(tx).RefreshWork(ctx, rootID); err != nil {
+		return nil, err
+	}
 	return &RestoreResult{
 		RootType:      RootTypeWork,
 		RootID:        rootID,
@@ -536,6 +540,9 @@ func (s *Trash) restoreCategory(ctx context.Context, tx *gorm.DB, rootID string,
 	if err := system.RestoreCategoryGroup(ctx, rootID, now); err != nil {
 		return nil, alreadyDeleted(err)
 	}
+	if err := search.NewRefresher(tx).RefreshWork(ctx, category.WorkID); err != nil {
+		return nil, err
+	}
 
 	return &RestoreResult{
 		RootType:      RootTypeSystemCategory,
@@ -607,6 +614,9 @@ func (s *Trash) restoreNode(ctx context.Context, tx *gorm.DB, rootID string, in 
 	if err := system.RestoreNode(ctx, node.ID, now); err != nil {
 		return nil, alreadyDeleted(err)
 	}
+	if err := search.NewRefresher(tx).RefreshWork(ctx, node.WorkID); err != nil {
+		return nil, err
+	}
 	return &RestoreResult{
 		RootType:      RootTypeSystemNode,
 		RootID:        node.ID,
@@ -656,6 +666,9 @@ func (s *Trash) restoreCharacter(ctx context.Context, tx *gorm.DB, rootID string
 	}
 	if err := repo.Restore(ctx, item.ID, now); err != nil {
 		return nil, alreadyDeleted(err)
+	}
+	if err := search.NewRefresher(tx).RefreshWork(ctx, item.WorkID); err != nil {
+		return nil, err
 	}
 	return &RestoreResult{
 		RootType:      RootTypeCharacter,
@@ -718,6 +731,9 @@ func (s *Trash) restoreFaction(ctx context.Context, tx *gorm.DB, rootID string, 
 	if err := repo.Restore(ctx, item.ID, now); err != nil {
 		return nil, alreadyDeleted(err)
 	}
+	if err := search.NewRefresher(tx).RefreshWork(ctx, item.WorkID); err != nil {
+		return nil, err
+	}
 	return &RestoreResult{
 		RootType:      RootTypeFaction,
 		RootID:        item.ID,
@@ -775,6 +791,9 @@ func (s *Trash) restoreLocation(ctx context.Context, tx *gorm.DB, rootID string,
 	if err := repo.Restore(ctx, item.ID, now); err != nil {
 		return nil, alreadyDeleted(err)
 	}
+	if err := search.NewRefresher(tx).RefreshWork(ctx, item.WorkID); err != nil {
+		return nil, err
+	}
 	return &RestoreResult{
 		RootType:      RootTypeLocation,
 		RootID:        item.ID,
@@ -826,6 +845,9 @@ func (s *Trash) restoreRanking(ctx context.Context, tx *gorm.DB, rootID string, 
 	}
 	if err := repo.Restore(ctx, item.ID, now); err != nil {
 		return nil, alreadyDeleted(err)
+	}
+	if err := search.NewRefresher(tx).RefreshWork(ctx, item.WorkID); err != nil {
+		return nil, err
 	}
 	return &RestoreResult{
 		RootType:      RootTypeRanking,
@@ -893,7 +915,8 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 		s.removeMedia(paths)
 		return nil
 	case RootTypeSystemCategory:
-		if _, err := system.GetDeletedCategoryRoot(ctx, rootID); err != nil {
+		category, err := system.GetDeletedCategoryRoot(ctx, rootID)
+		if err != nil {
 			return alreadyDeleted(err)
 		}
 		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
@@ -908,11 +931,14 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			if err := referenceConflict(rows, "类别", "永久删除"); err != nil {
 				return err
 			}
-			_, err = repo.PurgeCategoryGroup(ctx, rootID)
-			return err
+			if _, err := repo.PurgeCategoryGroup(ctx, rootID); err != nil {
+				return err
+			}
+			return search.NewRefresher(tx).RefreshWork(ctx, category.WorkID)
 		})
 	case RootTypeSystemNode:
-		if _, err := system.GetDeletedNodeRoot(ctx, rootID); err != nil {
+		node, err := system.GetDeletedNodeRoot(ctx, rootID)
+		if err != nil {
 			return alreadyDeleted(err)
 		}
 		children, err := system.ListNodeChildren(ctx, rootID)
@@ -934,18 +960,21 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			if err := referenceConflict(rows, "节点", "永久删除"); err != nil {
 				return err
 			}
-			_, err = repo.PurgeNode(ctx, rootID)
-			return err
+			if _, err := repo.PurgeNode(ctx, rootID); err != nil {
+				return err
+			}
+			return search.NewRefresher(tx).RefreshWork(ctx, node.WorkID)
 		})
 	case RootTypeCharacter:
-		if _, err := repository.NewCharacters(s.db).GetDeleted(ctx, rootID); err != nil {
+		character, err := repository.NewCharacters(s.db).GetDeleted(ctx, rootID)
+		if err != nil {
 			return alreadyDeleted(err)
 		}
 		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
 			return err
 		}
 		var paths []string
-		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			// 席位外键为 RESTRICT，永久删除前复核引用，避免直接 500。
 			refs, err := characterInboundReferences(ctx, tx, rootID)
 			if err != nil {
@@ -962,7 +991,7 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 				return model.ErrAlreadyDeleted
 			}
 			paths = mediaPaths
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, character.WorkID)
 		})
 		if err != nil {
 			return err
@@ -1006,7 +1035,7 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			if rows == 0 {
 				return model.ErrAlreadyDeleted
 			}
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, locked.WorkID)
 		})
 	case RootTypeLocation:
 		repo := repository.NewLocations(s.db)
@@ -1045,10 +1074,11 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			if rows == 0 {
 				return model.ErrAlreadyDeleted
 			}
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, locked.WorkID)
 		})
 	case RootTypeRanking:
-		if _, err := repository.NewRankings(s.db).GetDeleted(ctx, rootID); err != nil {
+		ranking, err := repository.NewRankings(s.db).GetDeleted(ctx, rootID)
+		if err != nil {
 			return alreadyDeleted(err)
 		}
 		if _, err := s.snapshots.Create(ctx, model.SnapshotReasonTrashPurge); err != nil {
@@ -1062,7 +1092,7 @@ func (s *Trash) Purge(ctx context.Context, rootType, rootID string) error {
 			if rows == 0 {
 				return model.ErrAlreadyDeleted
 			}
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, ranking.WorkID)
 		})
 	default:
 		return model.ErrInvalidRootType
@@ -1213,6 +1243,9 @@ func (s *Trash) PurgeAll(ctx context.Context, confirm string) (*PurgeAllResult, 
 				return err
 			}
 		}
+		if _, err := search.NewRefresher(tx).RebuildAll(ctx); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -1299,6 +1332,9 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 			if err := repo.RestoreGroup(ctx, record.RootID, now); err != nil {
 				return alreadyDeleted(err)
 			}
+			if err := search.NewRefresher(tx).RefreshWork(ctx, record.RootID); err != nil {
+				return err
+			}
 			// 删除时清空了当前作品，撤销后补回，避免恢复到「未选择作品」。
 			settings := repository.NewSettings(tx)
 			row, err := settings.Get(ctx)
@@ -1335,7 +1371,7 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 			if err := system.RestoreCategoryGroup(ctx, record.RootID, now); err != nil {
 				return alreadyDeleted(err)
 			}
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, category.WorkID)
 		case RootTypeSystemNode:
 			system := repository.NewSystem(tx)
 			node, err := system.GetDeletedNodeRoot(ctx, record.RootID)
@@ -1370,7 +1406,7 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 			if err := system.RestoreNode(ctx, record.RootID, now); err != nil {
 				return alreadyDeleted(err)
 			}
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, node.WorkID)
 		case RootTypeCharacter:
 			repo := repository.NewCharacters(tx)
 			character, err := repo.GetDeleted(ctx, record.RootID)
@@ -1397,7 +1433,7 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 			if err := repo.Restore(ctx, record.RootID, now); err != nil {
 				return alreadyDeleted(err)
 			}
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, character.WorkID)
 		case RootTypeChronicle:
 			repo := repository.NewChronicles(tx)
 			item, err := repo.GetDeleted(ctx, record.RootID)
@@ -1452,7 +1488,7 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 			if err := repo.Restore(ctx, record.RootID, now); err != nil {
 				return alreadyDeleted(err)
 			}
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 		case RootTypeLocation:
 			repo := repository.NewLocations(tx)
 			item, err := repo.GetDeleted(ctx, record.RootID)
@@ -1487,7 +1523,7 @@ func (s *Trash) Undo(ctx context.Context, token string) (*UndoResult, error) {
 			if err := repo.Restore(ctx, record.RootID, now); err != nil {
 				return alreadyDeleted(err)
 			}
-			return nil
+			return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 		case RootTypeRanking:
 			_, err := s.restoreRanking(ctx, tx, record.RootID, RestoreInput{}, now)
 			return err
