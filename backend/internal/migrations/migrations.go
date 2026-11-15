@@ -12,6 +12,9 @@ import (
 //go:embed *.sql
 var files embed.FS
 
+// LatestVersion 是当前二进制内嵌迁移的最新版本号，用于导出/恢复的 schema 兼容校验。
+const LatestVersion = 10
+
 // Up 执行全部未应用迁移；迁移文件随二进制嵌入。
 func Up(ctx context.Context, db *sql.DB) error {
 	goose.SetBaseFS(files)
