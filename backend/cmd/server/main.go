@@ -21,6 +21,7 @@ import (
 	"novel-management/backend/internal/httpapi"
 	"novel-management/backend/internal/migrations"
 	"novel-management/backend/internal/observability"
+	"novel-management/backend/internal/search"
 	"novel-management/backend/internal/service"
 )
 
@@ -63,6 +64,10 @@ func run() error {
 	}
 	log.Info("数据库迁移完成")
 
+	if _, err := search.NewRefresher(db.Gorm).RebuildAll(ctx); err != nil {
+		log.Warn("检索文档初始重建失败，稍后可由 cli reindex 修复", "error", err)
+	}
+
 	cachePing, closeCache := newCachePinger(cfg, log)
 	defer closeCache()
 
@@ -93,6 +98,7 @@ func run() error {
 		Factions:   factionsService,
 		Locations:  locationsService,
 		Rankings:   service.NewRankings(db.Gorm, charactersService),
+		Search:     service.NewSearch(db.Gorm, charactersService),
 	})
 
 	srv := &http.Server{

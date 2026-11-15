@@ -29,10 +29,11 @@ var (
 	ErrCycleDetected             = errors.New("上级不能是自身或其后代")
 	ErrDuplicateRelation         = errors.New("关系已存在")
 
-	ErrSeatConflict       = errors.New("该人物已在本榜其他席位")
-	ErrSeatOutOfRange     = errors.New("席位号超出榜单范围")
-	ErrSeatShrinkOccupied = errors.New("缩容目标席位之后仍有人物")
-	ErrReferenceMissing   = errors.New("引用的人物已不存在")
+	ErrSeatConflict        = errors.New("该人物已在本榜其他席位")
+	ErrSeatOutOfRange      = errors.New("席位号超出榜单范围")
+	ErrSeatShrinkOccupied  = errors.New("缩容目标席位之后仍有人物")
+	ErrReferenceMissing    = errors.New("引用的人物已不存在")
+	ErrSearchQueryRequired = errors.New("请输入检索关键词或选择筛选条件")
 )
 
 // CycleDetectedError 表示移动势力/地点时形成环，details 携带字段名。

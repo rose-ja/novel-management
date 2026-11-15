@@ -191,6 +191,7 @@ func newHarness(t *testing.T) *harness {
 		Factions:   service.NewFactions(tx, characters),
 		Locations:  service.NewLocations(tx, characters),
 		Rankings:   service.NewRankings(tx, characters),
+		Search:     service.NewSearch(tx, characters),
 	})
 
 	return &harness{
