@@ -10,11 +10,14 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
 
 	"novel-management/backend/internal/config"
 	"novel-management/backend/internal/database"
 	"novel-management/backend/internal/migrations"
+	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/observability"
+	"novel-management/backend/internal/search"
 )
 
 func main() {
@@ -29,7 +32,7 @@ func newRootCmd() *cobra.Command {
 		Short:        "小说设定管理系统运维 CLI",
 		SilenceUsage: true,
 	}
-	root.AddCommand(newMigrateCmd(), newDoctorCmd(), newVersionCmd())
+	root.AddCommand(newMigrateCmd(), newDoctorCmd(), newReindexCmd(), newVersionCmd())
 	return root
 }
 
@@ -77,6 +80,86 @@ type doctorReport struct {
 	RedisAddr       string `json:"redis_addr"`
 	DBOK            bool   `json:"db_ok"`
 	CacheStatus     string `json:"cache_status"`
+}
+
+func newReindexCmd() *cobra.Command {
+	var check bool
+	var workID string
+	cmd := &cobra.Command{
+		Use:   "reindex",
+		Short: "重建或校验 search_documents 检索文档（需先停止 app）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, log, err := load()
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
+
+			db, err := database.Open(ctx, cfg.DatabaseURL, 10*time.Second, log)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = db.SQL.Close() }()
+
+			unlock, err := db.TryAdvisoryLock(ctx, database.AdvisoryLockID)
+			if err != nil {
+				return err
+			}
+			defer unlock()
+
+			refresher := search.NewRefresher(db.Gorm)
+			if check {
+				workIDs, err := listReindexWorks(ctx, db.Gorm, workID)
+				if err != nil {
+					return err
+				}
+				var drift int64
+				for _, id := range workIDs {
+					consistency, err := refresher.Consistency(ctx, id)
+					if err != nil {
+						return err
+					}
+					drift += consistency.Drift
+					fmt.Printf("作品 %s：文档 %d / 实体 %d，漂移 %d\n",
+						id, consistency.TotalDocs, consistency.TotalEntities, consistency.Drift)
+				}
+				if drift != 0 {
+					return fmt.Errorf("检索文档存在漂移：%d", drift)
+				}
+				fmt.Println("一致性检查通过")
+				return nil
+			}
+
+			if workID != "" {
+				if err := refresher.RefreshWork(ctx, workID); err != nil {
+					return err
+				}
+				fmt.Printf("已重建作品 %s 的检索文档\n", workID)
+				return nil
+			}
+			count, err := refresher.RebuildAll(ctx)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("已重建 %d 个作品的检索文档\n", count)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&check, "check", false, "只做一致性检查，不修改数据")
+	cmd.Flags().StringVar(&workID, "work", "", "仅处理指定作品 ID")
+	return cmd
+}
+
+func listReindexWorks(ctx context.Context, db *gorm.DB, workID string) ([]string, error) {
+	if workID != "" {
+		return []string{workID}, nil
+	}
+	var ids []string
+	if err := db.WithContext(ctx).Model(&model.Work{}).Order("id").Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func newDoctorCmd() *cobra.Command {
