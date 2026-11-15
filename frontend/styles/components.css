@@ -1307,6 +1307,134 @@
   white-space: nowrap;
 }
 
+/* ---------- 设置 / 备份（PG-13） ---------- */
+.settings-hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+
+.settings-path {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+}
+
+.settings-path__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+.export-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.export-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--color-brand-600);
+}
+
+.export-checkbox__label {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: var(--text-small);
+  font-weight: 500;
+}
+
+.export-checkbox__hint {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+
+.export-result__title {
+  margin: 0 0 var(--space-3);
+  font-weight: 500;
+}
+
+.export-result__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.export-result__row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.export-result__row:last-child {
+  border-bottom: none;
+}
+
+.export-result__row dt {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+
+.export-result__row dd {
+  margin: 0;
+  font-size: var(--text-small);
+  word-break: break-all;
+}
+
+.export-path {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+.command-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.command-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.command-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.command-block__label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+
+.command-block__code {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* ---------- 体系（PG-10） ---------- */
 .system-layout {
   display: grid;
