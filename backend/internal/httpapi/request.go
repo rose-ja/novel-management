@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"novel-management/backend/internal/model"
+	"novel-management/backend/internal/service"
 )
 
 // bindJSON 统一 422 响应；失败时已写出响应体。
@@ -190,6 +191,10 @@ func abortServiceError(c *gin.Context, err error) {
 		abortError(c, http.StatusConflict, "SEAT_SHRINK_OCCUPIED", "缩容目标席位之后仍有人物")
 	case errors.Is(err, model.ErrReferenceMissing):
 		abortError(c, http.StatusConflict, "REFERENCE_MISSING", "引用的人物已不存在")
+	case errors.Is(err, service.ErrExportInProgress):
+		abortError(c, http.StatusConflict, "EXPORT_IN_PROGRESS", "已有导出任务在进行")
+	case errors.Is(err, service.ErrExportNoWork):
+		abortError(c, http.StatusConflict, "EXPORT_NO_WORK", "暂无作品数据可导出")
 	case errors.Is(err, model.ErrCharacterWorkUnavailable):
 		abortError(c, http.StatusUnprocessableEntity, "PARENT_DELETED", "作品不存在或已删除")
 	case errors.Is(err, model.ErrUnsupportedFileType):

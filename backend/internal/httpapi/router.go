@@ -51,6 +51,9 @@ func NewRouter(opts Options) *gin.Engine {
 	if opts.Snapshots != nil {
 		api.GET("/snapshots", listSnapshotsHandler(opts.Snapshots))
 	}
+	if opts.Exports != nil {
+		registerExports(api, opts.Exports, opts.Config)
+	}
 	if opts.System != nil {
 		registerSystem(api, opts.System)
 	}

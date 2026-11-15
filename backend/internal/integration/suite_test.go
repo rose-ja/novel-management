@@ -122,17 +122,24 @@ func (d *flakyDumper) Dump(_ context.Context, _ string, outPath string) error {
 	return os.WriteFile(outPath, []byte("fake-dump"), 0o644)
 }
 
+// DumpWithoutTrash 在集成测试中使用同一份假转储。
+func (d *flakyDumper) DumpWithoutTrash(ctx context.Context, dsn, outPath string) error {
+	return d.Dump(ctx, dsn, outPath)
+}
+
 type harness struct {
 	t         *testing.T
 	tx        *gorm.DB
 	engine    *gin.Engine
 	dataDir   string
+	cfg       config.Config
 	dumper    *flakyDumper
 	snapshots *service.Snapshot
 	works     *service.Works
 	trash     *service.Trash
 	settings  *service.Settings
 	system    *service.System
+	exports   *service.Export
 }
 
 func newHarness(t *testing.T) *harness {
@@ -172,6 +179,7 @@ func newHarness(t *testing.T) *harness {
 	settings := service.NewSettings(tx)
 	system := service.NewSystem(tx)
 	characters := service.NewCharacters(tx, media)
+	exports := service.NewExport(tx, cfg, discardLogger(), dumper)
 	engine := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    discardLogger(),
@@ -183,6 +191,7 @@ func newHarness(t *testing.T) *harness {
 		Works:      works,
 		Trash:      trash,
 		Snapshots:  snapshots,
+		Exports:    exports,
 		Settings:   settings,
 		System:     system,
 		Characters: characters,
@@ -199,12 +208,14 @@ func newHarness(t *testing.T) *harness {
 		tx:        tx,
 		engine:    engine,
 		dataDir:   dataDir,
+		cfg:       cfg,
 		dumper:    dumper,
 		snapshots: snapshots,
 		works:     works,
 		trash:     trash,
 		settings:  settings,
 		system:    system,
+		exports:   exports,
 	}
 }
 
