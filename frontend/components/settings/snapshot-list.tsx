@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 import { toUserMessage } from "@/lib/api/errors";
 import { listSnapshots, type Snapshot } from "@/lib/api/snapshots";
-import { formatBytes, formatDateTime } from "@/lib/format";
+import { copyText } from "@/lib/clipboard";
+import { formatBytes, formatDateTime, truncateMiddle } from "@/lib/format";
 import { messages } from "@/lib/messages";
 
 type Status = "loading" | "ready" | "error";
@@ -20,13 +22,26 @@ const columns = [
   { key: "reason", label: messages.snapshotColumnReason, width: "128px" },
   { key: "size", label: messages.snapshotColumnSize, width: "128px" },
   { key: "status", label: messages.snapshotColumnStatus, width: "96px" },
+  { key: "path", label: messages.snapshotColumnPath, width: "280px" },
 ];
 
 /** 设置页只读快照列表；恢复入口在命令行，不提供页面按钮（D-05）。 */
 export function SnapshotList() {
+  const { showToast } = useToast();
   const [items, setItems] = useState<Snapshot[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<Error | null>(null);
+
+  const copyPath = useCallback(
+    async (path: string) => {
+      const ok = await copyText(path);
+      showToast({
+        tone: ok ? "success" : "error",
+        message: ok ? messages.settingsSnapshotPathCopied : messages.copyFailed,
+      });
+    },
+    [showToast],
+  );
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -77,6 +92,17 @@ export function SnapshotList() {
                 {messages.snapshotStatusFailed}
               </Badge>
             ),
+            <span key="path" className="settings-path" title={snapshot.path}>
+              <code className="settings-path__text">{truncateMiddle(snapshot.path, 42)}</code>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={messages.settingsSnapshotPathCopy}
+                onClick={() => void copyPath(snapshot.path)}
+              >
+                {messages.copy}
+              </Button>
+            </span>,
           ])}
           rowKey={(index) => items[index]?.id ?? String(index)}
           empty={

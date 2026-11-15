@@ -11,6 +11,15 @@ export function formatDateTime(value: string | null | undefined): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** 长路径中间省略，保留头尾便于识别文件；短路径原样返回。 */
+export function truncateMiddle(value: string, maxLength = 48): string {
+  if (value.length <= maxLength) return value;
+  const keep = maxLength - 1;
+  const head = Math.ceil(keep / 2);
+  const tail = Math.floor(keep / 2);
+  return `${value.slice(0, head)}…${value.slice(value.length - tail)}`;
+}
+
 /** 人类可读的字节数；无有效数据时显示「—」。 */
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined || !Number.isFinite(bytes) || bytes <= 0) return "—";
