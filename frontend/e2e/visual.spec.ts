@@ -47,7 +47,7 @@ test.describe("视觉基线", () => {
   test("设置页 1280", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/settings");
-    await expect(page.getByRole("heading", { name: "设置", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "设置 / 备份", level: 1 })).toBeVisible();
 
     await expect(page).toHaveScreenshot("settings-1280.png", {
       mask: dynamicRegions(page),

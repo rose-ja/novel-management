@@ -46,7 +46,7 @@ func TestMigrationRoundTrip(t *testing.T) {
 		"works", "system_categories", "system_nodes", "character_system_refs",
 		"characters", "character_names", "media_assets", "chronicles", "factions",
 		"locations", "character_locations", "location_factions",
-		"rankings", "ranking_seats", "search_documents",
+		"rankings", "ranking_seats", "search_documents", "export_runs",
 		"app_settings", "snapshots", "undo_tokens",
 	}
 	for _, table := range tables {
@@ -62,8 +62,8 @@ func TestMigrationRoundTrip(t *testing.T) {
 	if err := testDB.Raw("SELECT max(version_id) FROM goose_db_version").Scan(&version).Error; err != nil {
 		t.Fatalf("读取 goose_db_version 失败：%v", err)
 	}
-	if version != 9 {
-		t.Fatalf("迁移版本应为 9，实际 %d", version)
+	if version != migrations.LatestVersion {
+		t.Fatalf("迁移版本应为 %d，实际 %d", migrations.LatestVersion, version)
 	}
 
 	seed := []string{
@@ -87,6 +87,17 @@ func TestMigrationRoundTrip(t *testing.T) {
 		if err := testDB.Exec(statement).Error; err != nil {
 			t.Fatalf("播种迁移回滚数据失败：%v", err)
 		}
+	}
+
+	// 0010 Down：删除导出任务表；检索文档保留。
+	if err := migrations.Down(ctx, sqlDB); err != nil {
+		t.Fatalf("回滚 0010 失败：%v", err)
+	}
+	if tableExists(t, "export_runs") {
+		t.Fatal("回滚 0010 后表 export_runs 仍然存在")
+	}
+	if !tableExists(t, "search_documents") {
+		t.Fatal("回滚 0010 不应删除检索文档表")
 	}
 
 	// 0009 Down：删除检索文档；其他表保留。

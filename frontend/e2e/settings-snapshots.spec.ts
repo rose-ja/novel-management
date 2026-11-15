@@ -22,6 +22,7 @@ test.describe("设置页快照", () => {
     const row = card.locator(".ui-table tbody tr").filter({ hasText: "删除作品" }).first();
     await expect(row).toBeVisible();
     await expect(row.getByText("成功")).toBeVisible();
+    await expect(row.getByRole("button", { name: "复制快照路径" })).toBeVisible();
     // 本变更不提供页面内恢复入口。
     await expect(card.getByRole("button", { name: /恢复|还原/ })).toHaveCount(0);
   });

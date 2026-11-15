@@ -58,7 +58,7 @@ test.describe("键盘可达", () => {
 
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/settings$/);
-    await expect(page.getByRole("heading", { name: "设置", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "设置 / 备份", level: 1 })).toBeVisible();
   });
 
   test("作品切换器可用键盘打开、方向键遍历与 Esc 关闭", async ({ page }) => {
@@ -185,6 +185,33 @@ test.describe("体系页键盘", () => {
     await page.keyboard.press("ArrowRight");
     await expect(parentRow).toHaveAttribute("aria-expanded", "true");
     await expect(items).toHaveCount(3);
+  });
+});
+
+/** 设置页键盘：导出对话框焦点锁定、默认勾选与 Esc 关闭。 */
+test.describe("设置页键盘", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test("导出对话框可用键盘打开、默认勾选并以 Esc 关闭", async ({ page, request }) => {
+    await createWork(request, uniqueName("键盘导出"));
+    await page.goto("/settings");
+    await expect(page.getByRole("heading", { name: "设置 / 备份", level: 1 })).toBeVisible();
+
+    const trigger = page.getByRole("button", { name: "导出全量数据" });
+    await trigger.focus();
+    await expect(trigger).toBeFocused();
+    await page.keyboard.press("Enter");
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("checkbox", { name: /包含回收站数据/ })).toBeChecked();
+    await expect(dialog.locator(":focus")).toHaveCount(1);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
   });
 });
 
