@@ -18,6 +18,7 @@ type Options struct {
 	Works      *service.Works
 	Trash      *service.Trash
 	Snapshots  *service.Snapshot
+	Exports    *service.Export
 	Settings   *service.Settings
 	System     *service.System
 	Characters *service.Characters

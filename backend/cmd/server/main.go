@@ -74,6 +74,10 @@ func run() error {
 	logPgDumpVersion(log)
 
 	snapshotService := service.NewSnapshot(db.Gorm, cfg, log, service.PGDumper{})
+	exportService := service.NewExport(db.Gorm, cfg, log, nil)
+	if err := exportService.MarkInterrupted(ctx); err != nil {
+		log.Warn("清理中断的导出任务失败", "error", err)
+	}
 	mediaService := service.NewMedia(db.Gorm, cfg.DataDir, log)
 	charactersService := service.NewCharacters(db.Gorm, mediaService)
 	factionsService := service.NewFactions(db.Gorm, charactersService)
@@ -90,6 +94,7 @@ func run() error {
 		Works:      service.NewWorks(db.Gorm, snapshotService),
 		Trash:      service.NewTrash(db.Gorm, snapshotService, mediaService),
 		Snapshots:  snapshotService,
+		Exports:    exportService,
 		Settings:   service.NewSettings(db.Gorm),
 		System:     service.NewSystem(db.Gorm),
 		Characters: charactersService,
