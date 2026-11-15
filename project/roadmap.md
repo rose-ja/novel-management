@@ -52,7 +52,7 @@ P6 启动时按 [00-operating-manual.md](file:///d:/Project/novel-management/wor
 
 **交付策略（2026-11-07 已确认）**：一次性按拓扑序推进 `CHG-001~012`，不在批次之间设置人工闸门。`CHG-001~004` 仍作为首个可用里程碑：完成后系统可启动、创建多作品、配置体系、维护人物档案并使用回收站恢复，可先进行真实试用；后续变更在其上连续叠加。「批次」列只表示建议节奏，不作为开工前置条件。
 
-**进度（2026-11-14）**：CHG-001～CHG-007 已完成、验收并归档（CHG-007 已推送 `origin/main` `ef26638`）；下一个变更为 CHG-008（榜单与席位）。
+**进度（2026-11-14）**：CHG-001～CHG-008 已完成、验收并归档（CHG-008 实现：迁移 v8、8 个榜单端点、`/rankings` 列表与详情）；下一个变更为 CHG-009（快速搜索与条件检索）。
 
 ---
 
@@ -272,6 +272,7 @@ graph TD
 - **复杂度**：M。
 - **风险**：交换事务与唯一约束、50 席分页与跳席、恢复时人物缺失。
 - **回滚**：回退 `0008` 与导航；快照恢复；人物/势力不受影响。
+- **落地记录（2026-11-14）**：实际文件为 `internal/{model/ranking,repository/rankings,service/rankings,httpapi/rankings}.go`、`migrations/0008_rankings.sql`、`frontend/{app/rankings,components/rankings,lib/api/rankings,lib/rankings}.*`；迁移 **v8**；校对确认端点延后 CHG-011；验收证据见 `changes/archive/CHG-008-rankings-seats/`（集成 104 PASS、前端单测 76 PASS、E2E 93 PASS）。
 
 ### CHG-009 快速搜索与条件检索
 

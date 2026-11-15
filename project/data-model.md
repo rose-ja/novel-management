@@ -159,6 +159,8 @@ erDiagram
 
 ### 3.6 rankings（榜单）
 
+> `0008_rankings.sql` 新建（2026-11-14，CHG-008，迁移 v8）。约束名：`rankings_name_len`、`rankings_seat_count_range`、`rankings_deleted_consistent`；活跃唯一部分索引 `rankings_active_name_uq (work_id, name_key) WHERE deleted_at IS NULL`；活跃列表索引 `rankings_active_work_idx (work_id, updated_at DESC)`；回收站索引 `rankings_deleted_root_idx (deleted_root_id)`。
+
 | Field | Type | Nullable | Default | Constraint | Description |
 |---|---|---|---|---|---|
 | id | TEXT(26) | No | — | PK | — |
@@ -185,7 +187,7 @@ erDiagram
 | version | INTEGER | No | 1 | ≥1 | 席位乐观锁 |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 
-> 席位行在创建榜单时按 1..N 批量生成；扩容追加行；缩容仅删除尾部 `character_id IS NULL` 的行。席位不单独软删除：随榜单软删除而隐藏，恢复榜单时原样返回。
+> 席位行在创建榜单时按 1..N 批量生成；扩容追加行；缩容仅删除尾部 `character_id IS NULL` 的行。席位不单独软删除：随榜单软删除而隐藏，恢复榜单时原样返回。`0008_rankings.sql` 同时建立 `seats_no_uq UNIQUE(ranking_id, seat_no)`、`seats_character_uq (ranking_id, character_id) WHERE character_id IS NOT NULL`、`ranking_seats_character_idx` 与 `ranking_seats_work_idx`。交换席位时先两席置空再回写，避免部分唯一索引冲突；所有永久删除路径先删 `ranking_seats` 再删 `rankings`。
 
 ### 3.8 system_categories（体系类别）
 

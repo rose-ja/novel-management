@@ -47,13 +47,13 @@
 - [x] Node 22 `next build` 成功
 - [x] `npx playwright test --reporter=list` 全量 PASS（记录通过数）
 - [x] 迁移 v8；`TestMigrationRoundTrip` 覆盖 Up/Down
-- [ ] F3 `verification.md`、F4 `review.md`、F6 全量回归证据齐全；F7 人工 ACCEPT
+- [x] F3 `verification.md`、F4 `review.md`、F6 全量回归证据齐全；F7 人工 ACCEPT
 
 ## 5. 文档回写（F10）
 
-- [ ] `project/specs/rankings/specs.md` 状态转 `implemented` 并补实现说明
-- [ ] `project/api-contract.md` §3.6 实现状态 + 人物 `rankings` 字段 + 变更历史
-- [ ] `project/data-model.md` 确认 `0008` 与席位语义
-- [ ] `project/roadmap.md` 进度与 CHG-008 状态
-- [ ] 变更目录归档到 `changes/archive/CHG-008-rankings-seats/`
+- [x] `project/specs/rankings/specs.md` 状态转 `implemented` 并补实现说明
+- [x] `project/api-contract.md` §3.6 实现状态 + 人物 `rankings` 字段 + 变更历史
+- [x] `project/data-model.md` 确认 `0008` 与席位语义
+- [x] `project/roadmap.md` 进度与 CHG-008 状态
+- [x] 变更目录归档到 `changes/archive/CHG-008-rankings-seats/`
 

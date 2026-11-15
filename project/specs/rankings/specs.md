@@ -1,13 +1,13 @@
 # rankings — 榜单与席位
 
-- 域状态：`planned`（P6，2026-11-07）
+- 域状态：`implemented`（P6，2026-11-07 新建；2026-11-14 CHG-008 落地）
 - 目标行为：席位号即名次，空席可见，支持指派/移动/交换/扩容/缩容，删除恢复受人物存在性约束。
 - 关联页面：PG-08、PG-09；关联验收：AC-06、AC-09、AC-14。
-- 说明：本文件中的 Spec 均为待实现目标，不代表当前系统能力。
+- 说明：本文件中的 Spec 已于 CHG-008 实现，当前系统能力与验收证据见 `changes/archive/CHG-008-rankings-seats/`。
 
 ## SPEC-RANK-001 榜单创建、唯一与列表
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-17、FR-66；US-005；PG-08；API `GET/POST /api/v1/rankings`；Data `rankings`；AC-06、AC-17
 - 行为：
   - 榜单名称同作品唯一、1–200 字符；创建时设定席位数 1–200，默认 100。
@@ -19,11 +19,11 @@
   1. Given 空作品，When 新建「封神榜」100 席，Then 创建成功并进入席位表，列表显示 100 席与占用情况（E2E-05 / AC-06）。
   2. Given 席位数为 0 或 201，When 保存，Then 阻止并提示有效范围 1–200（EX-20）。
   3. Given 同作品已有「封神榜」，When 新建同名，Then `NAME_CONFLICT`（AC-17）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-14 — CHG-008 落地，状态 `implemented`，契约与数据模型已回写。
 
 ## SPEC-RANK-002 席位指派、移动、交换与移出
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-18、FR-19、FR-34；US-005；PG-09；API `PUT /api/v1/rankings/{id}/seats/{seat_no}`、`POST /api/v1/rankings/{id}/seats/{seat_no}/move`；Data `ranking_seats`；AC-06、AC-09
 - 行为：
   - 每个席位 0..1 人物；空席可见，不隐藏、不自动前移。
@@ -39,11 +39,11 @@
   2. Given 目标席位已有人物，When 选择交换，Then 两人互换且都不重复（FR-18）。
   3. Given 同一人物已在第 3 席，When 再指派到第 9 席，Then 阻止并提示先移出/交换（EX-19）。
   4. Given 人物可上两个榜，When 分别指派，Then 人物详情显示两个榜单与名次（AC-06）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-14 — CHG-008 落地，状态 `implemented`，契约与数据模型已回写。
 
 ## SPEC-RANK-003 榜单详情分页（50）、扩容与缩容
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-17、FR-18、FR-19；US-005；PG-09 §2/§6；API `GET /api/v1/rankings/{id}`（默认 `page_size=50`）、`PATCH /api/v1/rankings/{id}`；Data `rankings.seat_count`、`ranking_seats.seat_no`；AC-06、EX-17
 - 行为：
   - 席位表固定每页 50 席，提供「跳至席位 N」；默认加载 50，允许 50/100（对齐 RT-15）。
@@ -58,11 +58,11 @@
   2. Given 尾部第 101–150 席为空，When 从 150 缩容到 100，Then 成功且席位号连续（FR-17）。
   3. Given 第 145 席有人物，When 缩容到 100，Then 阻止并列出占用人（EX-17）。
   4. Given 从 100 扩容到 120，When 保存，Then 新增 20 个空席可见（AC-06）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-14 — CHG-008 落地，状态 `implemented`，契约与数据模型已回写。
 
 ## SPEC-RANK-004 榜单删除与恢复
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-19、FR-20、FR-37；US-005、US-011；PG-09、PG-12；API `DELETE /api/v1/rankings/{id}`、`POST /api/v1/trash/ranking/{root_id}/restore`；Data `rankings`、`ranking_seats`；AC-13、AC-14
 - 行为：
   - 删除整张榜单进回收站，席位随榜单隐藏；人物页的榜单名次链路同步隐藏。
@@ -75,4 +75,4 @@
   2. Given 删除后原席位人物仍存在，When 恢复，Then 席位与备注恢复，人物详情重新显示名次（FR-20）。
   3. Given 某席位人物已被删除，When 恢复榜单，Then 阻止并提示先恢复人物（FR-20）。
   4. Given 榜单在回收站，When 删除该榜人物，Then 阻止并定位到 `/trash?type=ranking&highlight=<id>`（E2E-15 / RT-13）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-14 — CHG-008 落地，状态 `implemented`，契约与数据模型已回写。

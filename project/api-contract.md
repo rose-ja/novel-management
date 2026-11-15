@@ -334,11 +334,11 @@
 
 ### 3.3 人物 Characters（FR-04~08）
 
-> 实现状态（2026-11-14，CHG-007 更新）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根、主图上传/替换/移除、媒体读取、大事记与人物-地点关系。`faction_id` 接受真实势力（同作品、活跃，可清空）；`location_links` 接受真实地点（同作品、活跃，全量替换）；`review_status` 只读返回，校对确认端点延后 CHG-011。人物删除已接入势力首领入向阻断，榜单席位待 CHG-008。
+> 实现状态（2026-11-14，CHG-008 更新）：已实现 CRUD、列表/详情、软删除与撤销、回收站人物根、主图上传/替换/移除、媒体读取、大事记、人物-地点关系与榜单席位引用。`faction_id` 接受真实势力（同作品、活跃，可清空）；`location_links` 接受真实地点（同作品、活跃，全量替换）；`review_status` 只读返回，校对确认端点延后 CHG-011。人物删除已接入势力首领与榜单席位入向阻断（`ranking_seat`，含回收站榜单）；列表/详情回显 `rankings`/`ranking_count`。
 
 #### GET /api/v1/characters
 - Query：`work_id`（必填）、`q`、`faction_id`、`system_node_id`、`location_id`、`review_status`、`sort`、`page`、`page_size`。
-- Response：`CharacterSummary[]`：`id, name, names:[{kind,value}], faction:{id,name,in_trash}|null, system_summary:string|null, image_thumb_url:string|null, review_status, reviewed_at, updated_at, version`（列表为 `{items,total}` 包装，与作品列表一致）。
+- Response：`CharacterSummary[]`：`id, name, names:[{kind,value}], faction:{id,name,in_trash}|null, system_summary:string|null, image_thumb_url:string|null, rankings:[{ranking_id,name,seat_no,note}], ranking_count, review_status, reviewed_at, updated_at, version`（列表为 `{items,total}` 包装，与作品列表一致；`rankings` 仅含活跃榜单，最多 2 条，`ranking_count` 为总数）。
 - 说明：`names[]` 与 `version` 为 CHG-004 新增；`faction` 自 CHG-006 起为真实势力摘要（`in_trash=true` 表示势力已在回收站），无势力时为 `null`；`faction_id` 筛选只返回该势力直属成员。
 - 仅未删除；`work_id` 缺失 `422`；`q` 命中主名称/别名/称号，`%`/`_` 已转义；`sort` 支持 `-updated_at`（默认）/`name`/`-name`。
 
@@ -492,14 +492,16 @@
 
 ### 3.6 榜单 Rankings（FR-17~20）
 
+> 实现状态（2026-11-14，CHG-008）：8 个端点均已实现并接入 `router.go`；`/rankings` 前端列表与 `/rankings?id=` 详情已上线。迁移 `0008_rankings.sql`（v8）。校对确认端点 `POST /rankings/{id}/review` 仍未开放（只读 `review_status`，延后 CHG-011）。席位分页 `page_size` 仅接受 50/100（默认 50），其他值 422。列表额外支持 `q`（≤100 字）与 `sort=updated_at:desc|name:asc`，返回 `{items,total,page,page_size}`。`POST` 省略 `seat_count` 时默认 100，显式 0/201 → 422。`DELETE` 的 `If-Match` 可选（携带则校验版本）。`PUT seat` 的 `character_id` 省略保持不变、`null` 清空并清备注；`note` 省略保持不变、`null`/空串清空。人物 `CharacterSummary` 与 `CharacterDetail` 新增 `rankings:[{ranking_id,name,seat_no,note}]` 与 `ranking_count`（列表最多 2 条 + 总数）；势力成员接口同步。
+
 #### GET /api/v1/rankings
-- Query：`work_id`、`review_status`、`page`、`page_size`。
-- Response：`RankingSummary[]`（含 `occupied_count`、`empty_count`）。
+- Query：`work_id`（必填）、`q`（可选，≤100 字）、`review_status`、`sort`（`updated_at:desc` 默认 / `name:asc`）、`page`、`page_size`（默认 20，最大 100）。
+- Response：`{ "items": RankingSummary[], "total", "page", "page_size" }`（含 `occupied_count`、`empty_count`、`top_seats` 前三席，空席 `character=null`）。
 
 #### POST /api/v1/rankings
-- Request：`{ "work_id", "name", "seat_count": 100 }`。
-- Response `201`：`Ranking`；同时生成 1..N 空席位。
-- Errors：`NAME_CONFLICT`、`VALIDATION_ERROR`（1–200）。
+- Request：`{ "work_id", "name", "seat_count": 100 }`（`seat_count` 可省略，默认 100）。
+- Response `201`：`Ranking`（含首页 50 席 `seats`）；同时生成 1..N 空席位；`Location` 头指向新榜单。
+- Errors：`NAME_CONFLICT`、`VALIDATION_ERROR`（`seat_count` 0 或 201 均拒绝）。
 
 #### GET /api/v1/rankings/{id}
 - Query：`page`、`page_size`（席位分页，**默认 50，允许 50/100**；PG-09 固定传 50；P5b RT-15）。
@@ -821,3 +823,4 @@
 | 2026-11-13 | v1.3 | CHG-005 | `Character.image` 改为 `MediaView|null`（含 `thumb_url`/`byte_size`）；图片端点生效并明确 MIME/像素/尺寸与错误码；媒体 `ETag`/304 与缓存头；大事记 `owner_type` 仅 `character`、`version` + `If-Match`、`{items:[]}` 包装、`root_type=chronicle` 保留不进回收站 | F10 回写图片与大事记最终实现 |
 | 2026-11-14 | v1.4 | CHG-006 | 势力 CRUD/成员/回收站契约落地：`GET /factions` 为 `{items,total}` 扁平全量（忽略 `flat`/`page`）、`q` 命中 + 祖先；`FactionSummary/Detail` 含 `parent/leader.in_trash`、`relations.subtree_member_count`；PATCH/DELETE 要求 `If-Match`（缺失 428）；members 返回 `{items,page,page_size,total}`；`HAS_CHILDREN.details.items[].in_trash`；`CYCLE_DETECTED`/`CROSS_WORK_REFERENCE` 统一 422；`owner_type` 扩为 `character/faction`（未知值 `VALIDATION_ERROR`）；回收站新增 `root_type=faction` 与永久删除活跃成员复核 | F10 回写势力与势力大事记实现及契约偏差 |
 | 2026-11-14 | v1.5 | CHG-007 | 地点契约落地：`GET /locations` 为 `{items,total}` 扁平全量（忽略 `flat`/`page`）+ `type_text` 筛选与祖先补齐；`LocationSummary/Detail` 含 `parent/type_text/children_count/characters_count/factions_count`、`relations.characters/factions` 含 `note`/`in_trash`；PATCH/DELETE 要求 `If-Match`；`DELETE /locations/{id}` 在下级存在时 `HAS_CHILDREN` 同时返回三类引用（`entity_type`）；无下级但有关系时 `REFERENCE_CONFLICT`；新增 `PATCH /locations/{id}/factions/{faction_id}`（仅备注）与 `DUPLICATE_RELATION`；人物 `location_links` 开放为 `{location_id,note}` 全量替换；`FactionDetail.relations.locations` 返回真实关系；回收站新增 `root_type=location` | F10 回写地点垂直切片实现 |
+| 2026-11-14 | v1.6 | CHG-008 | §3.6 榜单 8 端点落地、列表 `q`/`sort`/`top_seats`、席位分页 50/100、`seat_count` 省略默认 100、`PUT seat` 省略/null 语义；人物新增 `rankings`/`ranking_count`；删除人物新增 `ranking_seat` 入向阻断；校对端点延后 CHG-011 | F10 回写榜单实现状态与数据模型 v8 |
