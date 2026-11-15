@@ -11,6 +11,7 @@ import (
 
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/repository"
+	"novel-management/backend/internal/search"
 )
 
 // RootTypeRanking 是回收站中榜单根的标识。
@@ -195,7 +196,10 @@ func (s *Rankings) Create(ctx context.Context, in CreateRankingInput) (*model.Ra
 			}
 			return err
 		}
-		return repo.InsertSeatsRange(ctx, item.ID, workID, 1, seatCount)
+		if err := repo.InsertSeatsRange(ctx, item.ID, workID, 1, seatCount); err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -322,12 +326,15 @@ func (s *Rankings) Update(ctx context.Context, id string, in UpdateRankingInput)
 			return model.ErrVersionConflict
 		}
 		if seatCount > item.SeatCount {
-			return repo.InsertSeatsRange(ctx, id, item.WorkID, item.SeatCount+1, seatCount)
+			if err := repo.InsertSeatsRange(ctx, id, item.WorkID, item.SeatCount+1, seatCount); err != nil {
+				return err
+			}
+		} else if seatCount < item.SeatCount {
+			if err := repo.DeleteSeatsAbove(ctx, id, seatCount); err != nil {
+				return err
+			}
 		}
-		if seatCount < item.SeatCount {
-			return repo.DeleteSeatsAbove(ctx, id, seatCount)
-		}
-		return nil
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -367,13 +374,16 @@ func (s *Rankings) Delete(ctx context.Context, id, ifMatch string) (*DeleteRanki
 		if rows == 0 {
 			return model.ErrAlreadyDeleted
 		}
-		return repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
+		if err := repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
 			Token:     token,
 			RootType:  RootTypeRanking,
 			RootID:    id,
 			CreatedAt: now,
 			ExpiresAt: expires,
-		})
+		}); err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -507,7 +517,10 @@ func (s *Rankings) PutSeat(ctx context.Context, rankingID string, seatNo int, in
 			return &model.VersionConflictError{CurrentVersion: seat.Version}
 		}
 		updated, err = repo.SeatByNo(ctx, rankingID, seatNo)
-		return err
+		if err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err

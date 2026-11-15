@@ -11,6 +11,7 @@ import (
 
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/repository"
+	"novel-management/backend/internal/search"
 )
 
 // RootTypeLocation 是回收站中地点根的标识。
@@ -411,7 +412,7 @@ func (s *Locations) Create(ctx context.Context, in CreateLocationInput) (*model.
 			}
 			return err
 		}
-		return nil
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -510,7 +511,7 @@ func (s *Locations) Update(ctx context.Context, id string, in UpdateLocationInpu
 		if rows == 0 {
 			return model.ErrVersionConflict
 		}
-		return nil
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -597,13 +598,16 @@ func (s *Locations) Delete(ctx context.Context, id, ifMatch string) (*DeleteLoca
 		if rows == 0 {
 			return model.ErrAlreadyDeleted
 		}
-		return repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
+		if err := repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
 			Token:     token,
 			RootType:  RootTypeLocation,
 			RootID:    id,
 			CreatedAt: now,
 			ExpiresAt: expires,
-		})
+		}); err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -743,7 +747,7 @@ func (s *Locations) AddFaction(ctx context.Context, locationID string, in AddLoc
 			return err
 		}
 		view = &model.LocationFactionView{FactionID: faction.ID, Name: faction.Name, Note: note}
-		return nil
+		return search.NewRefresher(tx).RefreshWork(ctx, location.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -787,18 +791,21 @@ func (s *Locations) UpdateFactionNote(ctx context.Context, locationID, factionID
 
 // RemoveFaction 删除单条地点-势力关系，不删除势力。
 func (s *Locations) RemoveFaction(ctx context.Context, locationID, factionID string) error {
-	repo := repository.NewLocations(s.db)
-	if _, err := repo.Get(ctx, locationID); err != nil {
-		return err
-	}
-	rows, err := repo.DeleteLocationFaction(ctx, locationID, factionID)
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return model.ErrNotFound
-	}
-	return nil
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := repository.NewLocations(tx)
+		location, err := repo.Get(ctx, locationID)
+		if err != nil {
+			return err
+		}
+		rows, err := repo.DeleteLocationFaction(ctx, locationID, factionID)
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return model.ErrNotFound
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, location.WorkID)
+	})
 }
 
 // resolveLocationParent 校验父级同作品且活跃，返回去空白后的 ID。

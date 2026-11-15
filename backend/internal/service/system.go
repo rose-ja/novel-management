@@ -10,6 +10,7 @@ import (
 
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/repository"
+	"novel-management/backend/internal/search"
 )
 
 // 体系回收站根类型与软删除动作，与 ADR-004 保持一致。
@@ -216,7 +217,10 @@ func (s *System) UpdateCategory(ctx context.Context, id string, in UpdateCategor
 			return model.ErrVersionConflict
 		}
 		updated, err = repo.GetCategory(ctx, id)
-		return err
+		if err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -251,13 +255,16 @@ func (s *System) DeleteCategory(ctx context.Context, id string, in DeleteCategor
 		if err != nil {
 			return err
 		}
-		return repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
+		if err := repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
 			Token:     token,
 			RootType:  RootTypeSystemCategory,
 			RootID:    id,
 			CreatedAt: now,
 			ExpiresAt: expires,
-		})
+		}); err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -339,161 +346,175 @@ func (s *System) ListNodes(ctx context.Context, categoryID string, flat bool, re
 
 // CreateNode 校验类别启用、两级层级、纪元字段与同级唯一后追加节点。
 func (s *System) CreateNode(ctx context.Context, in CreateNodeInput) (*model.SystemNode, error) {
-	repo := repository.NewSystem(s.db)
-	category, err := repo.GetCategory(ctx, in.CategoryID)
-	if err != nil {
-		return nil, err
-	}
-	if !category.IsEnabled {
-		return nil, model.ErrCategoryDisabled
-	}
-
-	var parent *model.SystemNode
-	if in.ParentID != nil {
-		parent, err = repo.GetNode(ctx, *in.ParentID)
+	var node *model.SystemNode
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := repository.NewSystem(tx)
+		category, err := repo.GetCategory(ctx, in.CategoryID)
 		if err != nil {
-			return nil, model.ErrNodeParentMismatch
+			return err
 		}
-		if parent.CategoryID != category.ID || parent.WorkID != category.WorkID {
-			return nil, model.ErrNodeParentMismatch
+		if !category.IsEnabled {
+			return model.ErrCategoryDisabled
 		}
-		if parent.ParentID != nil {
-			return nil, model.ErrNodeLevelLimit
-		}
-	}
 
-	display, nameKey, err := model.NormalizeKey(in.Name, "name")
-	if err != nil {
-		return nil, err
-	}
-	eraStart, _, err := applyEraField(category, nil, in.EraStartText != nil, false, in.EraStartText, "era_start_text")
-	if err != nil {
-		return nil, err
-	}
-	eraEnd, _, err := applyEraField(category, nil, in.EraEndText != nil, false, in.EraEndText, "era_end_text")
-	if err != nil {
-		return nil, err
-	}
-
-	taken, err := repo.NodeNameTaken(ctx, category.ID, in.ParentID, nameKey, "")
-	if err != nil {
-		return nil, err
-	}
-	if taken {
-		return nil, model.ErrNameConflict
-	}
-	sortOrder, err := repo.NextNodeSortOrder(ctx, category.ID, in.ParentID)
-	if err != nil {
-		return nil, err
-	}
-
-	now := s.now().UTC()
-	node := &model.SystemNode{
-		ID:           model.NewID(),
-		WorkID:       category.WorkID,
-		CategoryID:   category.ID,
-		ParentID:     in.ParentID,
-		Name:         display,
-		NameKey:      nameKey,
-		SortOrder:    sortOrder,
-		EraStartText: eraStart,
-		EraEndText:   eraEnd,
-		ReviewStatus: model.ReviewStatusReviewed,
-		Version:      1,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-	if err := repo.InsertNode(ctx, node); err != nil {
-		if repository.IsUniqueViolation(err, "system_nodes_sibling_name_uq") {
-			return nil, model.ErrNameConflict
+		var parent *model.SystemNode
+		if in.ParentID != nil {
+			parent, err = repo.GetNode(ctx, *in.ParentID)
+			if err != nil {
+				return model.ErrNodeParentMismatch
+			}
+			if parent.CategoryID != category.ID || parent.WorkID != category.WorkID {
+				return model.ErrNodeParentMismatch
+			}
+			if parent.ParentID != nil {
+				return model.ErrNodeLevelLimit
+			}
 		}
+
+		display, nameKey, err := model.NormalizeKey(in.Name, "name")
+		if err != nil {
+			return err
+		}
+		eraStart, _, err := applyEraField(category, nil, in.EraStartText != nil, false, in.EraStartText, "era_start_text")
+		if err != nil {
+			return err
+		}
+		eraEnd, _, err := applyEraField(category, nil, in.EraEndText != nil, false, in.EraEndText, "era_end_text")
+		if err != nil {
+			return err
+		}
+
+		taken, err := repo.NodeNameTaken(ctx, category.ID, in.ParentID, nameKey, "")
+		if err != nil {
+			return err
+		}
+		if taken {
+			return model.ErrNameConflict
+		}
+		sortOrder, err := repo.NextNodeSortOrder(ctx, category.ID, in.ParentID)
+		if err != nil {
+			return err
+		}
+
+		now := s.now().UTC()
+		node = &model.SystemNode{
+			ID:           model.NewID(),
+			WorkID:       category.WorkID,
+			CategoryID:   category.ID,
+			ParentID:     in.ParentID,
+			Name:         display,
+			NameKey:      nameKey,
+			SortOrder:    sortOrder,
+			EraStartText: eraStart,
+			EraEndText:   eraEnd,
+			ReviewStatus: model.ReviewStatusReviewed,
+			Version:      1,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		if err := repo.InsertNode(ctx, node); err != nil {
+			if repository.IsUniqueViolation(err, "system_nodes_sibling_name_uq") {
+				return model.ErrNameConflict
+			}
+			return err
+		}
+		node.ReviewStatus = model.APIReviewStatus(node.ReviewStatus)
+		return search.NewRefresher(tx).RefreshWork(ctx, node.WorkID)
+	})
+	if err != nil {
 		return nil, err
 	}
-	node.ReviewStatus = model.APIReviewStatus(node.ReviewStatus)
 	return node, nil
 }
 
 // UpdateNode 更新名称、排序或纪元文本；父级与节点类型不可改。
 func (s *System) UpdateNode(ctx context.Context, id string, in UpdateNodeInput) (*model.SystemNode, error) {
-	repo := repository.NewSystem(s.db)
-	node, err := repo.GetNode(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	category, err := repo.GetCategory(ctx, node.CategoryID)
-	if err != nil {
-		return nil, err
-	}
-	if !category.IsEnabled {
-		return nil, model.ErrCategoryDisabled
-	}
-	version, ok := ParseIfMatch(in.IfMatch)
-	if !ok || version != node.Version {
-		return nil, model.ErrVersionConflict
-	}
-
-	name, nameKey := node.Name, node.NameKey
-	if in.Name != nil {
-		name, nameKey, err = model.NormalizeKey(*in.Name, "name")
+	var updated *model.SystemNode
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := repository.NewSystem(tx)
+		node, err := repo.GetNode(ctx, id)
 		if err != nil {
-			return nil, err
+			return err
 		}
-	}
-	sortOrder := node.SortOrder
-	if in.SortOrder != nil {
-		if *in.SortOrder < 0 {
-			return nil, &model.ValidationError{Field: "sort_order", Message: "sort_order 不能为负数"}
-		}
-		sortOrder = *in.SortOrder
-	}
-	eraStart, changed, err := applyEraField(category, node.EraStartText, in.EraStartText != nil, in.ClearEraStart, in.EraStartText, "era_start_text")
-	if err != nil {
-		return nil, err
-	}
-	if !changed {
-		eraStart = node.EraStartText
-	}
-	eraEnd, changed, err := applyEraField(category, node.EraEndText, in.EraEndText != nil, in.ClearEraEnd, in.EraEndText, "era_end_text")
-	if err != nil {
-		return nil, err
-	}
-	if !changed {
-		eraEnd = node.EraEndText
-	}
-
-	if name != node.Name {
-		taken, err := repo.NodeNameTaken(ctx, node.CategoryID, node.ParentID, nameKey, id)
+		category, err := repo.GetCategory(ctx, node.CategoryID)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if taken {
-			return nil, model.ErrNameConflict
+		if !category.IsEnabled {
+			return model.ErrCategoryDisabled
 		}
-	}
+		version, ok := ParseIfMatch(in.IfMatch)
+		if !ok || version != node.Version {
+			return model.ErrVersionConflict
+		}
 
-	now := s.now().UTC()
-	rows, err := repo.UpdateNode(ctx, id, repository.NodeUpdate{
-		Name:      name,
-		NameKey:   nameKey,
-		SortOrder: sortOrder,
-		EraStart:  eraStart,
-		EraEnd:    eraEnd,
-		Version:   version,
-	}, now)
-	if err != nil {
-		if repository.IsUniqueViolation(err, "system_nodes_sibling_name_uq") {
-			return nil, model.ErrNameConflict
+		name, nameKey := node.Name, node.NameKey
+		if in.Name != nil {
+			name, nameKey, err = model.NormalizeKey(*in.Name, "name")
+			if err != nil {
+				return err
+			}
 		}
-		return nil, err
-	}
-	if rows == 0 {
-		return nil, model.ErrVersionConflict
-	}
-	updated, err := repo.GetNode(ctx, id)
+		sortOrder := node.SortOrder
+		if in.SortOrder != nil {
+			if *in.SortOrder < 0 {
+				return &model.ValidationError{Field: "sort_order", Message: "sort_order 不能为负数"}
+			}
+			sortOrder = *in.SortOrder
+		}
+		eraStart, changed, err := applyEraField(category, node.EraStartText, in.EraStartText != nil, in.ClearEraStart, in.EraStartText, "era_start_text")
+		if err != nil {
+			return err
+		}
+		if !changed {
+			eraStart = node.EraStartText
+		}
+		eraEnd, changed, err := applyEraField(category, node.EraEndText, in.EraEndText != nil, in.ClearEraEnd, in.EraEndText, "era_end_text")
+		if err != nil {
+			return err
+		}
+		if !changed {
+			eraEnd = node.EraEndText
+		}
+
+		if name != node.Name {
+			taken, err := repo.NodeNameTaken(ctx, node.CategoryID, node.ParentID, nameKey, id)
+			if err != nil {
+				return err
+			}
+			if taken {
+				return model.ErrNameConflict
+			}
+		}
+
+		now := s.now().UTC()
+		rows, err := repo.UpdateNode(ctx, id, repository.NodeUpdate{
+			Name:      name,
+			NameKey:   nameKey,
+			SortOrder: sortOrder,
+			EraStart:  eraStart,
+			EraEnd:    eraEnd,
+			Version:   version,
+		}, now)
+		if err != nil {
+			if repository.IsUniqueViolation(err, "system_nodes_sibling_name_uq") {
+				return model.ErrNameConflict
+			}
+			return err
+		}
+		if rows == 0 {
+			return model.ErrVersionConflict
+		}
+		updated, err = repo.GetNode(ctx, id)
+		if err != nil {
+			return err
+		}
+		updated.ReviewStatus = model.APIReviewStatus(updated.ReviewStatus)
+		return search.NewRefresher(tx).RefreshWork(ctx, node.WorkID)
+	})
 	if err != nil {
 		return nil, err
 	}
-	updated.ReviewStatus = model.APIReviewStatus(updated.ReviewStatus)
 	return updated, nil
 }
 
@@ -537,13 +558,16 @@ func (s *System) DeleteNode(ctx context.Context, id string, in DeleteNodeInput) 
 		if rows == 0 {
 			return model.ErrVersionConflict
 		}
-		return repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
+		if err := repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
 			Token:     token,
 			RootType:  RootTypeSystemNode,
 			RootID:    id,
 			CreatedAt: now,
 			ExpiresAt: expires,
-		})
+		}); err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, node.WorkID)
 	})
 	if err != nil {
 		return nil, err
