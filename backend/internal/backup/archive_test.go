@@ -77,6 +77,33 @@ func TestExtractZipRejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestReadZipFile(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "manifest.json"), `{"export_version":1}`)
+	entries, err := ListFiles(root, nil)
+	if err != nil {
+		t.Fatalf("列举文件失败：%v", err)
+	}
+	zipPath := filepath.Join(t.TempDir(), "backup.zip")
+	if err := WriteZip(zipPath, root, entries); err != nil {
+		t.Fatalf("写 zip 失败：%v", err)
+	}
+
+	data, err := ReadZipFile(zipPath, "manifest.json", 1024)
+	if err != nil {
+		t.Fatalf("读取 zip 文件失败：%v", err)
+	}
+	if string(data) != `{"export_version":1}` {
+		t.Fatalf("内容不符：%s", data)
+	}
+	if _, err := ReadZipFile(zipPath, "missing.json", 1024); err == nil {
+		t.Fatal("缺失文件应报错")
+	}
+	if _, err := ReadZipFile(zipPath, "manifest.json", 2); err == nil {
+		t.Fatal("超过大小限制应报错")
+	}
+}
+
 func TestSafeJoinRejectsAbsoluteAndDrivePaths(t *testing.T) {
 	root := t.TempDir()
 	for _, name := range []string{"/etc/passwd", "C:/windows/win.ini", "a/../../b", "..", "."} {

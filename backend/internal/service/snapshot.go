@@ -222,7 +222,7 @@ func (s *Snapshot) entityCounts(ctx context.Context) map[string]int64 {
 	}
 	for _, table := range []string{"works", "system_categories"} {
 		var total int64
-		if err := s.db.WithContext(ctx).Table(table).Count(&total).Error; err == nil {
+		if err := s.db.WithContext(ctx).Table(table).Where("deleted_at IS NULL").Count(&total).Error; err == nil {
 			counts[table] = total
 		}
 	}

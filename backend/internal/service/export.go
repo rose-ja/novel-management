@@ -236,6 +236,9 @@ func (s *Export) buildArchive(ctx context.Context, workDir string, record *model
 	if err != nil {
 		return manifest, err
 	}
+	if imageFiles == nil {
+		imageFiles = []string{}
+	}
 	works, counts, err := s.activeSummary(ctx)
 	if err != nil {
 		return manifest, err

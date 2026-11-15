@@ -51,8 +51,17 @@ type SnapshotManifest struct {
 
 // ReadExportManifest 读取并校验导出包 manifest 的基本字段。
 func ReadExportManifest(root string) (ExportManifest, error) {
+	data, err := os.ReadFile(filepath.Join(root, "manifest.json"))
+	if err != nil {
+		return ExportManifest{}, fmt.Errorf("读取导出清单失败：%w", err)
+	}
+	return ParseExportManifest(data)
+}
+
+// ParseExportManifest 解析并校验导出清单，用于恢复前从 zip 内直接读取。
+func ParseExportManifest(data []byte) (ExportManifest, error) {
 	var manifest ExportManifest
-	if err := ReadJSON(filepath.Join(root, "manifest.json"), &manifest); err != nil {
+	if err := json.Unmarshal(data, &manifest); err != nil {
 		return manifest, fmt.Errorf("读取导出清单失败：%w", err)
 	}
 	if manifest.ExportVersion != ExportVersion {

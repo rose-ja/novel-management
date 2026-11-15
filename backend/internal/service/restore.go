@@ -43,7 +43,7 @@ type PGRestoreRunner struct{}
 func (PGRestoreRunner) Restore(ctx context.Context, dsn, dumpPath string) error {
 	return runPGCommand(ctx, dsn, "pg_restore",
 		"--clean", "--if-exists", "--no-owner", "--no-privileges",
-		"--single-transaction", "-d", dsn, dumpPath)
+		"--single-transaction", dumpPath)
 }
 
 // RestoreOptions 控制覆盖行为。
@@ -89,21 +89,25 @@ func (r *Restore) RestoreArchive(ctx context.Context, zipPath string, opts Resto
 	}
 	defer func() { _ = os.RemoveAll(workDir) }()
 
-	if _, err := backup.ExtractZip(zipPath, workDir); err != nil {
+	rawManifest, err := backup.ReadZipFile(zipPath, "manifest.json", 2<<20)
+	if err != nil {
 		return nil, fmt.Errorf("%w：%v", ErrRestoreInvalid, err)
 	}
-	manifest, err := backup.ReadExportManifest(workDir)
+	manifest, err := backup.ParseExportManifest(rawManifest)
 	if err != nil {
 		return nil, fmt.Errorf("%w：%v", ErrRestoreInvalid, err)
 	}
 	if err := manifest.ValidateSchema(migrations.LatestVersion); err != nil {
 		return nil, fmt.Errorf("%w：%v", ErrRestoreInvalid, err)
 	}
-	if err := backup.VerifyChecksums(workDir, filepath.Join(workDir, backup.ChecksumFile)); err != nil {
-		return nil, fmt.Errorf("%w：%v", ErrRestoreInvalid, err)
-	}
 	if err := precheckDisk(r.cfg.DataDir, manifest.Files); err != nil {
 		return nil, err
+	}
+	if _, err := backup.ExtractZip(zipPath, workDir); err != nil {
+		return nil, fmt.Errorf("%w：%v", ErrRestoreInvalid, err)
+	}
+	if err := backup.VerifyChecksums(workDir, filepath.Join(workDir, backup.ChecksumFile)); err != nil {
+		return nil, fmt.Errorf("%w：%v", ErrRestoreInvalid, err)
 	}
 	dumpPath := filepath.Join(workDir, "data", "app.dump")
 	if _, err := os.Stat(dumpPath); err != nil {
@@ -188,6 +192,9 @@ func (r *Restore) restore(
 	sqlDB, err := r.db.DB()
 	if err != nil {
 		return nil, err
+	}
+	if err := dropTablesNewerThan(ctx, r.db, schemaVersion); err != nil {
+		return nil, fmt.Errorf("恢复后清理新版本表失败：%w；请执行回滚：%s", err, rollback)
 	}
 	if err := migrations.Up(ctx, sqlDB); err != nil {
 		return nil, fmt.Errorf("恢复后迁移失败：%w；请执行回滚：%s", err, rollback)
@@ -310,6 +317,25 @@ func precheckDisk(dataDir string, files []backup.ManifestFile) error {
 	const reserve = int64(1 << 30)
 	if int64(available) < required+reserve {
 		return fmt.Errorf("磁盘空间不足：需要约 %d MB，可用 %d MB", (required+reserve)/(1<<20), int64(available)/(1<<20))
+	}
+	return nil
+}
+
+// newerTables 记录各迁移版本新增的表，恢复旧包时先移除，避免 goose 建表冲突。
+var newerTables = map[int][]string{
+	10: {"export_runs"},
+}
+
+func dropTablesNewerThan(ctx context.Context, db *gorm.DB, sourceVersion int) error {
+	if sourceVersion >= migrations.LatestVersion {
+		return nil
+	}
+	for version := sourceVersion + 1; version <= migrations.LatestVersion; version++ {
+		for _, table := range newerTables[version] {
+			if err := db.WithContext(ctx).Exec("DROP TABLE IF EXISTS " + table + " CASCADE").Error; err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

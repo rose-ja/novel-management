@@ -100,6 +100,23 @@ func newTestRestore(t *testing.T, runner RestoreRunner) *Restore {
 	}
 }
 
+func TestPGEnvKeepsPasswordOutOfArguments(t *testing.T) {
+	env, database, err := pgEnv("postgres://novel:secret@db:5432/novel?sslmode=disable")
+	if err != nil {
+		t.Fatalf("解析连接串失败：%v", err)
+	}
+	if database != "novel" {
+		t.Fatalf("数据库名不符：%s", database)
+	}
+	want := map[string]bool{"PGHOST=db": true, "PGPORT=5432": true, "PGUSER=novel": true, "PGPASSWORD=secret": true, "PGSSLMODE=disable": true}
+	for _, item := range env {
+		delete(want, item)
+	}
+	if len(want) > 0 {
+		t.Fatalf("环境变量缺少：%v", want)
+	}
+}
+
 func TestRestoreArchiveRejectsNewerSchema(t *testing.T) {
 	runner := &fakeRestoreRunner{}
 	svc := newTestRestore(t, runner)

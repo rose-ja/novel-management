@@ -122,6 +122,13 @@ func OpenInside(root, rel string) (*os.File, error) {
 	return file, nil
 }
 
+const (
+	// MaxExtractEntries 限制导出包条目数，避免异常 zip 拖垮进程。
+	MaxExtractEntries = 200_000
+	// MaxExtractBytes 限制解压后总大小，防止 zip 炸弹耗尽磁盘。
+	MaxExtractBytes int64 = 32 << 30
+)
+
 // ExtractZip 解压到 dest，拒绝绝对路径与 ..；返回解压文件数。
 func ExtractZip(zipPath, dest string) (int, error) {
 	reader, err := zip.OpenReader(zipPath)
@@ -129,6 +136,17 @@ func ExtractZip(zipPath, dest string) (int, error) {
 		return 0, fmt.Errorf("打开导出包失败：%w", err)
 	}
 	defer func() { _ = reader.Close() }()
+
+	if len(reader.File) > MaxExtractEntries {
+		return 0, fmt.Errorf("导出包条目过多：%d", len(reader.File))
+	}
+	var total uint64
+	for _, file := range reader.File {
+		if file.UncompressedSize64 > uint64(MaxExtractBytes)-total {
+			return 0, fmt.Errorf("导出包解压后超过 %d GB 限制", MaxExtractBytes>>30)
+		}
+		total += file.UncompressedSize64
+	}
 
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return 0, err
@@ -173,6 +191,38 @@ func extractFile(file *zip.File, target string) error {
 		return err
 	}
 	return out.Close()
+}
+
+// ReadZipFile 在不完整解压的情况下读取 zip 内的单个文件，用于恢复前读取 manifest。
+func ReadZipFile(zipPath, name string, maxBytes int64) ([]byte, error) {
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, fmt.Errorf("打开导出包失败：%w", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	for _, file := range reader.File {
+		if file.Name != name {
+			continue
+		}
+		if file.UncompressedSize64 > uint64(maxBytes) {
+			return nil, fmt.Errorf("%s 超过大小限制", name)
+		}
+		source, err := file.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = source.Close() }()
+		data, err := io.ReadAll(io.LimitReader(source, maxBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(data)) > maxBytes {
+			return nil, fmt.Errorf("%s 超过大小限制", name)
+		}
+		return data, nil
+	}
+	return nil, fmt.Errorf("导出包缺少 %s", name)
 }
 
 // SafeJoin 将 zip 内的斜杠路径安全地拼到 root；拒绝绝对路径、盘符与 .. 越界。

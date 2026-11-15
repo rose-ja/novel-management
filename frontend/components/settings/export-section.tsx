@@ -83,12 +83,13 @@ export function ExportSection() {
     };
   }, []);
 
+  const runId = run?.id ?? null;
+
   useEffect(() => {
-    if (phase !== "running" || !run) return;
-    const id = run.id;
+    if (phase !== "running" || !runId) return;
     let active = true;
     const timer = setInterval(() => {
-      fetchExport(id)
+      fetchExport(runId)
         .then((latest) => {
           if (!active) return;
           setRun(latest);
@@ -112,7 +113,7 @@ export function ExportSection() {
       active = false;
       clearInterval(timer);
     };
-  }, [phase, run, reload, showToast]);
+  }, [phase, runId, reload, showToast]);
 
   const copy = useCallback(
     async (value: string, successMessage: string = messages.copySuccess) => {

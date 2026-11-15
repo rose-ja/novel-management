@@ -59,8 +59,8 @@ func (p *PGExportDumper) DumpWithoutTrash(ctx context.Context, dsn, outPath stri
 	if err := p.dumper.Dump(ctx, dsn, sourceDump); err != nil {
 		return err
 	}
-	if err := runPGCommand(ctx, dsn, "pg_restore",
-		"--no-owner", "--no-privileges", "-d", tempDSN, sourceDump); err != nil {
+	if err := runPGCommand(ctx, tempDSN, "pg_restore",
+		"--no-owner", "--no-privileges", sourceDump); err != nil {
 		return err
 	}
 
@@ -106,6 +106,8 @@ func cleanupTrashData(ctx context.Context, db *gorm.DB) error {
 		   AND owner_id IN (SELECT id FROM characters WHERE deleted_at IS NOT NULL)`,
 		`DELETE FROM media_assets
 		 WHERE entity_id IN (SELECT id FROM characters WHERE deleted_at IS NOT NULL)`,
+		`UPDATE factions SET leader_character_id = NULL
+		 WHERE leader_character_id IN (SELECT id FROM characters WHERE deleted_at IS NOT NULL)`,
 		`DELETE FROM chronicles WHERE deleted_at IS NOT NULL`,
 		`DELETE FROM media_assets WHERE deleted_at IS NOT NULL`,
 		`DELETE FROM rankings WHERE deleted_at IS NOT NULL`,
@@ -138,20 +140,13 @@ func replaceDatabaseName(dsn, name string) (string, error) {
 	return parsed.String(), nil
 }
 
-// runPGCommand 执行 pg 客户端命令并注入口令与 sslmode。
+// runPGCommand 通过环境变量传入连接参数，避免口令出现在进程列表。
 func runPGCommand(ctx context.Context, dsn, name string, args ...string) error {
-	command := exec.CommandContext(ctx, name, args...)
-	env := os.Environ()
-	if parsed, err := url.Parse(dsn); err == nil {
-		if parsed.User != nil {
-			if password, ok := parsed.User.Password(); ok {
-				env = append(env, "PGPASSWORD="+password)
-			}
-		}
-		if sslMode := parsed.Query().Get("sslmode"); sslMode != "" {
-			env = append(env, "PGSSLMODE="+sslMode)
-		}
+	env, database, err := pgEnv(dsn)
+	if err != nil {
+		return err
 	}
+	command := exec.CommandContext(ctx, name, append(args, "-d", database)...)
 	command.Env = env
 
 	var stderr bytes.Buffer
@@ -160,4 +155,38 @@ func runPGCommand(ctx context.Context, dsn, name string, args ...string) error {
 		return fmt.Errorf("%s 失败：%w（%s）", name, err, strings.TrimSpace(stderr.String()))
 	}
 	return nil
+}
+
+func pgEnv(dsn string) ([]string, string, error) {
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		return nil, "", fmt.Errorf("解析 DATABASE_URL 失败：%w", err)
+	}
+	if parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
+		return nil, "", fmt.Errorf("仅支持 postgres 连接串，当前为 %q", parsed.Scheme)
+	}
+	database := strings.TrimPrefix(parsed.Path, "/")
+	if database == "" {
+		return nil, "", fmt.Errorf("DATABASE_URL 缺少数据库名")
+	}
+
+	env := os.Environ()
+	if host := parsed.Hostname(); host != "" {
+		env = append(env, "PGHOST="+host)
+	}
+	if port := parsed.Port(); port != "" {
+		env = append(env, "PGPORT="+port)
+	}
+	if parsed.User != nil {
+		if user := parsed.User.Username(); user != "" {
+			env = append(env, "PGUSER="+user)
+		}
+		if password, ok := parsed.User.Password(); ok {
+			env = append(env, "PGPASSWORD="+password)
+		}
+	}
+	if sslMode := parsed.Query().Get("sslmode"); sslMode != "" {
+		env = append(env, "PGSSLMODE="+sslMode)
+	}
+	return env, database, nil
 }
