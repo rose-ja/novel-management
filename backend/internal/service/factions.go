@@ -11,6 +11,7 @@ import (
 
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/repository"
+	"novel-management/backend/internal/search"
 )
 
 // RootTypeFaction 是回收站中势力根的标识。
@@ -366,7 +367,7 @@ func (s *Factions) Create(ctx context.Context, in CreateFactionInput) (*model.Fa
 			}
 			return err
 		}
-		return nil
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -475,7 +476,7 @@ func (s *Factions) Update(ctx context.Context, id string, in UpdateFactionInput)
 		if rows == 0 {
 			return model.ErrVersionConflict
 		}
-		return nil
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -535,13 +536,16 @@ func (s *Factions) Delete(ctx context.Context, id, ifMatch string) (*DeleteFacti
 		if rows == 0 {
 			return model.ErrAlreadyDeleted
 		}
-		return repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
+		if err := repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
 			Token:     token,
 			RootType:  RootTypeFaction,
 			RootID:    id,
 			CreatedAt: now,
 			ExpiresAt: expires,
-		})
+		}); err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err

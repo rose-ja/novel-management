@@ -12,6 +12,7 @@ import (
 
 	"novel-management/backend/internal/model"
 	"novel-management/backend/internal/repository"
+	"novel-management/backend/internal/search"
 )
 
 // Characters 负责人物档案的创建、查询、内联更新与删除。
@@ -481,7 +482,10 @@ func (s *Characters) Create(ctx context.Context, in CreateCharacterInput) (*mode
 		if err := s.replaceSystemRefs(ctx, tx, repo, item, refs, now); err != nil {
 			return err
 		}
-		return s.replaceLocationLinks(ctx, tx, item.ID, workID, locationLinks, now)
+		if err := s.replaceLocationLinks(ctx, tx, item.ID, workID, locationLinks, now); err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -590,7 +594,7 @@ func (s *Characters) Update(ctx context.Context, id string, in UpdateCharacterIn
 				return err
 			}
 		}
-		return nil
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
@@ -634,13 +638,16 @@ func (s *Characters) Delete(ctx context.Context, id, ifMatch string) (*DeleteCha
 		if rows == 0 {
 			return model.ErrAlreadyDeleted
 		}
-		return repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
+		if err := repository.NewUndo(tx).Insert(ctx, &model.UndoToken{
 			Token:     token,
 			RootType:  RootTypeCharacter,
 			RootID:    id,
 			CreatedAt: now,
 			ExpiresAt: expires,
-		})
+		}); err != nil {
+			return err
+		}
+		return search.NewRefresher(tx).RefreshWork(ctx, item.WorkID)
 	})
 	if err != nil {
 		return nil, err
