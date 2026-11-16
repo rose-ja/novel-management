@@ -46,6 +46,20 @@ export function WorkSwitcher() {
     void load();
   }, [load]);
 
+  // 导入等流程会在后台创建作品并切换当前作品，此时本地列表可能尚未包含它。
+  const refreshedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const currentID = settings.current_work_id;
+    if (!currentID || status !== "ready" || listStatus !== "ready") return;
+    if (works.some((work) => work.id === currentID)) {
+      refreshedFor.current = null;
+      return;
+    }
+    if (refreshedFor.current === currentID) return;
+    refreshedFor.current = currentID;
+    void load();
+  }, [settings.current_work_id, status, listStatus, works, load]);
+
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: MouseEvent) => {

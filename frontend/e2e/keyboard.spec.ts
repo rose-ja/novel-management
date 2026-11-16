@@ -214,6 +214,23 @@ test.describe("设置页键盘", () => {
   });
 });
 
+/** 导入页键盘：步骤条语义与拖拽区可用 Enter 触发文件选择（PG-11 §7）。 */
+test.describe("导入页键盘", () => {
+  test("步骤条标记当前步骤，拖拽区可键盘触发文件选择", async ({ page }) => {
+    await page.goto("/import");
+    await expect(page.getByRole("heading", { name: "导入设定", level: 1 })).toBeVisible();
+    await expect(page.locator('[aria-current="step"]')).toHaveText(/上传/);
+
+    const dropzone = page.getByRole("button", { name: /可拖拽文件到此处，也可使用键盘选择/ });
+    await dropzone.focus();
+    await expect(dropzone).toBeFocused();
+
+    const chooser = page.waitForEvent("filechooser");
+    await page.keyboard.press("Enter");
+    expect((await chooser).isMultiple()).toBe(false);
+  });
+});
+
 /** 检索页键盘：自动聚焦、Esc 清空、Tab 顺序与模式切换（PG-01 §12）。 */
 test.describe("检索页键盘", () => {
   test.afterEach(async ({ request }) => {

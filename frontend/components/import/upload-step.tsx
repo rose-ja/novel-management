@@ -82,7 +82,6 @@ export function UploadStep({ markdown, archive, uploading, progress, error, onMa
         className="import-dropzone"
         role="button"
         tabIndex={0}
-        aria-label={messages.importDropHint}
         onClick={() => markdownInput.current?.click()}
         onKeyDown={onKeyDown}
         onDragOver={(event) => event.preventDefault()}
@@ -95,8 +94,22 @@ export function UploadStep({ markdown, archive, uploading, progress, error, onMa
         </p>
       </div>
 
-      <input ref={markdownInput} type="file" accept=".md,text/markdown" className="ui-visually-hidden" onChange={onInput("markdown")} />
-      <input ref={archiveInput} type="file" accept=".zip,application/zip" className="ui-visually-hidden" onChange={onInput("archive")} />
+      <input
+        ref={markdownInput}
+        type="file"
+        accept=".md,text/markdown"
+        aria-label={messages.importChooseMarkdown}
+        className="ui-visually-hidden"
+        onChange={onInput("markdown")}
+      />
+      <input
+        ref={archiveInput}
+        type="file"
+        accept=".zip,application/zip"
+        aria-label={messages.importChooseArchive}
+        className="ui-visually-hidden"
+        onChange={onInput("archive")}
+      />
 
       <dl className="import-files">
         <div className="import-files__row">

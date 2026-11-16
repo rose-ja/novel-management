@@ -12,6 +12,7 @@ const pages = [
   { path: "/locations", name: "地点" },
   { path: "/rankings", name: "榜单" },
   { path: "/settings", name: "设置" },
+  { path: "/import", name: "导入" },
   { path: "/trash", name: "回收站" },
   { path: "/no-such-page", name: "404" },
 ];

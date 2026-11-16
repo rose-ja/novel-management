@@ -3410,6 +3410,11 @@
   outline-offset: 2px;
 }
 
+/* 下沉背景上仍保持 4.5:1 对比度。 */
+.import-dropzone .import-muted {
+  color: var(--color-text-secondary);
+}
+
 .import-files {
   display: grid;
   gap: 10px;

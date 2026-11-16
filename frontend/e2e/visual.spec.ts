@@ -347,6 +347,61 @@ test.describe("视觉基线 · 体系", () => {
   }
 });
 
+test.describe("视觉基线 · 导入", () => {
+  const WORK_NAME = "E2E-视觉导入";
+
+  test.beforeEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  const errorMarkdown = [
+    "# 小说设定导入模板 v1.0",
+    "",
+    "模板版本：9.9",
+    "",
+    "## 作品信息",
+    "",
+    `名称：${WORK_NAME}`,
+    "",
+    "## 体系类别",
+    "",
+    "境界（内置）",
+    "",
+    "## 人物",
+    "",
+    "### E2E-视觉导入人物",
+    "",
+    "图片：images/missing.png",
+    "",
+  ].join("\n");
+
+  for (const { width, height } of [
+    { width: 1280, height: 900 },
+    { width: 1024, height: 800 },
+  ]) {
+    test(`导入校验错误态 ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/import");
+      await expect(page.getByRole("heading", { name: "导入设定", level: 1 })).toBeVisible();
+
+      await page.locator('input[type="file"]').nth(0).setInputFiles({
+        name: "template.md",
+        mimeType: "text/markdown",
+        buffer: Buffer.from(errorMarkdown, "utf8"),
+      });
+      await page.getByRole("button", { name: "开始校验" }).click();
+      await expect(page.locator(".ui-alert--danger").filter({ hasText: /发现 \d+ 个错误/ })).toBeVisible();
+      await expect(page.locator(".import-error-list")).toBeVisible();
+
+      await expect(page).toHaveScreenshot(`import-error-${width}.png`, { fullPage: true });
+    });
+  }
+});
+
 test.describe("视觉基线 · 检索", () => {
   const WORK_NAME = "E2E-视觉检索";
 
