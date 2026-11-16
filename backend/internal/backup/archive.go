@@ -201,8 +201,9 @@ func ReadZipFile(zipPath, name string, maxBytes int64) ([]byte, error) {
 	}
 	defer func() { _ = reader.Close() }()
 
+	target := normalizeEntry(name)
 	for _, file := range reader.File {
-		if file.Name != name {
+		if normalizeEntry(file.Name) != target {
 			continue
 		}
 		if file.UncompressedSize64 > uint64(maxBytes) {
@@ -223,6 +224,11 @@ func ReadZipFile(zipPath, name string, maxBytes int64) ([]byte, error) {
 		return data, nil
 	}
 	return nil, fmt.Errorf("导出包缺少 %s", name)
+}
+
+// normalizeEntry 统一 zip 条目分隔符并清理 ./ 前缀，便于按名匹配。
+func normalizeEntry(name string) string {
+	return path.Clean(strings.ReplaceAll(name, "\\", "/"))
 }
 
 // SafeJoin 将 zip 内的斜杠路径安全地拼到 root；拒绝绝对路径、盘符与 .. 越界。

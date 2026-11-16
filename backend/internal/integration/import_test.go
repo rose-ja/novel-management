@@ -253,6 +253,41 @@ func TestImportSnapshotFailureRollsBack(t *testing.T) {
 	}
 }
 
+func TestImportAndExportAreMutuallyExclusive(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	markdown := imports.ExampleMarkdown()
+	archive := importZip(t, markdown, true)
+	run := createImport(t, h, markdown, archive)
+	if err := h.imports.RunValidate(ctx, run.ID); err != nil {
+		t.Fatalf("校验失败：%v", err)
+	}
+	if _, err := h.works.Create(ctx, service.CreateWorkInput{Name: "互斥作品"}); err != nil {
+		t.Fatalf("创建作品失败：%v", err)
+	}
+
+	// 导出排队中：导入提交必须被拒绝。
+	if _, err := h.exports.Create(ctx, false); err != nil {
+		t.Fatalf("创建导出任务失败：%v", err)
+	}
+	if _, err := h.imports.Commit(ctx, run.ID, ""); !errors.Is(err, service.ErrExportInProgress) {
+		t.Fatalf("导出进行中应阻止导入，实际 %v", err)
+	}
+	if err := h.tx.Model(&model.ExportRun{}).Where("status = ?", model.ExportStatusQueued).
+		Update("status", model.ExportStatusFailed).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// 导入校验中：导出创建必须被拒绝。
+	if err := h.tx.Model(&model.ImportRun{}).Where("id = ?", run.ID).
+		Update("status", model.ImportStatusValidating).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.exports.Create(ctx, false); !errors.Is(err, service.ErrImportInProgress) {
+		t.Fatalf("导入进行中应阻止导出，实际 %v", err)
+	}
+}
+
 func TestImportTemplateDownload(t *testing.T) {
 	h := newHarness(t)
 	rec := h.do(http.MethodGet, "/api/v1/imports/template", nil, nil)

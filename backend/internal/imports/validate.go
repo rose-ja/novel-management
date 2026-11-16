@@ -17,7 +17,7 @@ func NormalizeImagePath(raw string) (string, error) {
 	if value == "" {
 		return "", fmt.Errorf("图片路径不能为空")
 	}
-	if strings.HasPrefix(value, "/") || strings.Contains(value, "://") {
+	if strings.HasPrefix(value, "/") || strings.Contains(value, "://") || (len(value) >= 2 && value[1] == ':') {
 		return "", fmt.Errorf("图片路径必须是相对路径")
 	}
 	clean := path.Clean(value)
@@ -239,7 +239,9 @@ func validateWork(spec *Spec, result *ValidationResult) {
 }
 
 func validateNodes(spec *Spec, categories map[string]bool, result *ValidationResult) map[string]bool {
-	existing := map[string]bool{}
+	declared := map[string]bool{} // category\x00name：所有已声明节点，用于父级查找
+	topLevel := map[string]bool{} // category\x00name：仅一级节点可作为父级
+	nodes := map[string]bool{}    // 供人物引用校验：一级用 cat\x00name，二级用 cat\x00parent\x00name
 	seen := map[string]bool{}
 	for _, node := range spec.Nodes {
 		if !categories[node.Category] {
@@ -256,20 +258,27 @@ func validateNodes(spec *Spec, categories map[string]bool, result *ValidationRes
 			continue
 		}
 		seen[key] = true
+
+		nameKey := node.Category + "\x00" + node.Name
 		if node.Parent != "" {
-			if !existing[node.Category+"\x00"+node.Parent] {
+			parentKey := node.Category + "\x00" + node.Parent
+			if !declared[parentKey] {
 				result.Errors = append(result.Errors, Issue{Line: node.Line, Field: "体系节点/" + node.Name, Code: CodeNodeParent, Message: fmt.Sprintf("上级节点「%s」不存在或晚于子节点声明", node.Parent)})
 				continue
 			}
-			if existing[node.Category+"\x00"+node.Parent+"\x00parent"] {
+			if !topLevel[parentKey] {
 				result.Errors = append(result.Errors, Issue{Line: node.Line, Field: "体系节点/" + node.Name, Code: CodeNodeLevel, Message: "体系节点最多两级"})
 				continue
 			}
-			existing[node.Category+"\x00"+node.Parent+"\x00parent"] = true
+			nodes[key] = true
+			declared[nameKey] = true
+			continue
 		}
-		existing[node.Category+"\x00"+node.Name] = true
+		topLevel[nameKey] = true
+		declared[nameKey] = true
+		nodes[nameKey] = true
 	}
-	return existing
+	return nodes
 }
 
 func collectNames(spec *Spec, field string, result *ValidationResult) map[string]bool {
@@ -436,7 +445,7 @@ func nodeExists(nodes map[string]bool, category, parent, name string) bool {
 	if parent == "" {
 		return nodes[category+"\x00"+name]
 	}
-	return nodes[category+"\x00"+parent] && nodes[category+"\x00"+parent+"\x00parent"]
+	return nodes[category+"\x00"+parent+"\x00"+name]
 }
 
 func validateNameValues(character CharacterSpec, values []string, field string, result *ValidationResult) {

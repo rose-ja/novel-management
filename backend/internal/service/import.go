@@ -330,30 +330,12 @@ func (s *Import) Report(ctx context.Context, id string) (*model.ImportReport, er
 
 // Commit 在快照后以单事务写入新作品；重复提交返回同一报告。
 func (s *Import) Commit(ctx context.Context, id, workName string) (*model.ImportReport, error) {
-	run, err := repository.NewImports(s.db).GetForUpdate(ctx, id)
+	run, alreadyCompleted, err := s.startCommit(ctx, id)
 	if err != nil {
-		return nil, model.ErrNotFound
-	}
-	if run.Status == model.ImportStatusCompleted {
-		return s.Report(ctx, id)
-	}
-	if run.Status != model.ImportStatusValidated {
-		return nil, ErrImportStateConflict
-	}
-	if run.ErrorCount > 0 {
-		return nil, ErrImportInvalid
-	}
-	if active, err := repository.NewImports(s.db).Active(ctx); err == nil && active != nil && active.ID != id {
-		return nil, ErrImportInProgress
-	}
-	var activeExports int64
-	if err := s.db.WithContext(ctx).Table("export_runs").
-		Where("status IN ?", []string{model.ExportStatusQueued, model.ExportStatusRunning}).
-		Count(&activeExports).Error; err != nil {
 		return nil, err
 	}
-	if activeExports > 0 {
-		return nil, ErrExportInProgress
+	if alreadyCompleted {
+		return s.Report(ctx, id)
 	}
 
 	name, nameKey, err := model.NormalizeName(firstNonEmpty(workName, deref(run.WorkName)))
@@ -365,9 +347,6 @@ func (s *Import) Commit(ctx context.Context, id, workName string) (*model.Import
 	defer cancel()
 
 	now := s.now().UTC()
-	_ = repository.NewImports(s.db).Update(ctx, id, map[string]any{
-		"status": model.ImportStatusRunning, "stage": model.ImportStageImages, "updated_at": now,
-	})
 
 	snapshot, err := s.snapshots.Create(ctx, model.SnapshotReasonImport)
 	if err != nil {
@@ -427,6 +406,59 @@ func (s *Import) Commit(ctx context.Context, id, workName string) (*model.Import
 	return report, nil
 }
 
+// startCommit 在单一事务内锁定设置行与导入记录，串行化导入/导出并置为 running。
+// 返回 alreadyCompleted 表示此前已成功提交，可直接返回既有报告。
+func (s *Import) startCommit(ctx context.Context, id string) (*model.ImportRun, bool, error) {
+	var run *model.ImportRun
+	completed := false
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT id FROM app_settings WHERE id = 1 FOR UPDATE").Error; err != nil {
+			return err
+		}
+		repo := repository.NewImports(tx)
+		current, err := repo.GetForUpdate(ctx, id)
+		if err != nil {
+			return model.ErrNotFound
+		}
+		run = current
+		if current.Status == model.ImportStatusCompleted {
+			completed = true
+			return nil
+		}
+		if current.Status != model.ImportStatusValidated {
+			return ErrImportStateConflict
+		}
+		if current.ErrorCount > 0 {
+			return ErrImportInvalid
+		}
+		var activeImports int64
+		if err := tx.Model(&model.ImportRun{}).
+			Where("id <> ? AND status IN ?", id, []string{model.ImportStatusValidating, model.ImportStatusRunning}).
+			Count(&activeImports).Error; err != nil {
+			return err
+		}
+		if activeImports > 0 {
+			return ErrImportInProgress
+		}
+		var activeExports int64
+		if err := tx.Model(&model.ExportRun{}).
+			Where("status IN ?", []string{model.ExportStatusQueued, model.ExportStatusRunning}).
+			Count(&activeExports).Error; err != nil {
+			return err
+		}
+		if activeExports > 0 {
+			return ErrExportInProgress
+		}
+		return repo.Update(ctx, id, map[string]any{
+			"status": model.ImportStatusRunning, "stage": model.ImportStageImages, "updated_at": s.now().UTC(),
+		})
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return run, completed, nil
+}
+
 func (s *Import) revalidate(ctx context.Context, run *model.ImportRun) (*imports.Spec, *imports.Inventory, imports.ValidationResult, []imports.Issue, error) {
 	result, spec, issues, err := s.validateRun(ctx, run)
 	if err != nil {
@@ -445,10 +477,23 @@ func (s *Import) revalidate(ctx context.Context, run *model.ImportRun) (*imports
 	return spec, inventory, result, issues, nil
 }
 
-// MarkInterrupted 清理进程重启后遗留的进行中任务。
+// MarkInterrupted 清理进程重启后遗留的进行中任务与临时文件。
 func (s *Import) MarkInterrupted(ctx context.Context) {
 	if err := repository.NewImports(s.db).MarkInterrupted(ctx, s.now().UTC()); err != nil {
 		s.log.Error("标记中断导入失败", "error", err)
+	}
+	root := filepath.Join(s.cfg.DataDir, "tmp", "imports")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			s.log.Warn("读取导入临时目录失败", "error", err)
+		}
+		return
+	}
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
+			s.log.Warn("清理中断导入临时文件失败", "path", entry.Name(), "error", err)
+		}
 	}
 }
 
@@ -481,6 +526,8 @@ func (s *Import) failRun(ctx context.Context, id, code, message string) {
 	if err := repository.NewImports(s.db).Update(ctx, id, fields); err != nil {
 		s.log.Error("更新导入失败状态失败", "import_id", id, "error", err)
 	}
+	// 失败即终止本次导入，清理上传暂存，避免 6GB 级残留。
+	s.cleanupStaging(id)
 }
 
 func (s *Import) removeImages(workID string) {

@@ -83,9 +83,20 @@ export function ValidationStep({ detail, error, onReupload, onConfirm }: Validat
             {messages.importImageUnsupported(detail.images.unsupported.length)} ·{" "}
             {messages.importImageTooLarge(detail.images.too_large?.length ?? 0)}
           </p>
-          {detail.images.missing.length + detail.images.extra.length + detail.images.unsupported.length > 0 ? (
+          {detail.images.missing.length +
+            detail.images.extra.length +
+            detail.images.unsupported.length +
+            (detail.images.too_large?.length ?? 0) >
+          0 ? (
             <details>
-              <summary>{messages.importErrorList(detail.images.missing.length + detail.images.extra.length + detail.images.unsupported.length)}</summary>
+              <summary>
+                {messages.importErrorList(
+                  detail.images.missing.length +
+                    detail.images.extra.length +
+                    detail.images.unsupported.length +
+                    (detail.images.too_large?.length ?? 0),
+                )}
+              </summary>
               <ul className="import-image-list">
                 {detail.images.missing.map((name) => (
                   <li key={`missing-${name}`}>
@@ -100,6 +111,11 @@ export function ValidationStep({ detail, error, onReupload, onConfirm }: Validat
                 {detail.images.unsupported.map((name) => (
                   <li key={`unsupported-${name}`}>
                     {messages.importImageUnsupported(1)} · {name}
+                  </li>
+                ))}
+                {(detail.images.too_large ?? []).map((name) => (
+                  <li key={`too-large-${name}`}>
+                    {messages.importImageTooLarge(1)} · {name}
                   </li>
                 ))}
               </ul>

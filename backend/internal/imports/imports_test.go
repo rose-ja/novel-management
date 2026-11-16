@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"novel-management/backend/internal/backup"
 )
 
 func TestParseTemplateHasNoIssues(t *testing.T) {
@@ -132,6 +134,58 @@ func TestInventoryRejectsTraversal(t *testing.T) {
 	}
 	if _, err := InventoryZip(path); err == nil {
 		t.Fatal("应拒绝越界路径")
+	}
+}
+
+func TestValidateAllowsSiblingNodesUnderSameParent(t *testing.T) {
+	input := strings.Replace(string(Markdown()),
+		"[境界] 炼气 > 炼气一层\n",
+		"[境界] 炼气 > 炼气一层\n[境界] 炼气 > 炼气二层\n", 1)
+	spec, issues := Parse([]byte(input))
+	if len(issues) != 0 {
+		t.Fatalf("解析失败：%+v", issues)
+	}
+	result := Validate(spec, nil)
+	if hasCode(result.Errors, CodeNodeLevel) || hasCode(result.Errors, CodeNodeParent) {
+		t.Fatalf("同一父级下的兄弟节点不应报错：%+v", result.Errors)
+	}
+}
+
+func TestValidateRejectsMissingChildNodeReference(t *testing.T) {
+	input := strings.Replace(string(Markdown()), "[境界] 炼气 > 炼气一层\n", "[境界] 炼气 > 炼气九层\n", 1)
+	spec, issues := Parse([]byte(input))
+	if len(issues) != 0 {
+		t.Fatalf("解析失败：%+v", issues)
+	}
+	result := Validate(spec, nil)
+	if !hasCode(result.Errors, CodeReferenceMissing) {
+		t.Fatalf("二级节点不存在时应报引用错误：%+v", result.Errors)
+	}
+}
+
+func TestValidateRejectsAbsoluteImagePath(t *testing.T) {
+	input := strings.Replace(string(Markdown()), "图片：images/", "图片：C:/images/", 1)
+	spec, issues := Parse([]byte(input))
+	if len(issues) != 0 {
+		t.Fatalf("解析失败：%+v", issues)
+	}
+	result := Validate(spec, nil)
+	if !hasCode(result.Errors, CodePathTraversal) {
+		t.Fatalf("盘符路径应被拒绝：%+v", result.Errors)
+	}
+}
+
+func TestReadZipFileMatchesDotSlashEntry(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dot.zip")
+	if err := writeZip(path, map[string]string{"./images/a.png": "hello"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := backup.ReadZipFile(path, "images/a.png", 16)
+	if err != nil {
+		t.Fatalf("读取 ./ 前缀条目失败：%v", err)
+	}
+	if string(data) != "hello" {
+		t.Fatalf("内容=%q", string(data))
 	}
 }
 
