@@ -18,6 +18,7 @@ CREATE TABLE import_runs (
     counts_json      TEXT,
     errors_json      TEXT,
     warnings_json    TEXT,
+    images_json      TEXT,
     report_json      TEXT,
     error_count      INTEGER NOT NULL DEFAULT 0 CHECK (error_count >= 0),
     error_code       TEXT,

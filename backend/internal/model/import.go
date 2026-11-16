@@ -39,6 +39,34 @@ const (
 // ImportReviewSource 是导入实体的校对来源标记。
 const ImportReviewSource = "import"
 
+// LocalAuthor 是本地唯一作者确认校对时的标记。
+const LocalAuthor = "local-author"
+
+// ReviewResult 是单条/批量校对结果。
+type ReviewResult struct {
+	EntityType   string     `json:"entity_type"`
+	ID           string     `json:"id"`
+	ReviewStatus string     `json:"review_status"`
+	ReviewedAt   *time.Time `json:"reviewed_at"`
+	ReviewedBy   *string    `json:"reviewed_by"`
+	Version      int        `json:"version"`
+}
+
+// ReviewBatchInput 是批量确认请求；IDs 与 WorkID 二选一。
+type ReviewBatchInput struct {
+	EntityType string   `json:"entity_type"`
+	IDs        []string `json:"ids"`
+	WorkID     *string  `json:"work_id"`
+	CategoryID *string  `json:"category_id"`
+}
+
+// ReviewBatchResult 是批量确认结果。
+type ReviewBatchResult struct {
+	Updated int            `json:"updated"`
+	Skipped int            `json:"skipped"`
+	Items   []ReviewResult `json:"items"`
+}
+
 // ImportRun 对应 import_runs，记录一次模板导入的上传、校验与提交状态。
 type ImportRun struct {
 	ID              string     `gorm:"column:id;primaryKey" json:"id"`
@@ -57,6 +85,7 @@ type ImportRun struct {
 	CountsJSON      *string    `gorm:"column:counts_json" json:"-"`
 	ErrorsJSON      *string    `gorm:"column:errors_json" json:"-"`
 	WarningsJSON    *string    `gorm:"column:warnings_json" json:"-"`
+	ImagesJSON      *string    `gorm:"column:images_json" json:"-"`
 	ReportJSON      *string    `gorm:"column:report_json" json:"-"`
 	ErrorCount      int        `gorm:"column:error_count" json:"error_count"`
 	ErrorCode       *string    `gorm:"column:error_code" json:"error_code"`
