@@ -140,6 +140,8 @@ type harness struct {
 	settings  *service.Settings
 	system    *service.System
 	exports   *service.Export
+	imports   *service.Import
+	reviews   *service.Review
 }
 
 func newHarness(t *testing.T) *harness {
@@ -158,12 +160,14 @@ func newHarness(t *testing.T) *harness {
 
 	dumper := &flakyDumper{}
 	cfg := config.Config{
-		DataDir:      dataDir,
-		WebDir:       t.TempDir(),
-		DatabaseURL:  "postgres://novel:nm_local_only@127.0.0.1:5432/novel?sslmode=disable",
-		AllowedHosts: []string{"127.0.0.1:17860"},
-		SnapshotKeep: 3,
-		Version:      "integration",
+		DataDir:          dataDir,
+		WebDir:           t.TempDir(),
+		DatabaseURL:      "postgres://novel:nm_local_only@127.0.0.1:5432/novel?sslmode=disable",
+		AllowedHosts:     []string{"127.0.0.1:17860"},
+		SnapshotKeep:     3,
+		Version:          "integration",
+		MaxUploadMB:      6144,
+		ImportTimeoutMin: 120,
 	}
 
 	sqlDB, err := testDB.DB()
@@ -180,6 +184,8 @@ func newHarness(t *testing.T) *harness {
 	system := service.NewSystem(tx)
 	characters := service.NewCharacters(tx, media)
 	exports := service.NewExport(tx, cfg, discardLogger(), dumper)
+	importsService := service.NewImport(tx, cfg, discardLogger(), snapshots)
+	reviewsService := service.NewReview(tx)
 	engine := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    discardLogger(),
@@ -201,6 +207,8 @@ func newHarness(t *testing.T) *harness {
 		Locations:  service.NewLocations(tx, characters),
 		Rankings:   service.NewRankings(tx, characters),
 		Search:     service.NewSearch(tx, characters),
+		Imports:    importsService,
+		Reviews:    reviewsService,
 	})
 
 	return &harness{
@@ -216,6 +224,8 @@ func newHarness(t *testing.T) *harness {
 		settings:  settings,
 		system:    system,
 		exports:   exports,
+		imports:   importsService,
+		reviews:   reviewsService,
 	}
 }
 

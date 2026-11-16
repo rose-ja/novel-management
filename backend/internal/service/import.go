@@ -36,6 +36,8 @@ var (
 	ErrImportInsufficientStorage = errors.New("磁盘空间不足")
 	// ErrImportTimeout 表示导入处理超时。
 	ErrImportTimeout = errors.New("导入超时")
+	// ErrImportSnapshotFailed 表示导入前快照失败。
+	ErrImportSnapshotFailed = errors.New("导入前快照失败")
 )
 
 // Import 编排模板上传、校验与原子提交。
@@ -70,7 +72,7 @@ func (s *Import) CreateUpload(ctx context.Context, markdownName string, markdown
 		return nil, ErrImportInProgress
 	}
 
-	if available, err := backup.AvailableBytes(s.cfg.DataDir); err == nil && archiveSize > 0 {
+	if available, err := backup.AvailableBytes(s.cfg.DataDir); err == nil && available > 0 && archiveSize > 0 {
 		required := uint64(archiveSize)*3 + 1<<30
 		if available < required {
 			return nil, ErrImportInsufficientStorage
@@ -124,7 +126,7 @@ func (s *Import) CreateUpload(ctx context.Context, markdownName string, markdown
 		for _, file := range inventory.Files {
 			uncompressed += file.Size
 		}
-		if available, err := backup.AvailableBytes(s.cfg.DataDir); err == nil && available < uint64(uncompressed)+1<<30 {
+		if available, err := backup.AvailableBytes(s.cfg.DataDir); err == nil && available > 0 && available < uint64(uncompressed)+1<<30 {
 			cleanup()
 			return nil, ErrImportInsufficientStorage
 		}
@@ -361,7 +363,7 @@ func (s *Import) Commit(ctx context.Context, id, workName string) (*model.Import
 	snapshot, err := s.snapshots.Create(ctx, model.SnapshotReasonImport)
 	if err != nil {
 		s.failRun(ctx, id, "SNAPSHOT_FAILED", "导入前快照失败，请稍后重试")
-		return nil, err
+		return nil, ErrImportSnapshotFailed
 	}
 
 	spec, inventory, result, issues, err := s.revalidate(ctx, run)
@@ -510,6 +512,9 @@ func (s *Import) prepareImages(workID string, spec *imports.Spec, inventory *imp
 		assetID := model.NewID()
 		relOriginal := filepath.ToSlash(filepath.Join("images", workID, assetID+original.ext))
 		relThumb := filepath.ToSlash(filepath.Join("images", workID, assetID+"_thumb"+thumb.ext))
+		if err := os.MkdirAll(filepath.Join(s.cfg.DataDir, "images", workID), 0o755); err != nil {
+			return nil, err
+		}
 		if err := writeAtomic(filepath.Join(s.cfg.DataDir, filepath.FromSlash(relOriginal)), original.data); err != nil {
 			return nil, err
 		}

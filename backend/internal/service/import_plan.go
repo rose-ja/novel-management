@@ -30,6 +30,7 @@ type importPlan struct {
 	seats            []model.RankingSeat
 	chronicles       []model.Chronicle
 	media            []model.MediaAsset
+	factionLeaders   map[string]string
 	counts           model.ImportCounts
 	images           model.ImportImageSummary
 	warnings         []model.ImportIssue
@@ -42,7 +43,8 @@ func buildImportPlan(workID, name, nameKey string, spec *imports.Spec, media map
 			Description: trimmed(spec.Work.Description),
 			Version:     1, CreatedAt: now, UpdatedAt: now,
 		},
-		warnings: []model.ImportIssue{},
+		warnings:       []model.ImportIssue{},
+		factionLeaders: map[string]string{},
 	}
 	reviewedBy := model.ImportReviewSource
 
@@ -214,11 +216,7 @@ func buildImportPlan(workID, name, nameKey string, spec *imports.Spec, media map
 		if leaderID == "" {
 			continue
 		}
-		for index := range plan.factions {
-			if plan.factions[index].ID == factionIDs[key] {
-				plan.factions[index].LeaderCharacterID = &leaderID
-			}
-		}
+		plan.factionLeaders[factionIDs[key]] = leaderID
 	}
 
 	for _, location := range spec.Locations {
@@ -422,12 +420,9 @@ func (s *Import) writePlan(ctx context.Context, plan *importPlan, importID, snap
 		if err := createAll(tx, &plan.media, len(plan.media)); err != nil {
 			return err
 		}
-		for index := range plan.factions {
-			if plan.factions[index].LeaderCharacterID == nil {
-				continue
-			}
-			if err := tx.Model(&model.Faction{}).Where("id = ?", plan.factions[index].ID).
-				Update("leader_character_id", *plan.factions[index].LeaderCharacterID).Error; err != nil {
+		for factionID, leaderID := range plan.factionLeaders {
+			if err := tx.Model(&model.Faction{}).Where("id = ?", factionID).
+				Update("leader_character_id", leaderID).Error; err != nil {
 				return err
 			}
 		}

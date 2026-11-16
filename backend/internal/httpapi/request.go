@@ -208,6 +208,8 @@ func abortServiceError(c *gin.Context, err error) {
 		abortError(c, http.StatusInsufficientStorage, "IMPORT_INSUFFICIENT_STORAGE", "磁盘空间不足，导入未执行")
 	case errors.Is(err, service.ErrImportTimeout):
 		abortError(c, http.StatusGatewayTimeout, "IMPORT_TIMEOUT", "导入超时，已回滚并清理临时文件")
+	case errors.Is(err, service.ErrImportSnapshotFailed):
+		abortError(c, http.StatusServiceUnavailable, "SNAPSHOT_FAILED", "导入前快照失败，导入未执行")
 	case errors.Is(err, context.DeadlineExceeded):
 		abortError(c, http.StatusGatewayTimeout, "IMPORT_TIMEOUT", "导入超时，已回滚并清理临时文件")
 	case errors.Is(err, model.ErrReviewNotFound):
