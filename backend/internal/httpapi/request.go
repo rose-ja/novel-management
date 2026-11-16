@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -195,6 +196,24 @@ func abortServiceError(c *gin.Context, err error) {
 		abortError(c, http.StatusConflict, "EXPORT_IN_PROGRESS", "已有导出任务在进行")
 	case errors.Is(err, service.ErrExportNoWork):
 		abortError(c, http.StatusConflict, "EXPORT_NO_WORK", "暂无作品数据可导出")
+	case errors.Is(err, service.ErrImportInProgress):
+		abortError(c, http.StatusConflict, "IMPORT_IN_PROGRESS", "已有导入任务正在进行")
+	case errors.Is(err, service.ErrImportStateConflict):
+		abortError(c, http.StatusConflict, "IMPORT_STATE_CONFLICT", "导入状态不允许该操作")
+	case errors.Is(err, service.ErrImportInvalid):
+		abortErrorWithDetails(c, http.StatusUnprocessableEntity, "IMPORT_INVALID", "导入校验未通过，请先修正错误清单", gin.H{
+			"field": "import",
+		})
+	case errors.Is(err, service.ErrImportInsufficientStorage):
+		abortError(c, http.StatusInsufficientStorage, "IMPORT_INSUFFICIENT_STORAGE", "磁盘空间不足，导入未执行")
+	case errors.Is(err, service.ErrImportTimeout):
+		abortError(c, http.StatusGatewayTimeout, "IMPORT_TIMEOUT", "导入超时，已回滚并清理临时文件")
+	case errors.Is(err, context.DeadlineExceeded):
+		abortError(c, http.StatusGatewayTimeout, "IMPORT_TIMEOUT", "导入超时，已回滚并清理临时文件")
+	case errors.Is(err, model.ErrReviewNotFound):
+		abortError(c, http.StatusNotFound, "REVIEW_NOT_FOUND", "校对对象不存在")
+	case errors.Is(err, model.ErrReviewInvalidState):
+		abortError(c, http.StatusConflict, "REVIEW_INVALID_STATE", "校对状态不允许该操作")
 	case errors.Is(err, model.ErrCharacterWorkUnavailable):
 		abortError(c, http.StatusUnprocessableEntity, "PARENT_DELETED", "作品不存在或已删除")
 	case errors.Is(err, model.ErrUnsupportedFileType):

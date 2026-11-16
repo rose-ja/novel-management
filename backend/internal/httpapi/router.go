@@ -28,6 +28,8 @@ type Options struct {
 	Locations  *service.Locations
 	Rankings   *service.Rankings
 	Search     *service.Search
+	Imports    *service.Import
+	Reviews    *service.Review
 }
 
 // NewRouter 组装 API 路由与静态页面托管；业务服务为 nil 时对应路由不注册（单元测试可用）。
@@ -78,6 +80,12 @@ func NewRouter(opts Options) *gin.Engine {
 	}
 	if opts.Search != nil {
 		registerSearch(api, opts.Search)
+	}
+	if opts.Imports != nil {
+		registerImports(api, opts.Imports, opts.Config, opts.Log)
+	}
+	if opts.Reviews != nil {
+		registerReviews(api, opts.Reviews)
 	}
 
 	serveStatic := staticHandler(opts.Config.WebDir)

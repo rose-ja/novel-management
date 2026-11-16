@@ -82,6 +82,8 @@ func run() error {
 	charactersService := service.NewCharacters(db.Gorm, mediaService)
 	factionsService := service.NewFactions(db.Gorm, charactersService)
 	locationsService := service.NewLocations(db.Gorm, charactersService)
+	importService := service.NewImport(db.Gorm, cfg, log, snapshotService)
+	importService.MarkInterrupted(ctx)
 	router := httpapi.NewRouter(httpapi.Options{
 		Config: cfg,
 		Log:    log,
@@ -104,6 +106,8 @@ func run() error {
 		Locations:  locationsService,
 		Rankings:   service.NewRankings(db.Gorm, charactersService),
 		Search:     service.NewSearch(db.Gorm, charactersService),
+		Imports:    importService,
+		Reviews:    service.NewReview(db.Gorm),
 	})
 
 	srv := &http.Server{
