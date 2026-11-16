@@ -1,13 +1,13 @@
 # migration — 飞书《正文》迁移导入与校对
 
-- 域状态：`planned`（P6，2026-11-07）
+- 域状态：`implemented`（CHG-011，2026-11-16）
 - 目标行为：上传飞书导出包，解析模板、校验、预览、原子提交、导入图片并生成报告与待校对记录。
 - 关联页面：PG-11；关联验收：AC-10、AC-11、AC-18~AC-21、AC-25。
-- 说明：本文件中的 Spec 均为待实现目标，不代表当前系统能力。
+- 说明：本文件描述 CHG-011 交付后的导入能力；未实现部分标注为已知限制。
 
 ## SPEC-MIG-001 导入入口、模板与包限制
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-39、FR-40；US-009；PG-11 §2；API `POST /api/v1/imports`（multipart）、`GET /api/v1/imports/{id}`；Data `import_runs`；AC-18
 - 行为：
   - 入口固定为「数据安全 → 导入飞书正文」；上传固定模板 Markdown（`.md`）与图片 zip（可选）；图片 zip 单包 ≤6GB（6,144 MB）。
@@ -22,11 +22,11 @@
   2. Given 图片 zip 超过 6GB 或缺少 Markdown，When 上传，Then 阻止并给出具体原因，不进入解析（EX-22）。
   3. Given 磁盘余量不足包体积 2 倍，When 提交，Then 提示空间不足并清理临时文件（RT-09）。
   4. Given 非 `.md` 模板或非 zip 图片包，When 上传，Then 前端与服务端均拒绝（FR-40）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-16 — CHG-011 交付，状态 `implemented`。
 
 ## SPEC-MIG-002 模板解析、体系类别初始化与计数
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-41；US-009；PG-11 §3；API 导入解析阶段；Data `system_categories`、`import_runs`；AC-18、AC-19
 - 行为：
   - 解析「区块 + 行字段」模板；空行/空字段视为未填写；重复标题/重复行进入校验错误。
@@ -42,11 +42,11 @@
   2. Given 某区块缺少必填标题，When 解析，Then 报告定位区块与行，不提交（AC-19）。
   3. Given 类型文本「弟子」，When 解析，Then 作为自由文本记录，不建立势力引用（FR-41）。
   4. Given 合法模板，When 解析完成，Then 预览显示八类计数与图片匹配数（AC-18）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-16 — CHG-011 交付，状态 `implemented`。
 
 ## SPEC-MIG-003 校验、错误清单与预览确认
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-41、FR-43、FR-49、FR-51；US-009；PG-11 §3/§4；API `POST /api/v1/imports/{id}/validate`、`POST /api/v1/imports/{id}/commit`；Data 约束；AC-19、AC-25、EX-10、EX-11、EX-12、EX-21
 - 行为：
   - 校验项：必填、字段超长、同作品唯一（作品/人物/势力/地点/榜单/同级节点）、引用存在（势力/地点/榜单/体系）、图片缺失/多余/格式不支持、模板版本、体系类别与两级结构。
@@ -62,18 +62,18 @@
   2. Given 图片缺失、多余或格式不支持，When 校验，Then 均进入错误清单并禁止确认（FR-43 / FR-51）。
   3. Given 错误未修复，When 点击「确认导入」，Then 主按钮禁用并提示先修复（PG-11）。
   4. Given 二次确认后提交中断，When 刷新，Then 入口恢复且无新增数据，可回退（AC-20）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-16 — CHG-011 交付，状态 `implemented`。
 
 ## SPEC-MIG-004 原子提交、图片匹配与失败回滚
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-42、FR-43、FR-50；US-009；PG-11 §5；API 提交阶段；Data 全部实体、`media_assets`、`import_runs`；AC-10、AC-11、AC-20、EX-13
 - 行为：
   - 提交前生成快照（`reason=import`）；快照失败阻止导入。
   - 导入目标固定为「新建空作品」；不向已有作品内合并或覆盖。
   - 所有实体、关系、体系、图片、检索文档在单一事务内提交；任一步失败全部回滚。
   - 图片按 Markdown 内相对文件名匹配；支持 jpg/png/webp、单图 ≤10MB；图片错误已在校验阶段阻断。
-  - 对话超时 120 分钟；超时/中断视为失败并回滚；同一作品同时仅允许 1 个导入。
+  - 对话超时 120 分钟；超时/中断视为失败并回滚；同一时间全局仅允许 1 个导入任务，且与导出任务互斥。
   - 提交成功返回导入报告 ID，并跳转结果摘要。
 - 边界：
   - 不做增量导入、不做重复导入去重合并。
@@ -83,14 +83,14 @@
   2. Given 提交中途进程失败，When 重启，Then 数据库中无半成品实体，导入记录为 failed（AC-20）。
   3. Given 图片校验均已通过，When 提交，Then 图片与实体关联完整（FR-43）。
   4. Given 另一导入进行中，When 再次提交，Then 返回 `IMPORT_IN_PROGRESS`（RT-09）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-16 — CHG-011 交付，状态 `implemented`。
 
 ## SPEC-MIG-005 导入报告、校对与迁移验收
 
-- 状态：`planned`
+- 状态：`implemented`
 - 来源：FR-43、FR-44、FR-45、FR-46；US-009；PG-11 §6/§10；API `GET /api/v1/imports/{id}/report`、`POST /api/v1/reviews/batch|entity`；Data `import_runs`、`reviewed_by/status`；AC-11、AC-21、AC-25、AC-31
 - 行为：
-  - 报告可下载：来源、耗时、八类计数、错误/警告、图片匹配、未匹配清单、失败原因、创建时间。
+  - 报告通过接口返回并在 PG-11 页面展示：来源、耗时、八类计数、错误/警告、图片匹配、未匹配清单、失败原因、创建时间；当前不提供报告文件下载。
   - 导入实体默认 `review_status=pending`，`reviewed_by` 记录导入来源；页面显示徽标与筛选。
   - 支持逐条确认与批量确认；批量仅处理 `pending`；不做全选跨作品。
   - 五项迁移验收：实体数量、图片数量、层级抽查、校对记录、用户签收；其中用户签收按 AC-31 逐项确认，未通过项不得视为完成。
@@ -105,4 +105,4 @@
   2. Given 导入实体为 pending，When 打开列表，Then 显示待校对徽标并可筛选（AC-21）。
   3. Given 批量确认 20 条 pending，When 执行，Then 20 条变为 confirmed，失败项回滚（FR-44）。
   4. Given 200 人物/100 势力/100 地点/20 榜单/500 节点的样本，When 导入，Then 五项验收（数量、图片、层级抽查、校对记录、签收）全部通过（AC-25）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-16 — CHG-011 交付，状态 `implemented`。

@@ -52,7 +52,7 @@ P6 启动时按 [00-operating-manual.md](file:///d:/Project/novel-management/wor
 
 **交付策略（2026-11-07 已确认）**：一次性按拓扑序推进 `CHG-001~012`，不在批次之间设置人工闸门。`CHG-001~004` 仍作为首个可用里程碑：完成后系统可启动、创建多作品、配置体系、维护人物档案并使用回收站恢复，可先进行真实试用；后续变更在其上连续叠加。「批次」列只表示建议节奏，不作为开工前置条件。
 
-**进度（2026-11-15）**：CHG-001～CHG-010 已完成、验收并归档（CHG-009 迁移 v9、`GET /search`、`cli reindex`、`/search` 与系统深链；CHG-010 迁移 v10、`export_runs`、导出/下载、`cli restore`/`restore-snapshot` 与 PG-13）；下一个变更为 CHG-011（飞书《正文》迁移导入与校对）。
+**进度（2026-11-16）**：CHG-001～CHG-011 已完成、验收并归档（CHG-009 迁移 v9、`GET /search`、`cli reindex`、`/search` 与系统深链；CHG-010 迁移 v10、`export_runs`、导出/下载、`cli restore`/`restore-snapshot` 与 PG-13；CHG-011 迁移 v11、模板/示例接口、导入向导与校对清单）；下一个变更为 CHG-012（关系一致性、异常状态与发布验收）。
 
 ---
 
@@ -319,6 +319,7 @@ graph TD
 - **复杂度**：L。
 - **风险**：模板歧义、6GB 流式内存、120 分钟任务、图片路径穿越、导入与快照/事务边界。
 - **回滚**：导入前快照回退；删除导入批次（软删）；关闭导入入口；不影响既有作品。
+- **落地记录（2026-11-16）**：实际文件为 `backend/internal/{imports,model/import,repository/imports,service/import,service/import_plan,service/review,httpapi/imports,httpapi/reviews}.go`、`migrations/0011_import_runs.sql`、`frontend/{app/import,components/import,lib/api/imports,lib/api/reviews,components/settings/import-section}.*`；迁移 **v11**；模板带「区块 + 行字段」v1.0 与示例包接口；导入与导出通过 `app_settings` 行锁互斥；大样本 200/100/100/20/500 实测提交 361ms、计数一致；验收证据见 `changes/archive/CHG-011-import/`（集成 22.2s、前端单测 91、E2E 115 PASS）；报告文件下载未纳入基线，用户签收以交付记录承担。
 
 ### CHG-012 关系一致性、异常状态与发布验收
 

@@ -336,17 +336,27 @@ erDiagram
 |---|---|---|---|---|---|
 | id | TEXT(26) | No | — | PK | ULID = import_id |
 | status | TEXT | No | `uploaded` | CHECK `uploaded` / `validating` / `validated` / `running` / `completed` / `failed` | 状态机 |
+| stage | TEXT | Yes | NULL | — | 提交阶段（parse/validate/images/write/completed） |
 | file_name | TEXT | No | — | ≤255 | 上传文件名（仅记录，不用于路径） |
+| markdown_name / archive_name | TEXT | No / Yes | — | ≤255 | 原始上传名 |
+| markdown_path / archive_path | TEXT | No / Yes | — | 相对 `DATA_DIR` | 暂存文件逻辑路径（`tmp/imports/<id>`） |
+| markdown_bytes / archive_bytes | BIGINT | No / Yes | — | ≥0 | 上传大小 |
 | template_version | TEXT | Yes | NULL | 支持 `1.0` | 解析结果 |
-| work_id | TEXT(26) | Yes | NULL | FK → works.id | 成功后目标作品 |
-| snapshot_id | TEXT(26) | Yes | NULL | FK → snapshots.id | 提交前快照 |
+| work_id | TEXT(26) | Yes | NULL | 逻辑引用 works.id（无外键） | 成功后目标作品 |
+| snapshot_id | TEXT(26) | Yes | NULL | 逻辑引用 snapshots.id（无外键） | 提交前快照 |
 | counts_json | JSONB | Yes | NULL | — | 实体计数（含 `system_categories`） |
-| errors_json | JSONB | Yes | NULL | — | 错误清单（行/字段/码） |
-| warnings_json | JSONB | Yes | NULL | — | 警告 |
+| errors_json / warnings_json | JSONB | Yes | NULL | — | 错误/警告清单（行/字段/码） |
+| images_json | JSONB | Yes | NULL | — | 图片匹配摘要 |
+| report_json | JSONB | Yes | NULL | — | 导入报告快照 |
 | error_count | INTEGER | No | 0 | ≥0 | — |
+| error_code | TEXT | Yes | NULL | — | `SNAPSHOT_FAILED` / `IMPORT_INTERRUPTED` / `IMPORT_INVALID` / `IMPORT_FAILED` |
 | created_at / updated_at | TIMESTAMPTZ | No | `now()` | — | — |
 | finished_at | TIMESTAMPTZ | Yes | NULL | — | — |
 
+索引：`(status, created_at DESC)`、`(created_at DESC)`。CHG-011 迁移 `0011_import_runs`。
+
+> `work_id` 与 `snapshot_id` 为逻辑引用、未建外键：迁移需在恢复/测试事务持有 `works` 锁时执行，外键会让建表等待锁。导入后 `work_id` 指向新作品，`snapshot_id` 指向 `reason=import` 快照。
+>
 > 导入类别协议（P5b RT-08）：导入作品以 `auto_create_builtin=false` 创建（跳过新建作品自动生成境界）；模板必须定义类别；「境界」名称固定、`is_builtin=1`、每作品唯一；自定义类别含境界合计 ≤10；模板缺境界时创建空内置；节点按类别名归属；类别不参与 review。`counts_json` 与报告均记录 `system_categories`。
 
 ### 3.17 export_runs（导出任务）

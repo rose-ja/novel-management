@@ -698,9 +698,9 @@
 
 #### POST /api/v1/imports/{import_id}/commit
 - Request：`{ "work_name": "山海（导入）" }`（可选；默认取模板作品名）。
-- Behavior：仅在 `status=validated` 且 `error_count=0` 时允许；快照（`reason=import`）→ 图片移动到 `images/{work_id}/{import_id}/` → 单事务写入 → `completed`（顺序以 ADR-005 为准；事务失败删除本次移动图片并清理临时目录）。
+- Behavior：仅在 `status=validated` 且 `error_count=0` 时允许；提交开始时在单事务内锁定 `app_settings` 与任务行，与导出任务互斥并防止并发重复提交；随后快照（`reason=import`）→ 图片移动到 `images/{work_id}/{import_id}/` → 单事务写入 → `completed`（顺序以 ADR-005 为准；失败删除本次移动图片并清理 `tmp/imports/{import_id}`）。
 - 类别初始化协议：导入作品以 `auto_create_builtin=false` 创建（跳过新建作品自动生成境界）；模板必须定义类别（`体系 → 类别`），类别名必填且同作品唯一；「境界」名称固定、`is_builtin=1`、每作品唯一；自定义类别含境界合计 ≤10；模板缺境界时创建空内置境界；节点按类别名归属（含内置境界）；类别不参与 review。
-- Response：`{ "status": "completed", "work_id": "01H...", "report": {...}, "review_url": "/characters?review_status=pending" }`。
+- Response：`{ "status": "completed", "work_id": "01H...", "report": {...}, "review_url": "/import?step=review&import_id=01H..." }`。
 - Errors：`IMPORT_STATE_CONFLICT`、`IMPORT_INVALID`、`SNAPSHOT_FAILED`、`NAME_CONFLICT`（作品名）、`IMPORT_INSUFFICIENT_STORAGE`。
 - 幂等：重复调用返回同一 `completed` 结果。
 
@@ -758,15 +758,15 @@
 - Request：
   ```json
   {
-    "work_id": "01H...",
     "entity_type": "character|faction|location|ranking|system_node",
     "ids": ["01H...", "01H..."],
-    "filter": { "review_status": "pending" }
+    "work_id": "01H...",
+    "category_id": "01H..."
   }
   ```
-  `ids` 与 `filter` 二选一（或同时提供时取交集）；`filter` 仅支持 `review_status="pending"`。
-- Behavior：仅 `pending → confirmed`；单事务原子；任何 ID 不存在/状态不允许则整批失败，不部分更新。
-- Response `200`：`{ "updated": 12, "skipped": 3 }`（`skipped` 为已是 confirmed 被跳过的数量；不存在计入错误而非 skipped）。
+  `ids` 与 `work_id` 二选一：提供 `ids` 时逐条确认；提供 `work_id` 时确认该作品下该类型的全部 `pending` 实体（`system_node` 可再用 `category_id` 收窄）。
+- Behavior：仅 `pending → reviewed`；单事务原子；任何 ID 不存在则整批失败，不部分更新；已 `reviewed` 计入 `skipped`。
+- Response `200`：`{ "updated": 12, "skipped": 3, "items": [{ "entity_type", "id", "review_status": "confirmed", "reviewed_at", "reviewed_by": "local-author", "version" }] }`。
 - Errors：`VALIDATION_ERROR`、`REVIEW_NOT_FOUND`、`REVIEW_INVALID_STATE`。
 
 > DTO 中 `reviewed_at` 为只读字段；校对更新 `review_status`/`reviewed_at` 时仍递增实体 `version`，前端后续编辑需使用新的 `If-Match`。
