@@ -346,6 +346,15 @@ func (s *Import) Commit(ctx context.Context, id, workName string) (*model.Import
 	if active, err := repository.NewImports(s.db).Active(ctx); err == nil && active != nil && active.ID != id {
 		return nil, ErrImportInProgress
 	}
+	var activeExports int64
+	if err := s.db.WithContext(ctx).Table("export_runs").
+		Where("status IN ?", []string{model.ExportStatusQueued, model.ExportStatusRunning}).
+		Count(&activeExports).Error; err != nil {
+		return nil, err
+	}
+	if activeExports > 0 {
+		return nil, ErrExportInProgress
+	}
 
 	name, nameKey, err := model.NormalizeName(firstNonEmpty(workName, deref(run.WorkName)))
 	if err != nil {

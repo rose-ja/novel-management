@@ -74,6 +74,15 @@ func (s *Export) Create(ctx context.Context, includeTrash bool) (*model.ExportRu
 		if !errors.Is(findErr, gorm.ErrRecordNotFound) {
 			return findErr
 		}
+		var activeImport int64
+		if err := tx.Model(&model.ImportRun{}).
+			Where("status IN ?", []string{model.ImportStatusValidating, model.ImportStatusRunning}).
+			Count(&activeImport).Error; err != nil {
+			return err
+		}
+		if activeImport > 0 {
+			return ErrImportInProgress
+		}
 		var works int64
 		if err := tx.Model(&model.Work{}).Where("deleted_at IS NULL").Count(&works).Error; err != nil {
 			return err

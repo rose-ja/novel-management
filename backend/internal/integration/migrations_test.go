@@ -47,7 +47,7 @@ func TestMigrationRoundTrip(t *testing.T) {
 		"characters", "character_names", "media_assets", "chronicles", "factions",
 		"locations", "character_locations", "location_factions",
 		"rankings", "ranking_seats", "search_documents", "export_runs",
-		"app_settings", "snapshots", "undo_tokens",
+		"import_runs", "app_settings", "snapshots", "undo_tokens",
 	}
 	for _, table := range tables {
 		if !tableExists(t, table) {
@@ -87,6 +87,17 @@ func TestMigrationRoundTrip(t *testing.T) {
 		if err := testDB.Exec(statement).Error; err != nil {
 			t.Fatalf("播种迁移回滚数据失败：%v", err)
 		}
+	}
+
+	// 0011 Down：删除导入任务表；导出任务表保留。
+	if err := migrations.Down(ctx, sqlDB); err != nil {
+		t.Fatalf("回滚 0011 失败：%v", err)
+	}
+	if tableExists(t, "import_runs") {
+		t.Fatal("回滚 0011 后表 import_runs 仍然存在")
+	}
+	if !tableExists(t, "export_runs") {
+		t.Fatal("回滚 0011 不应删除导出任务表")
 	}
 
 	// 0010 Down：删除导出任务表；检索文档保留。
