@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useSettings } from "@/components/providers/settings-provider";
 import { CliRestoreSection } from "@/components/settings/cli-restore-section";
 import { ExportSection } from "@/components/settings/export-section";
+import { ImportSection } from "@/components/settings/import-section";
 import { SnapshotList } from "@/components/settings/snapshot-list";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ export default function SettingsPage() {
       <PageHeader title={messages.settingsTitle} description={messages.settingsDescription} />
 
       <ExportSection />
+      <ImportSection />
       <SnapshotList />
       <CliRestoreSection />
 

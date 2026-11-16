@@ -1,4 +1,4 @@
-/* 组件样式：仅使用 tokens.css 中的变量，不散落任意色值。 */
+﻿/* 组件样式：仅使用 tokens.css 中的变量，不散落任意色值。 */
 
 /* ---------- 壳层 ---------- */
 /* 桌面优先：<1024px 保持最小宽度并允许横向滚动，不提供移动端导航（PG-00 §7）。 */
@@ -2658,14 +2658,14 @@
   height: 24px;
   border: 0;
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--color-text-tertiary);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .location-tree__toggle:hover {
   background: var(--color-surface-hover);
-  color: var(--color-text);
+  color: var(--color-text-primary);
 }
 
 .location-tree__toggle--empty {
@@ -2673,7 +2673,7 @@
 }
 
 .location-tree__name {
-  color: var(--color-text);
+  color: var(--color-text-primary);
   font-weight: 500;
   text-decoration: none;
   overflow: hidden;
@@ -2688,7 +2688,7 @@
 
 .location-tree__meta,
 .location-tree__count {
-  color: var(--color-text-muted);
+  color: var(--color-text-tertiary);
   font-size: var(--text-caption);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2711,7 +2711,7 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
@@ -2771,7 +2771,7 @@
 }
 
 .character-relation-note {
-  color: var(--color-text-muted);
+  color: var(--color-text-tertiary);
   font-size: var(--text-caption);
 }
 
@@ -3338,5 +3338,270 @@
   .search-result__matches {
     flex-direction: column;
     gap: 2px;
+  }
+}
+
+/* CHG-011 导入向导 */
+.import-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.import-stepper__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  color: var(--color-text-tertiary);
+  background: var(--color-surface);
+  font-size: 13px;
+}
+
+.import-stepper__item--done {
+  color: var(--color-brand-600);
+  border-color: var(--color-brand-600);
+}
+
+.import-stepper__item--current {
+  color: var(--color-text-primary);
+  border-color: var(--color-brand-600);
+  box-shadow: 0 0 0 1px var(--color-brand-600);
+  font-weight: 600;
+}
+
+.import-stepper__item--error {
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-text);
+  box-shadow: 0 0 0 1px var(--color-danger-text);
+}
+
+.import-stepper__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-surface-sunken);
+  font-size: 12px;
+}
+
+.import-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  border: 2px dashed var(--color-border-strong);
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--color-surface-sunken);
+}
+
+.import-dropzone:focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+}
+
+.import-files {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.import-files__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+}
+
+.import-files__row dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.import-files__row dd {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.import-actions--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.import-actions__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.import-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+.import-grid__main,
+.import-grid__aside {
+  display: grid;
+  gap: 16px;
+}
+
+.import-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.import-counts__item {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  background: var(--color-surface-sunken);
+}
+
+.import-counts__item dt {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.import-counts__item dd {
+  margin: 4px 0 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.import-error-list {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.import-error-list li {
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.import-image-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.import-review {
+  display: grid;
+  gap: 16px;
+}
+
+.import-review__group {
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.import-review__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--color-surface-sunken);
+}
+
+.import-review__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+
+.import-review__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-review__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--color-border-default);
+}
+
+.import-review__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.import-stages {
+  margin: 16px 0 0;
+  padding-left: 20px;
+  color: var(--color-text-tertiary);
+}
+
+.import-muted {
+  color: var(--color-text-tertiary);
+}
+
+.import-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-600);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 13px;
+}
+
+.import-error-text {
+  margin: 0;
+  color: var(--color-danger-text);
+  font-size: 13px;
+}
+
+@media (max-width: 1279px) {
+  .import-grid {
+    grid-template-columns: 1fr;
   }
 }
