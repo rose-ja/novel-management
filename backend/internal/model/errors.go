@@ -34,6 +34,8 @@ var (
 	ErrSeatShrinkOccupied  = errors.New("缩容目标席位之后仍有人物")
 	ErrReferenceMissing    = errors.New("引用的人物已不存在")
 	ErrSearchQueryRequired = errors.New("请输入检索关键词或选择筛选条件")
+	ErrReviewNotFound      = errors.New("校对对象不存在")
+	ErrReviewInvalidState  = errors.New("校对状态不允许该操作")
 )
 
 // CycleDetectedError 表示移动势力/地点时形成环，details 携带字段名。
