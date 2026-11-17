@@ -2,7 +2,7 @@
 
 - 日期：2026-11-17
 - 分支：`main`
-- 代码基线：`4c54507`（F5 审查修复后）
+- 代码基线：`667d183`（F5 审查修复后，全量 E2E 复跑）
 - 环境：Windows + Docker Compose（PostgreSQL 16、Redis 7、`novel-settings:dev`）
 
 ## 1. 门禁结果
@@ -18,8 +18,8 @@
 | 前端单测 | `npm test` | PASS（15 文件 / 91 用例） |
 | 镜像构建 | `docker compose build app` | PASS |
 | 烟测 | `scripts/smoke.ps1` | PASS（db=ok cache=ok） |
-| E2E 全量 | `npx playwright test` | PASS（128 passed / 1 skipped，跳过项为未设置 `PERF_WORK_ID` 的性能用例） |
-| E2E 回归（审查修复后） | `npx playwright test a11y locations rankings system keyboard trash error-states` | PASS（59/59） |
+| E2E 全量 | `npx playwright test` | PASS（129 passed / 1 skipped，跳过项为未设置 `PERF_WORK_ID` 的性能用例；2.1m） |
+| E2E 回归（审查修复后） | `npx playwright test a11y locations rankings system keyboard trash error-states` | PASS（全部通过） |
 
 ## 2. 性能基线（1000 人物）
 

@@ -343,7 +343,7 @@ graph TD
 - **复杂度**：M（以验证与修复为主）。
 - **风险**：跨页状态遗漏、性能回退、回收站引用死角、最后阶段集中修复范围蔓延。
 - **回滚**：按变更粒度回退修复提交；数据无结构变更；发布镜像回退上一 tag。
-- **落地记录（2026-11-17）**：实际文件为 `frontend/app/trash/page.tsx`、`frontend/components/{ui/unsaved-dialog,ui/dialog,characters,factions,locations,system,rankings}/*`、`frontend/e2e/{consistency,security,perf,error-states,a11y,keyboard,rankings,trash}*.spec.ts`、`backend/cmd/cli/main.go`、`scripts/perf.ps1`；无迁移（版本保持 11）。全量门禁：后端单测/静态检查 PASS、集成 14.6s PASS、前端 lint/typecheck/91 单测 PASS、E2E 128 passed/1 skipped、smoke PASS；性能 1000 人物首屏 221ms、列表 P95 5ms、检索 P95 10ms；导出→CLI 恢复（508ms）与快照恢复（504ms）计数一致；安全用例与 `TestMigrationRoundTrip` PASS；验收证据见 `changes/archive/CHG-012-release-hardening/`。**状态：已完成（2026-11-17）。**
+- **落地记录（2026-11-17）**：实际文件为 `frontend/app/trash/page.tsx`、`frontend/components/{ui/unsaved-dialog,ui/dialog,characters,factions,locations,system,rankings}/*`、`frontend/e2e/{consistency,security,perf,error-states,a11y,keyboard,rankings,trash}*.spec.ts`、`backend/cmd/cli/main.go`、`scripts/perf.ps1`；无迁移（版本保持 11）。全量门禁：后端单测/静态检查 PASS、集成 14.6s PASS、前端 lint/typecheck/91 单测 PASS、E2E 129 passed/1 skipped、smoke PASS；性能 1000 人物首屏 221ms、列表 P95 5ms、检索 P95 10ms；导出→CLI 恢复（508ms）与快照恢复（504ms）计数一致；安全用例与 `TestMigrationRoundTrip` PASS；验收证据见 `changes/archive/CHG-012-release-hardening/`。**状态：已完成（2026-11-17）。**
 
 ---
 

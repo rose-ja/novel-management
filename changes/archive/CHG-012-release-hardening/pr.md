@@ -33,7 +33,7 @@
 - [x] `TEST_DATABASE_URL=… go test -count=1 -tags=integration ./internal/integration/...`（14.6s）
 - [x] `npm run lint`、`npm run typecheck`、`npm test`（91）
 - [x] `docker compose build app` + `scripts/smoke.ps1`
-- [x] `npx playwright test`（128 passed / 1 skipped）
+- [x] `npx playwright test`（129 passed / 1 skipped）
 - [x] `scripts/perf.ps1`（首屏 221ms / 列表 P95 5ms / 检索 P95 10ms）
 - [x] 导出 → CLI 恢复 → 计数一致；快照恢复；`TestMigrationRoundTrip`
 - [x] 安全用例复跑（恶意 zip、路径穿越、伪造图片）与 E2E-13 CSP

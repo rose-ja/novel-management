@@ -1,7 +1,7 @@
 # CHG-012 验收记录（F7）
 
 - 日期：2026-11-17
-- 基线：`4c54507` + 全量回归
+- 基线：`667d183` + 全量回归
 - 验收依据：`proposal.md` 验收标准、`project/specs/`、`project/page-specs/`、`project/deployment.md` §10
 
 | # | 验收项 | 结果 | 证据 |
