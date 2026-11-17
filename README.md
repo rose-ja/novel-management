@@ -12,6 +12,48 @@
 6. 作者与独立审查者分离；测试、审查、人工验收各自独立。
 7. 流程按风险裁剪，小任务不必执行完整项目流程。
 
+## 本项目：小说设定管理
+
+单用户本地部署（Windows + Docker Desktop），默认访问 `http://127.0.0.1:17860`。
+
+### 启动与冒烟
+
+```powershell
+docker compose up -d --wait
+docker compose ps
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke.ps1
+```
+
+### 质量门禁
+
+```powershell
+cd backend
+go test ./...
+go vet ./...
+
+cd ../frontend
+npm run lint
+npm run typecheck
+npm test
+npx playwright test
+```
+
+### 性能基线
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/perf.ps1
+```
+
+- 脚本通过 `cli seed` 生成 1000 人物，采样列表/检索 P95，并用 Playwright 测量首屏。
+- 阈值：首屏 ≤2s、列表 P95 ≤500ms、检索 P95 ≤150ms；报告写入 `artifacts/perf/<时间>/report.json`，任一项超标即失败。
+
+### 发布与恢复
+
+- 发布前按 [deployment.md](project/deployment.md) §10 逐项检查，并保留烟雾测试与性能报告。
+- 导出：设置页「导出全量数据」；恢复：`docker compose stop app` → `docker compose run --rm cli restore /data/exports/<zip> --yes` → `docker compose up -d`。
+- 快照恢复：`docker compose stop app` → `docker compose run --rm cli restore-snapshot /data/snapshots/<目录> --yes` → `docker compose up -d`。
+- 迁移回滚由集成测试 `TestMigrationRoundTrip` 覆盖；手动迁移前必须先停止 app。
+
 ## 快速开始
 
 ### 新项目
