@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -34,7 +35,7 @@ func newRootCmd() *cobra.Command {
 		Short:        "小说设定管理系统运维 CLI",
 		SilenceUsage: true,
 	}
-	root.AddCommand(newMigrateCmd(), newDoctorCmd(), newReindexCmd(), newRestoreCmd(), newRestoreSnapshotCmd(), newVersionCmd())
+	root.AddCommand(newMigrateCmd(), newDoctorCmd(), newReindexCmd(), newRestoreCmd(), newRestoreSnapshotCmd(), newSeedCmd(), newVersionCmd())
 	return root
 }
 
@@ -239,6 +240,176 @@ func runRestore(source string, force, snapshot bool) error {
 	}
 	fmt.Printf("耗时：%s\n", summary.Elapsed.Round(time.Millisecond))
 	return nil
+}
+
+func newSeedCmd() *cobra.Command {
+	var workName string
+	var characters, factions, locations int
+	cmd := &cobra.Command{
+		Use:   "seed",
+		Short: "批量生成性能基线数据（默认 1000 人物），完成后刷新检索",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if characters < 0 || factions < 0 || locations < 0 {
+				return errors.New("造数数量不能为负数")
+			}
+			cfg, log, err := load()
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
+
+			db, err := database.Open(ctx, cfg.DatabaseURL, 10*time.Second, log)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = db.SQL.Close() }()
+
+			// 允许在 app 运行时造数：写入在单事务内完成，不与非空恢复类命令争抢排他锁。
+			work, err := seedWork(ctx, db.Gorm, workName)
+			if err != nil {
+				return err
+			}
+			if err := seedRecords(ctx, db.Gorm, work.ID, characters, factions, locations); err != nil {
+				return err
+			}
+			if err := search.NewRefresher(db.Gorm).RefreshWork(ctx, work.ID); err != nil {
+				return err
+			}
+			fmt.Printf("seed work_id=%s characters=%d factions=%d locations=%d\n",
+				work.ID, characters, factions, locations)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&workName, "work", "性能基线", "目标作品名称；不存在时自动创建")
+	cmd.Flags().IntVar(&characters, "characters", 1000, "生成的人物数量")
+	cmd.Flags().IntVar(&factions, "factions", 50, "生成的势力数量")
+	cmd.Flags().IntVar(&locations, "locations", 50, "生成的地点数量")
+	return cmd
+}
+
+// seedWork 复用同名作品；不存在时连同内置「境界」类别一起创建。
+func seedWork(ctx context.Context, db *gorm.DB, rawName string) (*model.Work, error) {
+	name, nameKey, err := model.NormalizeName(rawName)
+	if err != nil {
+		return nil, err
+	}
+	var work model.Work
+	err = db.WithContext(ctx).Where("name_key = ? AND deleted_at IS NULL", nameKey).First(&work).Error
+	if err == nil {
+		return &work, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	work = model.Work{
+		ID:        model.NewID(),
+		Name:      name,
+		NameKey:   nameKey,
+		Version:   1,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	category := model.SystemCategory{
+		ID:           model.NewID(),
+		WorkID:       work.ID,
+		Name:         model.BuiltinRealmCategory,
+		NameKey:      strings.ToLower(model.BuiltinRealmCategory),
+		CategoryType: model.CategoryTypeNormal,
+		IsBuiltin:    true,
+		IsEnabled:    true,
+		Version:      1,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&work).Error; err != nil {
+			return err
+		}
+		return tx.Create(&category).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &work, nil
+}
+
+// seedRecords 在单事务内批量写入势力、地点与人物；名称带批次后缀，重复执行不会冲突。
+func seedRecords(ctx context.Context, db *gorm.DB, workID string, characters, factions, locations int) error {
+	now := time.Now().UTC()
+	tag := now.Format("150405") + "-" + model.NewID()[:4]
+
+	factionRows := make([]model.Faction, 0, factions)
+	for i := 1; i <= factions; i++ {
+		name := fmt.Sprintf("性能势力-%s-%04d", tag, i)
+		factionRows = append(factionRows, model.Faction{
+			ID:           model.NewID(),
+			WorkID:       workID,
+			Name:         name,
+			NameKey:      strings.ToLower(name),
+			ReviewStatus: model.ReviewStatusReviewed,
+			Version:      1,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+	}
+
+	locationRows := make([]model.Location, 0, locations)
+	for i := 1; i <= locations; i++ {
+		name := fmt.Sprintf("性能地点-%s-%04d", tag, i)
+		locationRows = append(locationRows, model.Location{
+			ID:           model.NewID(),
+			WorkID:       workID,
+			Name:         name,
+			NameKey:      strings.ToLower(name),
+			ReviewStatus: model.ReviewStatusReviewed,
+			Version:      1,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+	}
+
+	characterRows := make([]model.Character, 0, characters)
+	for i := 1; i <= characters; i++ {
+		name := fmt.Sprintf("性能人物-%s-%04d", tag, i)
+		var factionID *string
+		if len(factionRows) > 0 {
+			id := factionRows[(i-1)%len(factionRows)].ID
+			factionID = &id
+		}
+		characterRows = append(characterRows, model.Character{
+			ID:           model.NewID(),
+			WorkID:       workID,
+			Name:         name,
+			NameKey:      strings.ToLower(name),
+			FactionID:    factionID,
+			ReviewStatus: model.ReviewStatusReviewed,
+			Version:      1,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+	}
+
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if len(factionRows) > 0 {
+			if err := tx.CreateInBatches(factionRows, 500).Error; err != nil {
+				return err
+			}
+		}
+		if len(locationRows) > 0 {
+			if err := tx.CreateInBatches(locationRows, 500).Error; err != nil {
+				return err
+			}
+		}
+		if len(characterRows) > 0 {
+			if err := tx.CreateInBatches(characterRows, 500).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func newDoctorCmd() *cobra.Command {

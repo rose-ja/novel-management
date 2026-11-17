@@ -29,6 +29,9 @@ frontend/playwright-report/
 # Local CI caches
 .tmp/
 
+# Performance reports
+artifacts/
+
 # 日志与系统文件
 *.log
 .DS_Store

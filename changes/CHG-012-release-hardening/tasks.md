@@ -37,9 +37,9 @@
 
 ## T7 性能基线
 
-- [ ] `cli seed` 批量造数（默认 1000 人物）。
-- [ ] `e2e/perf.spec.ts` 首屏测量；`scripts/perf.ps1` 采样 P95 并输出报告。
-- [ ] 实测达标：首屏 ≤2s、列表 P95 ≤500ms、检索 P95 ≤150ms。
+- [x] `cli seed` 批量造数（默认 1000 人物）。
+- [x] `e2e/perf.spec.ts` 首屏测量；`scripts/perf.ps1` 采样 P95 并输出报告。
+- [x] 实测达标：首屏 ≤2s、列表 P95 ≤500ms、检索 P95 ≤150ms。
 
 ## T8 安全与发布复测
 
