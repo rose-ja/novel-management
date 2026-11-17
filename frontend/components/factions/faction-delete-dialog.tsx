@@ -35,7 +35,9 @@ function hasChildrenItems(error: unknown): BlockItem[] {
       id: item.id,
       name: item.name,
       // 软删下级已不在活跃树，改为回收站定位，避免详情 404。
-      href: item.in_trash ? "/trash" : `/factions?id=${encodeURIComponent(item.id)}`,
+      href: item.in_trash
+        ? `/trash?type=faction&highlight=${encodeURIComponent(item.id)}`
+        : `/factions?id=${encodeURIComponent(item.id)}`,
       inTrash: item.in_trash === true,
     }));
 }
@@ -77,7 +79,9 @@ export function FactionDeleteDialog({
           referenceConflictItems(cause).map((item) => ({
             id: item.entity_id,
             name: item.name ?? messages.systemReferenceUnnamed,
-            href: `/characters?id=${encodeURIComponent(item.entity_id)}`,
+            href: item.in_trash
+              ? `/trash?type=character&highlight=${encodeURIComponent(item.entity_id)}`
+              : `/characters?id=${encodeURIComponent(item.entity_id)}`,
             inTrash: item.in_trash,
           })),
         );

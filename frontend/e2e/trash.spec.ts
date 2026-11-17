@@ -1,6 +1,17 @@
 import { expect, test } from "@playwright/test";
 
-import { cleanupE2E, createWork, deleteWork, listTrash, uniqueName } from "./helpers";
+import {
+  assignRankingSeat,
+  cleanupE2E,
+  createCharacter,
+  createRanking,
+  createWork,
+  deleteRanking,
+  deleteWork,
+  getRanking,
+  listTrash,
+  uniqueName,
+} from "./helpers";
 
 test.describe("回收站", () => {
   test.beforeEach(async ({ request }) => {
@@ -81,6 +92,52 @@ test.describe("回收站", () => {
 
     await expect(page.locator(".ui-toast").filter({ hasText: "回收站已清空" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "回收站是空的" })).toBeVisible();
+  });
+
+  test("回收站榜单席位引用阻止人物删除并可定位解除（E2E-15）", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("跨回收站"));
+    const character = await createCharacter(request, work.id, uniqueName("陆沉"));
+    const ranking = await createRanking(request, work.id, uniqueName("天榜"), 5);
+    const seatOne = ranking.seats.items.find((seat) => seat.seat_no === 1);
+    if (!seatOne) throw new Error("榜单缺少第 1 席");
+    await assignRankingSeat(request, ranking.id, 1, character.id, seatOne.version);
+    await deleteRanking(request, ranking);
+
+    // 删除被阻止，引用标注「回收站」并给出深链。
+    await page.goto(`/characters?id=${character.id}`);
+    await page.getByRole("button", { name: "删除人物" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "删除人物" }).click();
+    await expect(dialog.getByText("人物仍被引用，无法删除")).toBeVisible();
+    await expect(dialog.getByText("（回收站）")).toBeVisible();
+    const link = dialog.getByRole("link", { name: ranking.name });
+    await expect(link).toHaveAttribute(
+      "href",
+      `/trash?type=ranking&highlight=${encodeURIComponent(ranking.id)}`,
+    );
+
+    // 定位到回收站对应行，焦点落在「恢复」按钮。
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`type=ranking&highlight=${ranking.id}`));
+    const marker = page.locator(`[data-trash-highlight="${ranking.id}"]`);
+    await expect(marker).toBeVisible();
+    await expect(page.getByRole("button", { name: `恢复榜单「${ranking.name}」` })).toBeFocused();
+
+    // 恢复榜单 → 撤席 → 人物删除成功。
+    await page.getByRole("button", { name: `恢复榜单「${ranking.name}」` }).click();
+    const restore = page.getByRole("dialog");
+    await restore.getByRole("button", { name: "恢复" }).click();
+    await expect(page.locator(".ui-toast").filter({ hasText: `已恢复榜单「${ranking.name}」` })).toBeVisible();
+
+    const restored = await getRanking(request, ranking.id);
+    const restoredSeat = restored.seats.items.find((seat) => seat.seat_no === 1);
+    if (!restoredSeat) throw new Error("恢复后缺少第 1 席");
+    await assignRankingSeat(request, ranking.id, 1, null, restoredSeat.version);
+
+    await page.goto(`/characters?id=${character.id}`);
+    await page.getByRole("button", { name: "删除人物" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "删除人物" }).click();
+    await expect(page.getByRole("heading", { name: "人物已移入回收站" })).toBeVisible();
   });
 
   for (const width of [1280, 1024]) {

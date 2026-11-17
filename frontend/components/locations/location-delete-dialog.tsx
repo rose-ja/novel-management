@@ -50,6 +50,13 @@ function hrefFor(type: string, id: string): string {
   return "/trash";
 }
 
+/** 回收站中的引用目标改为深链定位，恢复/解除后再回到原流程。 */
+function trashHrefFor(type: string, id: string): string {
+  const rootType =
+    type === "character_location" ? "character" : type === "location_faction" ? "faction" : "location";
+  return `/trash?type=${rootType}&highlight=${encodeURIComponent(id)}`;
+}
+
 /** 同时兼容 HAS_CHILDREN（{items}）与 REFERENCE_CONFLICT（数组）两类明细。 */
 function parseGroups(error: unknown): BlockGroup[] {
   if (!(error instanceof ApiError) || !error.details || typeof error.details !== "object") return [];
@@ -72,7 +79,7 @@ function parseGroups(error: unknown): BlockGroup[] {
     current.items.push({
       id,
       name,
-      href: item.in_trash ? "/trash" : hrefFor(type, id),
+      href: item.in_trash ? trashHrefFor(type, id) : hrefFor(type, id),
       inTrash: item.in_trash === true,
     });
     groups.set(type, current);

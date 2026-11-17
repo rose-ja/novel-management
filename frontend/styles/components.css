@@ -1267,6 +1267,17 @@
   margin-bottom: var(--space-4);
 }
 
+/* 回收站深链定位：轻微底色 + 左侧强调线，不改变行高。 */
+.trash-highlight {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-left: 3px solid var(--color-brand-600);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  font-weight: var(--text-body-strong-weight);
+}
+
 .table-actions {
   display: flex;
   flex-wrap: nowrap;

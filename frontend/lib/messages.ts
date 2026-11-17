@@ -171,6 +171,8 @@ export const messages = {
   trashTitle: "回收站",
   trashDescription: (total: number) => `跨作品 · 共 ${total} 项`,
   trashSnapshotNotice: "永久删除与清空回收站前会自动创建快照，保留最近 3 份。",
+  trashHighlightMissing: "未找到引用指向的回收站条目，可能已恢复或永久删除。",
+  trashClearHighlight: "清除定位",
   trashClear: "清空回收站",
   trashClearTitle: "清空回收站？",
   trashClearDescription: (total: number) =>

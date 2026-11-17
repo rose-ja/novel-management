@@ -112,14 +112,28 @@ export function CharacterDeleteDialog({
               {item.type === "faction_leader" ? (
                 <>
                   <span>{messages.characterFactionLeaderPrefix}</span>
-                  <Link className="character-name-link" href={`/factions?id=${encodeURIComponent(item.id)}`}>
+                  <Link
+                    className="character-name-link"
+                    href={
+                      item.inTrash
+                        ? `/trash?type=faction&highlight=${encodeURIComponent(item.id)}`
+                        : `/factions?id=${encodeURIComponent(item.id)}`
+                    }
+                  >
                     {item.name}
                   </Link>
                 </>
               ) : item.type === "ranking_seat" ? (
                 <>
                   <span>{messages.characterRankingSeatPrefix}</span>
-                  <Link className="character-name-link" href={`/rankings?id=${encodeURIComponent(item.id)}`}>
+                  <Link
+                    className="character-name-link"
+                    href={
+                      item.inTrash
+                        ? `/trash?type=ranking&highlight=${encodeURIComponent(item.id)}`
+                        : `/rankings?id=${encodeURIComponent(item.id)}`
+                    }
+                  >
                     {item.name}
                   </Link>
                   <span>· 第 {item.value} 席</span>

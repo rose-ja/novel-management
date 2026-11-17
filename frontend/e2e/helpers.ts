@@ -473,11 +473,11 @@ export async function assignRankingSeat(
   rankingID: string,
   seatNo: number,
   characterID: string | null,
-  version: number,
+  seatVersion: number,
 ): Promise<{ seat_no: number; version: number }> {
   const res = await request.put(`/api/v1/rankings/${rankingID}/seats/${seatNo}`, {
     data: { character_id: characterID },
-    headers: { ...JSON_HEADERS, "If-Match": `"${version}"` },
+    headers: { ...JSON_HEADERS, "If-Match": `"${seatVersion}"` },
   });
   await ensure(res, `写入榜单席位 ${seatNo}`);
   return (await res.json()) as { seat_no: number; version: number };

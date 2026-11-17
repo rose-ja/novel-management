@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,9 +115,16 @@ export function ReferenceDialog({
               <ul className="reference-dialog__list">
                 {group.items.map((item) => (
                   <li key={item.entity_id} className="reference-dialog__item">
-                    <span className="reference-dialog__person">
+                    <Link
+                      className="reference-dialog__person character-name-link"
+                      href={
+                        item.in_trash
+                          ? `/trash?type=character&highlight=${encodeURIComponent(item.entity_id)}`
+                          : `/characters?id=${encodeURIComponent(item.entity_id)}`
+                      }
+                    >
                       {item.name ?? messages.systemReferenceUnnamed}
-                    </span>
+                    </Link>
                     {item.in_trash ? <Badge tone="warning">{messages.systemReferenceInTrash}</Badge> : null}
                   </li>
                 ))}
