@@ -533,6 +533,7 @@ name_key = NFKC(value).casefold().strip()
 - **检索重建**：`goose` 只建表与扩展；`cmd/cli reindex` 重建 `search_documents`。
 - **测试要求**：空库 `goose up` → 校验表/索引/扩展；再执行 `goose down-to 0`（若迁移支持）验证可逆；迁移在真实数据集副本上演练。
 - **CHG-004 迁移说明**：`0004_characters.sql` Up 在补 `character_system_refs.character_id` 外键前清空该骨架表（0003 阶段无生产数据）；Down 先删外键、再次清空引用表，再删 `character_names`/`characters`，避免回滚残留。`TestMigrationRoundTrip` 已用播种数据覆盖。
+- **CHG-012 迁移说明**：无结构变更（迁移版本保持 11）；`cmd/cli seed` 仅向既有表批量写入性能数据并重建检索，不获取排他锁、不参与迁移或恢复流程。
 
 ---
 

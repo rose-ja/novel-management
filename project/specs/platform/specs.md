@@ -27,7 +27,7 @@
 
 ## SPEC-PLAT-002 全局异常状态与反馈
 
-- 状态：`planned`
+- 状态：`implemented`（统一文案、Skeleton/Alert/Toast、筛选保留与空态区分已覆盖主列表/详情/检索/回收站/设置；CHG-012 补充列表 500 重试保留筛选、筛选无结果与无作品空态 E2E-12）
 - 来源：EX-01~EX-06、EX-26、EX-27；US-012；PG-00 §6、各页 §6；AC-28
 - 行为：
   - 统一文案：加载失败「加载失败，请重试」、保存失败「保存失败，请稍后重试」、网络异常「网络异常，请检查连接」。
@@ -44,16 +44,17 @@
   2. Given 保存失败，When 提交表单，Then 输入保留、错误定位字段、可再次提交（EX-02）。
   3. Given 筛选无结果，When 应用筛选，Then 显示「无匹配结果」与清除条件（EX-01）。
   4. Given 长导入进行中，When 离开页面，Then 提示任务继续并可回到进度页（EX-10）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付统一文案常量、Skeleton/Alert/Toast 组件与 `ApiError` 映射（网络异常/500 重试已有 E2E）；表单字段级错误与长任务提示待后续变更；2026-11-08 — CHG-002 落地作品/回收站/快照相关的 409/422/503 错误码与中文提示、Toast 重试与 `details.field` 返回，状态仍为 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付统一文案常量、Skeleton/Alert/Toast 组件与 `ApiError` 映射（网络异常/500 重试已有 E2E）；表单字段级错误与长任务提示待后续变更；2026-11-08 — CHG-002 落地作品/回收站/快照相关的 409/422/503 错误码与中文提示、Toast 重试与 `details.field` 返回，状态仍为 `planned`；2026-11-17 — CHG-012 审计全部主页面 loading/empty/error 与筛选保留，E2E-12 扩展列表 500 重试、筛选无结果与无作品空态，状态转 `implemented`。
 
 ## SPEC-PLAT-003 并发控制与未保存保护
 
-- 状态：`implemented-partial`（CHG-002 交付作品 `version`/`If-Match` 乐观锁与 409 `VERSION_CONFLICT`；缺失或错误 `If-Match` 统一返回 409（与「缺失 428/400」表述不同），未保存守卫仅覆盖作品新建/编辑弹窗，其余实体并发控制与跨页面守卫见 CHG-003+）
+- 状态：`implemented`（全部可变实体 `version`/`If-Match`；缺失统一返回 428 `PRECONDITION_REQUIRED`；未保存守卫覆盖作品/人物/地点/势力/体系/榜单/导入）
 - 来源：EX-07、EX-08、EX-28；US-012；PG-00 §6、PG-03 §6；API `version` + `If-Match`；AC-16
 - 行为：
-  - 所有可变实体返回 `version`；更新/删除携带 `If-Match`；缺失返回 428/400，版本不符返回 409 `VERSION_CONFLICT`。
+  - 所有可变实体返回 `version`；更新/删除携带 `If-Match`；缺失返回 428 `PRECONDITION_REQUIRED`（前端提示「页面数据已过期，请刷新后重试」），版本不符返回 409 `VERSION_CONFLICT`。
   - 前端不自动合并、不覆盖；提示「数据已被其他页面修改，请刷新后重试」。
-  - 未保存离开统一守卫：返回、切换作品、打开其他实体、刷新/关闭浏览器。
+  - 未保存离开统一守卫：返回、切换作品、打开其他实体、刷新/关闭浏览器；统一使用 `useUnsavedGuard` + `UnsavedDialog`。
+  - 覆盖范围：作品、人物、地点、势力内联编辑；体系类别/节点新建与编辑对话框；榜单新建/容量/调席对话框、详情改名离开与席位备注取消；导入向导。
   - 保存按钮提交期间禁用，防重复提交；撤销/删除也做幂等。
 - 边界：
   - 不做自动保存、协作编辑、冲突字段级 diff。
@@ -64,11 +65,11 @@
   2. Given 未保存表单，When 切换作品，Then 弹出放弃确认，取消则保留输入（EX-08）。
   3. Given 删除请求重放，When 第二次提交，Then 幂等，不重复删除/不报错堆栈（EX-04）。
   4. Given 保存中重复点击，When 第一次完成，Then 只产生一次更新（EX-04）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 落地作品版本号与 `If-Match`（409 `VERSION_CONFLICT`）及作品弹窗未保存确认，状态转 `implemented-partial`（跨页面守卫与其余实体并发控制见 CHG-003+）。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`；2026-11-08 — CHG-002 落地作品版本号与 `If-Match`（409 `VERSION_CONFLICT`）及作品弹窗未保存确认，状态转 `implemented-partial`（跨页面守卫与其余实体并发控制见 CHG-003+）；2026-11-17 — CHG-012 校正缺失 `If-Match` 为 428 `PRECONDITION_REQUIRED` 并统一文案，未保存守卫覆盖至人物/地点/势力/体系/榜单/导入，状态转 `implemented`。
 
 ## SPEC-PLAT-004 设计系统、视觉与可访问性基线
 
-- 状态：`planned`
+- 状态：`implemented`（13 页面与详情/对话框 axe 覆盖，键盘主流程与 Esc 回焦通过）
 - 来源：FR-64、FR-66、FR-67、FR-68、FR-69；US-012；design-system v1.0；PG-00~PG-13；AC-27、AC-28
 - 行为：
   - 设计令牌（色彩/字体/间距/圆角/阴影/动效）统一实现，禁止页面硬编码品牌色；视觉方向为浅绿色渐变、简洁中文、桌面优先。
@@ -84,11 +85,11 @@
   2. Given 键盘操作，When Tab 遍历表单/对话框，Then 焦点顺序正确、Esc 关闭、焦点返回触发元素（AC-28）。
   3. Given 文本与背景，When 检查对比度，Then 正文 ≥4.5:1（AC-27）。
   4. Given loading/error/empty，When 页面切换状态，Then 均有明确视觉与文案，不出现裸白屏（AC-28）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付设计令牌、18 个基线组件（Tree 除外）、`prefers-reduced-motion` 与 axe/视觉基线门禁（3 页无 serious/critical）；Tree 与其余页面基线随 CHG-003 起补齐；2026-11-08 — CHG-002 交付作品切换器/作品弹窗/回收站表格/快照卡片并纳入 axe（4 页）与视觉基线（5 张），状态仍为 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 交付设计令牌、18 个基线组件（Tree 除外）、`prefers-reduced-motion` 与 axe/视觉基线门禁（3 页无 serious/critical）；Tree 与其余页面基线随 CHG-003 起补齐；2026-11-08 — CHG-002 交付作品切换器/作品弹窗/回收站表格/快照卡片并纳入 axe（4 页）与视觉基线（5 张），状态仍为 `planned`；2026-11-17 — CHG-012 扩展 axe 至人物/势力/榜单详情（有数据）、新建/编辑/删除对话框与回收站有数据，新增人物键盘主流程与 Dialog 关闭回焦，状态转 `implemented`。
 
 ## SPEC-PLAT-005 本地部署、安全边界与性能基线
 
-- 状态：`planned`
+- 状态：`implemented`（1000 人物基线实测首屏 221ms、列表 P95 5ms、检索 P95 10ms；CSP/上传/路径穿越复测通过）
 - 来源：MVP-12、NFR 安全/性能；US-012；PG-13；deployment；AC-23、AC-24、AC-26、AC-29、AC-30、AC-32、AC-33、EX-21
 - 行为：
   - `docker compose up -d` 一键启动 app/db/cache；固定访问 `http://127.0.0.1:17860`；容器内监听 `0.0.0.0:17860`，compose 仅将宿主端口绑定到 `127.0.0.1`，默认不暴露公网。
@@ -105,4 +106,4 @@
   2. Given 1000 人物基线，When 首次打开人物页，Then 可交互 ≤2s，缩略图不阻塞（AC-32 / AC-33）。
   3. Given 恶意 zip 路径或伪造图片，When 上传，Then 拒绝且不写出数据目录（AC-30）。
   4. Given 1000 人物，When 列表与检索压测，Then P95 分别 ≤500ms / ≤150ms（AC-23/24）。
-- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 复验安全边界：Host 白名单 403、路径穿越 404、CSP/`X-Frame-Options` 等响应头齐备；性能指标尚无数据支撑；2026-11-08 — CHG-002 落地作品名称服务端唯一性（英文大小写不敏感）与同源写校验（`X-Requested-With` + `FORBIDDEN_ORIGIN`），状态仍为 `planned`。
+- 变更历史：2026-11-07 — P6 新建，状态 `planned`。2026-11-08 — CHG-001 复验安全边界：Host 白名单 403、路径穿越 404、CSP/`X-Frame-Options` 等响应头齐备；性能指标尚无数据支撑；2026-11-08 — CHG-002 落地作品名称服务端唯一性（英文大小写不敏感）与同源写校验（`X-Requested-With` + `FORBIDDEN_ORIGIN`），状态仍为 `planned`；2026-11-17 — CHG-012 新增 `cli seed`（1000 人物）与 `scripts/perf.ps1` 实测首屏 221ms、列表 P95 5ms、检索 P95 10ms；E2E-13 CSP 与恶意 zip/路径穿越/伪造图片复测通过；完成导出→CLI 恢复与快照恢复演练，状态转 `implemented`。

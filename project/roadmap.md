@@ -52,7 +52,7 @@ P6 启动时按 [00-operating-manual.md](file:///d:/Project/novel-management/wor
 
 **交付策略（2026-11-07 已确认）**：一次性按拓扑序推进 `CHG-001~012`，不在批次之间设置人工闸门。`CHG-001~004` 仍作为首个可用里程碑：完成后系统可启动、创建多作品、配置体系、维护人物档案并使用回收站恢复，可先进行真实试用；后续变更在其上连续叠加。「批次」列只表示建议节奏，不作为开工前置条件。
 
-**进度（2026-11-16）**：CHG-001～CHG-011 已完成、验收并归档（CHG-009 迁移 v9、`GET /search`、`cli reindex`、`/search` 与系统深链；CHG-010 迁移 v10、`export_runs`、导出/下载、`cli restore`/`restore-snapshot` 与 PG-13；CHG-011 迁移 v11、模板/示例接口、导入向导与校对清单）；下一个变更为 CHG-012（关系一致性、异常状态与发布验收）。
+**进度（2026-11-17）**：CHG-001～CHG-012 已全部完成、验收并归档（CHG-009 迁移 v9、`GET /search`、`cli reindex`、`/search` 与系统深链；CHG-010 迁移 v10、`export_runs`、导出/下载、`cli restore`/`restore-snapshot` 与 PG-13；CHG-011 迁移 v11、模板/示例接口、导入向导与校对清单；CHG-012 回收站深链、统一未保存守卫、a11y/键盘/一致性/CSP/性能与发布演练收口）。当前 roadmap 无后续变更。
 
 ---
 
@@ -343,6 +343,7 @@ graph TD
 - **复杂度**：M（以验证与修复为主）。
 - **风险**：跨页状态遗漏、性能回退、回收站引用死角、最后阶段集中修复范围蔓延。
 - **回滚**：按变更粒度回退修复提交；数据无结构变更；发布镜像回退上一 tag。
+- **落地记录（2026-11-17）**：实际文件为 `frontend/app/trash/page.tsx`、`frontend/components/{ui/unsaved-dialog,ui/dialog,characters,factions,locations,system,rankings}/*`、`frontend/e2e/{consistency,security,perf,error-states,a11y,keyboard,rankings,trash}*.spec.ts`、`backend/cmd/cli/main.go`、`scripts/perf.ps1`；无迁移（版本保持 11）。全量门禁：后端单测/静态检查 PASS、集成 14.6s PASS、前端 lint/typecheck/91 单测 PASS、E2E 128 passed/1 skipped、smoke PASS；性能 1000 人物首屏 221ms、列表 P95 5ms、检索 P95 10ms；导出→CLI 恢复（508ms）与快照恢复（504ms）计数一致；安全用例与 `TestMigrationRoundTrip` PASS；验收证据见 `changes/archive/CHG-012-release-hardening/`。**状态：已完成（2026-11-17）。**
 
 ---
 

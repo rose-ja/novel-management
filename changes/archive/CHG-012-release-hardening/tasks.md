@@ -50,6 +50,6 @@
 
 ## T9 F3~F10 收口
 
-- [ ] 全量门禁、集成、E2E、Docker、性能报告。
-- [ ] 独立审查与修复；verification/review/acceptance/pr。
-- [ ] 归档并回写 Spec/PG/契约/roadmap/README。
+- [x] 全量门禁、集成、E2E、Docker、性能报告。
+- [x] 独立审查与修复；verification/review/acceptance/pr。
+- [x] 归档并回写 Spec/PG/契约/roadmap/README。

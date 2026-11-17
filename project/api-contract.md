@@ -24,7 +24,7 @@
 | `Host` | 是 | 白名单由 `APP_PORT`/`ALLOWED_HOSTS` 派生，默认 `127.0.0.1:${APP_PORT}` / `localhost:${APP_PORT}`；否则 `403 HOST_NOT_ALLOWED`。容器内应用监听 `0.0.0.0`，白名单仍只允许回环主机名 |
 | `Origin` / `Referer` | 写请求 | 存在时必须同源；缺失（curl/CLI）允许；跨源 `403 FORBIDDEN_ORIGIN` |
 | `X-Requested-With` | 写请求 | 前端固定发送 `XMLHttpRequest`，作为本地 CSRF 的第二道检查 |
-| `If-Match` | 更新/删除 | 乐观锁版本，如 `If-Match: "3"`；缺失或过期返回 `409 VERSION_CONFLICT`。**唯一乐观锁依据为实体 `version`，不使用 `updated_at`**（P5b RT-16） |
+| `If-Match` | 更新/删除 | 乐观锁版本，如 `If-Match: "3"`；缺失返回 `428 PRECONDITION_REQUIRED`，版本不一致返回 `409 VERSION_CONFLICT`。**唯一乐观锁依据为实体 `version`，不使用 `updated_at`**（P5b RT-16） |
 | `Content-Type` | 是 | JSON 或 multipart；不支持的类型 `415 UNSUPPORTED_MEDIA_TYPE` |
 
 - 无 CORS 头；服务端不返回 `Access-Control-Allow-*`。
@@ -105,6 +105,7 @@
 | `SEAT_OUT_OF_RANGE` | 400 | 席位号超出 1..N | 指派/扩容/缩容 |
 | `SEAT_SHRINK_OCCUPIED` | 409 | 缩容目标尾部席位有占用 | 减少席位数 |
 | `DUPLICATE_RELATION` | 409 | 同一对关系重复创建 | 地点-势力、人物-地点关联 |
+| `PRECONDITION_REQUIRED` | 428 | 更新/删除缺少 `If-Match` | 并发控制 |
 | `VERSION_CONFLICT` | 409 | `If-Match` 版本不一致 | 并发编辑 |
 | `PARENT_DELETED` | 409 | 恢复时父级仍在回收站 | 回收站恢复 |
 | `REFERENCE_MISSING` | 409 | 恢复时引用对象缺失 | 回收站恢复 |
@@ -376,7 +377,7 @@
 - Errors：`VALIDATION_ERROR`、`NAME_CONFLICT`、`VERSION_CONFLICT`、`CROSS_WORK_REFERENCE`、`CATEGORY_DISABLED`、`NODE_PARENT_MISMATCH`。
 
 #### DELETE /api/v1/characters/{id}
-- Header：`If-Match: <version>` 必填；缺失或非数字 → 422，版本不一致 → 409 `VERSION_CONFLICT`。
+- Header：`If-Match: <version>` 必填；缺失 → 428 `PRECONDITION_REQUIRED`，非数字 → 422，版本不一致 → 409 `VERSION_CONFLICT`。
 - Behavior：引用检查：被势力设为首领（含回收站中的势力，`details.items[].in_trash`）、被榜单占用 → 阻止并列出引用（首领检查 CHG-006 已接入，榜单席位待 CHG-008）；人物自身的别名/称号、体系引用、地点关系、大事记、图片随人物软删除（不阻止）。
 - Response：`{ "deleted": true, "undo_token": "…" }`（8 秒一次性撤销令牌）。
 - Errors：`REFERENCE_CONFLICT`（`details` 列出首领/席位）、`ALREADY_DELETED`、`VERSION_CONFLICT`、`VALIDATION_ERROR`。
