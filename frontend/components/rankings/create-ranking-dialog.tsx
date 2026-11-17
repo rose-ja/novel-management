@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { UnsavedDialog } from "@/components/ui/unsaved-dialog";
 import { toUserMessage } from "@/lib/api/errors";
 import { createRanking, type RankingDetail } from "@/lib/api/rankings";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 
 export type CreateRankingDialogProps = {
@@ -26,6 +28,13 @@ export function CreateRankingDialog({ open, workID, onOpenChange, onCreated }: C
   const [seatError, setSeatError] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { markDirty, requestLeave, reset: resetGuard, confirmOpen, keepEditing, discardAndLeave } =
+    useUnsavedGuard();
+
+  const dirty = name.trim() !== "" || seatCount !== "100";
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
 
   function reset() {
     setName("");
@@ -34,11 +43,18 @@ export function CreateRankingDialog({ open, workID, onOpenChange, onCreated }: C
     setSeatError(null);
     setError(null);
     setSubmitting(false);
+    resetGuard();
   }
 
   function handleOpenChange(next: boolean) {
     if (!next && submitting) return;
-    if (!next) reset();
+    if (!next) {
+      requestLeave(() => {
+        reset();
+        onOpenChange(false);
+      });
+      return;
+    }
     onOpenChange(next);
   }
 
@@ -81,23 +97,24 @@ export function CreateRankingDialog({ open, workID, onOpenChange, onCreated }: C
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={handleOpenChange}
-      title={messages.rankingCreateTitle}
-      description={messages.rankingCreateDescription}
-      size="md"
-      footer={
-        <>
-          <Button variant="secondary" onClick={() => handleOpenChange(false)} disabled={submitting}>
-            {messages.cancel}
-          </Button>
-          <Button onClick={submit} disabled={submitting}>
-            {submitting ? messages.saving : messages.rankingCreateSubmit}
-          </Button>
-        </>
-      }
-    >
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={messages.rankingCreateTitle}
+        description={messages.rankingCreateDescription}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => handleOpenChange(false)} disabled={submitting}>
+              {messages.cancel}
+            </Button>
+            <Button onClick={submit} disabled={submitting}>
+              {submitting ? messages.saving : messages.rankingCreateSubmit}
+            </Button>
+          </>
+        }
+      >
       <div className="form-stack">
         {error ? <Alert tone="danger" title={toUserMessage(error, messages.saveFailed)} /> : null}
         <FormField id="ranking-name" label={messages.rankingNameLabel} required hint={messages.rankingNameHint} error={nameError ?? undefined}>
@@ -124,6 +141,12 @@ export function CreateRankingDialog({ open, workID, onOpenChange, onCreated }: C
           />
         </FormField>
       </div>
-    </Dialog>
+      </Dialog>
+      <UnsavedDialog
+        open={confirmOpen}
+        onKeepEditing={keepEditing}
+        onDiscard={discardAndLeave}
+      />
+    </>
   );
 }

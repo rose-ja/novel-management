@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,11 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { UnsavedDialog } from "@/components/ui/unsaved-dialog";
 import { referenceConflictItems, type ReferenceItem } from "@/components/system/reference-dialog";
 import { ApiError } from "@/lib/api/client";
 import { isApiCode, toUserMessage, type ConflictItem } from "@/lib/api/errors";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import {
   createCategory,
   createNode,
@@ -61,6 +63,16 @@ export function CreateCategoryDialog({ workID, onClose, onCreated }: CreateCateg
   const [nameError, setNameError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
+
+  const dirty = name.trim() !== "";
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
+
+  function close() {
+    requestLeave(onClose);
+  }
 
   async function submit() {
     const trimmed = name.trim();
@@ -74,6 +86,7 @@ export function CreateCategoryDialog({ workID, onClose, onCreated }: CreateCateg
     try {
       const created = await createCategory({ workID, name: trimmed, categoryType });
       await onCreated(created);
+      reset();
       onClose();
       showToast({ tone: "success", message: messages.systemCategoryCreated(created.name) });
     } catch (cause) {
@@ -94,25 +107,26 @@ export function CreateCategoryDialog({ workID, onClose, onCreated }: CreateCateg
   }
 
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next && !submitting) onClose();
-      }}
-      title={messages.systemAddCategoryTitle}
-      description={messages.systemAddCategoryDescription}
-      size="md"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={submitting}>
-            {messages.cancel}
-          </Button>
-          <Button onClick={() => void submit()} loading={submitting} disabled={!name.trim()}>
-            {messages.systemCategoryCreateSubmit}
-          </Button>
-        </>
-      }
-    >
+    <>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next && !submitting) close();
+        }}
+        title={messages.systemAddCategoryTitle}
+        description={messages.systemAddCategoryDescription}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={close} disabled={submitting}>
+              {messages.cancel}
+            </Button>
+            <Button onClick={() => void submit()} loading={submitting} disabled={!name.trim()}>
+              {messages.systemCategoryCreateSubmit}
+            </Button>
+          </>
+        }
+      >
       {formError ? <Alert tone="danger" title={formError} /> : null}
       <FormField
         id="system-create-category-name"
@@ -144,7 +158,13 @@ export function CreateCategoryDialog({ workID, onClose, onCreated }: CreateCateg
           onChange={(event) => setCategoryType(event.target.value as CategoryType)}
         />
       </FormField>
-    </Dialog>
+      </Dialog>
+      <UnsavedDialog
+        open={confirmOpen}
+        onKeepEditing={keepEditing}
+        onDiscard={discardAndLeave}
+      />
+    </>
   );
 }
 
@@ -169,6 +189,16 @@ export function RenameCategoryDialog({
   const [nameError, setNameError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
+
+  const dirty = name !== category.name;
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
+
+  function close() {
+    requestLeave(onClose);
+  }
 
   async function submit() {
     const trimmed = name.trim();
@@ -182,6 +212,7 @@ export function RenameCategoryDialog({
     try {
       const updated = await updateCategory(category.id, { name: trimmed, version });
       await onChanged();
+      reset();
       onClose();
       showToast({ tone: "success", message: messages.systemCategoryRenamed(updated.name) });
     } catch (cause) {
@@ -208,42 +239,49 @@ export function RenameCategoryDialog({
   }
 
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next && !submitting) onClose();
-      }}
-      title={messages.systemRenameCategoryTitle(category.name)}
-      size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={submitting}>
-            {messages.cancel}
-          </Button>
-          <Button onClick={() => void submit()} loading={submitting} disabled={!name.trim()}>
-            {messages.systemRenameCategorySubmit}
-          </Button>
-        </>
-      }
-    >
-      {formError ? <Alert tone="warning" title={formError} /> : null}
-      <FormField
-        id="system-rename-category-name"
-        label={messages.systemCategoryNameLabel}
-        required
-        hint={messages.systemCategoryNameHint}
-        error={nameError ?? undefined}
+    <>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next && !submitting) close();
+        }}
+        title={messages.systemRenameCategoryTitle(category.name)}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={close} disabled={submitting}>
+              {messages.cancel}
+            </Button>
+            <Button onClick={() => void submit()} loading={submitting} disabled={!name.trim()}>
+              {messages.systemRenameCategorySubmit}
+            </Button>
+          </>
+        }
       >
-        <Input
+        {formError ? <Alert tone="warning" title={formError} /> : null}
+        <FormField
           id="system-rename-category-name"
-          value={name}
-          maxLength={200}
-          autoFocus
-          disabled={submitting}
-          onChange={(event) => setName(event.target.value)}
-        />
-      </FormField>
-    </Dialog>
+          label={messages.systemCategoryNameLabel}
+          required
+          hint={messages.systemCategoryNameHint}
+          error={nameError ?? undefined}
+        >
+          <Input
+            id="system-rename-category-name"
+            value={name}
+            maxLength={200}
+            autoFocus
+            disabled={submitting}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </FormField>
+      </Dialog>
+      <UnsavedDialog
+        open={confirmOpen}
+        onKeepEditing={keepEditing}
+        onDiscard={discardAndLeave}
+      />
+    </>
   );
 }
 
@@ -490,6 +528,16 @@ export function CreateNodeDialog({ category, parent, onClose, onCreated }: Creat
   const [eraEndError, setEraEndError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
+
+  const dirty = name.trim() !== "" || (isEra && (eraStart.trim() !== "" || eraEnd.trim() !== ""));
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
+
+  function close() {
+    requestLeave(onClose);
+  }
 
   async function submit() {
     const trimmed = name.trim();
@@ -511,6 +559,7 @@ export function CreateNodeDialog({ category, parent, onClose, onCreated }: Creat
         eraEndText: isEra ? (trimmedEraValue(eraEnd) ?? undefined) : undefined,
       });
       await onCreated();
+      reset();
       onClose();
       showToast({ tone: "success", message: messages.systemNodeCreated(created.name) });
     } catch (cause) {
@@ -526,27 +575,28 @@ export function CreateNodeDialog({ category, parent, onClose, onCreated }: Creat
   }
 
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next && !submitting) onClose();
-      }}
-      title={parent ? messages.systemAddChildNodeTitle(parent.name) : messages.systemAddNodeTitle}
-      description={
-        parent ? messages.systemAddChildNodeDescription(parent.name) : messages.systemAddNodeDescription
-      }
-      size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={submitting}>
-            {messages.cancel}
-          </Button>
-          <Button onClick={() => void submit()} loading={submitting} disabled={!name.trim()}>
-            {messages.systemAddNodeSubmit}
-          </Button>
-        </>
-      }
-    >
+    <>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next && !submitting) close();
+        }}
+        title={parent ? messages.systemAddChildNodeTitle(parent.name) : messages.systemAddNodeTitle}
+        description={
+          parent ? messages.systemAddChildNodeDescription(parent.name) : messages.systemAddNodeDescription
+        }
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={close} disabled={submitting}>
+              {messages.cancel}
+            </Button>
+            <Button onClick={() => void submit()} loading={submitting} disabled={!name.trim()}>
+              {messages.systemAddNodeSubmit}
+            </Button>
+          </>
+        }
+      >
       {formError ? <Alert tone="danger" title={formError} /> : null}
       <FormField
         id="system-create-node-name"
@@ -594,7 +644,13 @@ export function CreateNodeDialog({ category, parent, onClose, onCreated }: Creat
           </FormField>
         </>
       ) : null}
-    </Dialog>
+      </Dialog>
+      <UnsavedDialog
+        open={confirmOpen}
+        onKeepEditing={keepEditing}
+        onDiscard={discardAndLeave}
+      />
+    </>
   );
 }
 
@@ -626,6 +682,19 @@ export function RenameNodeDialog({
   const [eraEndError, setEraEndError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
+
+  const dirty =
+    name !== node.name ||
+    (isEra &&
+      (eraStart !== (node.era_start_text ?? "") || eraEnd !== (node.era_end_text ?? "")));
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
+
+  function close() {
+    requestLeave(onClose);
+  }
 
   async function submit() {
     const trimmed = name.trim();
@@ -646,6 +715,7 @@ export function RenameNodeDialog({
       }
       const updated = await updateNode(node.id, input);
       await onChanged();
+      reset();
       onClose();
       showToast({ tone: "success", message: messages.systemNodeRenamed(updated.name) });
     } catch (cause) {
@@ -667,24 +737,25 @@ export function RenameNodeDialog({
   }
 
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next && !submitting) onClose();
-      }}
-      title={messages.systemRenameNodeTitle(node.name)}
-      size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={submitting}>
-            {messages.cancel}
-          </Button>
-          <Button onClick={() => void submit()} loading={submitting} disabled={!name.trim()}>
-            {messages.systemRenameNodeSubmit}
-          </Button>
-        </>
-      }
-    >
+    <>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next && !submitting) close();
+        }}
+        title={messages.systemRenameNodeTitle(node.name)}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={close} disabled={submitting}>
+              {messages.cancel}
+            </Button>
+            <Button onClick={() => void submit()} loading={submitting} disabled={!name.trim()}>
+              {messages.systemRenameNodeSubmit}
+            </Button>
+          </>
+        }
+      >
       {formError ? <Alert tone="warning" title={formError} /> : null}
       <FormField
         id="system-rename-node-name"
@@ -732,7 +803,13 @@ export function RenameNodeDialog({
           </FormField>
         </>
       ) : null}
-    </Dialog>
+      </Dialog>
+      <UnsavedDialog
+        open={confirmOpen}
+        onKeepEditing={keepEditing}
+        onDiscard={discardAndLeave}
+      />
+    </>
   );
 }
 

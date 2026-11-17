@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { UnsavedDialog } from "@/components/ui/unsaved-dialog";
 import { ApiError } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
 import { updateRanking, type RankingDetail } from "@/lib/api/rankings";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 
 type ShrinkItem = { seat_no: number; character_id: string; name: string };
@@ -38,6 +40,12 @@ export function CapacityDialog({
   const [error, setError] = useState<string | null>(null);
   const [occupants, setOccupants] = useState<ShrinkItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
+
+  const dirty = value !== String(seatCount);
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
 
   useEffect(() => {
     if (open) {
@@ -45,8 +53,18 @@ export function CapacityDialog({
       setError(null);
       setOccupants([]);
       setSubmitting(false);
+      reset();
     }
-  }, [open, seatCount]);
+  }, [open, seatCount, reset]);
+
+  function handleOpenChange(next: boolean) {
+    if (!next && submitting) return;
+    if (!next) {
+      requestLeave(() => onOpenChange(false));
+      return;
+    }
+    onOpenChange(next);
+  }
 
   const parsed = Number(value);
   const valid = Number.isInteger(parsed) && parsed >= 1 && parsed <= 200;
@@ -58,6 +76,7 @@ export function CapacityDialog({
     setOccupants([]);
     try {
       const detail = await updateRanking(rankingID, { seatCount: parsed, version });
+      reset();
       onUpdated(detail);
       onOpenChange(false);
     } catch (cause) {
@@ -73,23 +92,24 @@ export function CapacityDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={messages.rankingCapacityTitle}
-      description={messages.rankingCapacityDescription}
-      size="md"
-      footer={
-        <>
-          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
-            {messages.cancel}
-          </Button>
-          <Button onClick={submit} disabled={!valid || submitting}>
-            {submitting ? messages.saving : messages.rankingCapacitySubmit}
-          </Button>
-        </>
-      }
-    >
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={messages.rankingCapacityTitle}
+        description={messages.rankingCapacityDescription}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => handleOpenChange(false)} disabled={submitting}>
+              {messages.cancel}
+            </Button>
+            <Button onClick={submit} disabled={!valid || submitting}>
+              {submitting ? messages.saving : messages.rankingCapacitySubmit}
+            </Button>
+          </>
+        }
+      >
       <div className="form-stack">
         {error ? <Alert tone="danger" title={error} /> : null}
         <FormField
@@ -124,6 +144,7 @@ export function CapacityDialog({
                     type="button"
                     className="ui-button ui-button--ghost ui-button--sm"
                     onClick={() => {
+                      reset();
                       onJumpSeat(item.seat_no);
                       onOpenChange(false);
                     }}
@@ -136,6 +157,12 @@ export function CapacityDialog({
           />
         ) : null}
       </div>
-    </Dialog>
+      </Dialog>
+      <UnsavedDialog
+        open={confirmOpen}
+        onKeepEditing={keepEditing}
+        onDiscard={discardAndLeave}
+      />
+    </>
   );
 }

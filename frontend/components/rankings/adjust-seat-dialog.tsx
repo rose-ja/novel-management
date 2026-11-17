@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { UnsavedDialog } from "@/components/ui/unsaved-dialog";
 import { toUserMessage } from "@/lib/api/errors";
 import { listSeats, moveSeat, type SeatView } from "@/lib/api/rankings";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 import { seatPage } from "@/lib/rankings";
 
@@ -36,6 +38,12 @@ export function AdjustSeatDialog({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [remoteOccupant, setRemoteOccupant] = useState<{ occupied: boolean; name: string | null } | null>(null);
+  const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
+
+  const dirty = target !== "";
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
 
   useEffect(() => {
     if (open) {
@@ -43,8 +51,18 @@ export function AdjustSeatDialog({
       setError(null);
       setSubmitting(false);
       setRemoteOccupant(null);
+      reset();
     }
-  }, [open]);
+  }, [open, reset]);
+
+  function handleOpenChange(next: boolean) {
+    if (!next && submitting) return;
+    if (!next) {
+      requestLeave(() => onOpenChange(false));
+      return;
+    }
+    onOpenChange(next);
+  }
 
   const targetNo = Number(target);
   const validTarget = Number.isInteger(targetNo) && targetNo >= 1 && targetNo <= seatCount;
@@ -95,6 +113,7 @@ export function AdjustSeatDialog({
         mode: occupied ? "swap" : "empty",
         version: seat.version,
       });
+      reset();
       onAdjusted(targetNo);
       onOpenChange(false);
     } catch (cause) {
@@ -105,23 +124,24 @@ export function AdjustSeatDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={seat ? messages.rankingAdjustTitle(seat.seat_no) : messages.rankingAdjust}
-      description={messages.rankingAdjustTargetHint}
-      size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
-            {messages.cancel}
-          </Button>
-          <Button onClick={submit} disabled={!validTarget || sameSeat || submitting}>
-            {submitting ? messages.saving : messages.rankingAdjustSubmit}
-          </Button>
-        </>
-      }
-    >
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={seat ? messages.rankingAdjustTitle(seat.seat_no) : messages.rankingAdjust}
+        description={messages.rankingAdjustTargetHint}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => handleOpenChange(false)} disabled={submitting}>
+              {messages.cancel}
+            </Button>
+            <Button onClick={submit} disabled={!validTarget || sameSeat || submitting}>
+              {submitting ? messages.saving : messages.rankingAdjustSubmit}
+            </Button>
+          </>
+        }
+      >
       <div className="form-stack">
         {error ? <Alert tone="danger" title={error} /> : null}
         <FormField
@@ -143,6 +163,12 @@ export function AdjustSeatDialog({
           />
         </FormField>
       </div>
-    </Dialog>
+      </Dialog>
+      <UnsavedDialog
+        open={confirmOpen}
+        onKeepEditing={keepEditing}
+        onDiscard={discardAndLeave}
+      />
+    </>
   );
 }

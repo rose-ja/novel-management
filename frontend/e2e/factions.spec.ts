@@ -92,6 +92,27 @@ test.describe("势力树", () => {
     await expect(selfOption).toBeDisabled();
     await page.getByRole("button", { name: "取消" }).click();
   });
+
+  test("编辑脏状态取消需确认，可继续编辑或放弃", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("势力守卫"));
+    const faction = await createFaction(request, work.id, uniqueName("守卫势力"));
+    await page.goto(`/factions?id=${faction.id}`);
+    await expect(page.getByRole("heading", { name: faction.name, level: 1 })).toBeVisible();
+
+    await page.locator(".ui-page-header").getByRole("button", { name: "编辑" }).click();
+    await page.getByLabel("势力名称").fill(`${faction.name}-已改`);
+    await page.getByRole("button", { name: "取消" }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("放弃未保存的修改？")).toBeVisible();
+    await dialog.getByRole("button", { name: "继续编辑" }).click();
+    await expect(page.getByLabel("势力名称")).toHaveValue(`${faction.name}-已改`);
+
+    await page.getByRole("button", { name: "取消" }).click();
+    await dialog.getByRole("button", { name: "放弃并离开" }).click();
+    await expect(page.getByRole("button", { name: "编辑" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: faction.name, level: 1 })).toBeVisible();
+  });
 });
 
 test.describe("势力成员与人物侧", () => {
@@ -164,7 +185,10 @@ test.describe("势力删除与回收站", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText("仍有下级势力，无法删除");
     await expect(dialog.locator("li").filter({ hasText: child.name })).toContainText("（回收站）");
-    await expect(dialog.getByRole("link", { name: child.name })).toHaveAttribute("href", "/trash");
+    await expect(dialog.getByRole("link", { name: child.name })).toHaveAttribute(
+      "href",
+      `/trash?type=faction&highlight=${encodeURIComponent(child.id)}`,
+    );
   });
 
   test("回收站恢复与永久删除势力根", async ({ page, request }) => {

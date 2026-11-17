@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select, type SelectOption } from "@/components/ui/select";
+import { UnsavedDialog } from "@/components/ui/unsaved-dialog";
 import { listCharacters } from "@/lib/api/characters";
 import { toUserMessage, isApiCode } from "@/lib/api/errors";
 import { updateFaction, type FactionDetail } from "@/lib/api/factions";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 
 export type FactionEditFormProps = {
@@ -40,6 +42,7 @@ export function FactionEditForm({
   const [leaderQuery, setLeaderQuery] = useState("");
   const [searchOptions, setSearchOptions] = useState<SelectOption[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const { markDirty, requestLeave, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
 
   const leaderUnavailable = Boolean(faction.leader?.in_trash);
   const leaderChanged = leaderID !== (faction.leader?.id ?? "");
@@ -95,9 +98,12 @@ export function FactionEditForm({
     leaderChanged ||
     description.trim() !== (faction.description ?? "");
 
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
+
   function cancel() {
-    if (dirty && !window.confirm(messages.unsavedDescription)) return;
-    onCancel();
+    requestLeave(onCancel);
   }
 
   async function save() {
@@ -219,6 +225,11 @@ export function FactionEditForm({
           {messages.factionSaveSubmit}
         </Button>
       </div>
+      <UnsavedDialog
+        open={confirmOpen}
+        onKeepEditing={keepEditing}
+        onDiscard={discardAndLeave}
+      />
     </section>
   );
 }

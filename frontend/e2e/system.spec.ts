@@ -406,4 +406,28 @@ test.describe("体系配置", () => {
     });
     expect(overflow).toBeLessThanOrEqual(1);
   });
+
+  test("新增类别脏状态关闭需确认，继续编辑保留输入", async ({ page, request }) => {
+    await bootWork(request, "体系守卫");
+    await openSystem(page);
+
+    await page.getByRole("button", { name: "新增类别" }).click();
+    const dialog = page.getByRole("dialog").filter({ hasText: "新增类别" });
+    await dialog.getByLabel("类别名称").fill("守卫类别");
+    await dialog.getByRole("button", { name: "取消" }).click();
+
+    const confirm = page.getByRole("dialog").filter({ hasText: "放弃未保存的修改？" });
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole("button", { name: "继续编辑" }).click();
+    await expect(dialog.getByLabel("类别名称")).toHaveValue("守卫类别");
+
+    await dialog.getByRole("button", { name: "取消" }).click();
+    await page
+      .getByRole("dialog")
+      .filter({ hasText: "放弃未保存的修改？" })
+      .getByRole("button", { name: "放弃并离开" })
+      .click();
+    await expect(page.getByRole("button", { name: "新增类别" })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
 });
