@@ -6,12 +6,13 @@
 
 `/trash?type=<root_type>&highlight=<root_id>`
 
-- `type`：`work|system_category|system_node|character|faction|location|ranking|import`，非法值忽略并按「全部」展示。
+- `type`：`work|system_category|system_node|character|faction|location|ranking`，非法值忽略并按「全部」展示。
 - `highlight`：回收站条目的 `root_id`。页面加载后：
   1. 以 `type` 初始化类型筛选；
   2. 以 `pageSize=100` 拉取并按页查找该条目（最多 10 页，覆盖 1000 条）；
-  3. 命中则切到对应页，给名称单元格加 `data-highlighted`，`scrollIntoView({block:"center"})` 并将焦点移到行内「恢复」按钮；
+  3. 命中则切到对应页，给名称单元格加 `data-trash-highlight`，`scrollIntoView({block:"center"})` 并将焦点移到行内「恢复」按钮（仅定位一次，后续列表刷新不再抢焦点）；
   4. 未命中显示「目标可能已被恢复或删除」提示。
+- 实体随祖先整组删除时，回收站记录为祖先的 `root_id`，按实体 id 深链会走未命中提示。
 - 静态导出兼容：在 `useEffect` 中读取 `window.location.search`，不引入 `useSearchParams` 的 Suspense 约束。
 
 ### 1.2 引用对话框链接
@@ -27,8 +28,8 @@
 统一使用 `useUnsavedGuard` + `UnsavedDialog`：
 
 - 势力内联编辑：移除 `window.confirm`，改为守卫 Hook；保存成功后复位。
-- 体系类别/节点新建与编辑对话框：关闭时脏状态先确认；节点树切换选中同样守卫。
-- 榜单新建/改名、席位备注输入：关闭或切换席位时守卫。
+- 体系类别/节点新建与编辑对话框：关闭时脏状态先确认。
+- 榜单新建/容量/调席对话框：关闭时守卫；改名未保存时拦截站内跳转；席位备注取消时确认。
 - 人物/地点/作品/导入已覆盖，保持。
 
 ## 3. 状态与错误

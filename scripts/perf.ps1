@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($Samples -lt 1) { throw "Samples must be >= 1" }
 $root = Split-Path -Parent $PSScriptRoot
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outDir = Join-Path $root "artifacts/perf/$stamp"
@@ -26,6 +27,10 @@ docker compose run --rm cli seed --work $WorkName --characters $Characters 1> $s
 $seedExit = $LASTEXITCODE
 $ErrorActionPreference = $previousPreference
 $seedOutput = Get-Content -Path $seedStdoutPath -Raw
+if (-not $seedOutput) {
+    Write-Host (Get-Content -Path $seedStderrPath -Raw)
+    throw "seed produced no output (exit code $seedExit)"
+}
 if ($seedExit -ne 0) {
     Write-Host (Get-Content -Path $seedStderrPath -Raw)
     throw "seed command failed with exit code $seedExit"
@@ -50,7 +55,7 @@ function Get-P95($Values) {
 Write-Host "== samples ==" -ForegroundColor Cyan
 $listSamples = @()
 $searchSamples = @()
-# 性能人物 URL-encoded to stay ASCII-only in this script.
+# Chinese "performance characters" URL-encoded to stay ASCII-only in this script.
 $searchQuery = "%E6%80%A7%E8%83%BD%E4%BA%BA%E7%89%A9"
 for ($i = 0; $i -le $Samples; $i++) {
     $listSamples += Measure-Request "$BaseUrl/api/v1/characters?work_id=$workID&page=1&page_size=50"
@@ -68,6 +73,7 @@ Write-Host "== first screen ==" -ForegroundColor Cyan
 $firstScreenFile = Join-Path $outDir "first-screen.json"
 $env:PERF_WORK_ID = $workID
 $env:PERF_RESULT_FILE = $firstScreenFile
+$env:E2E_BASE_URL = $BaseUrl
 Push-Location (Join-Path $root "frontend")
 try {
     npx playwright test e2e/perf.spec.ts --reporter=line

@@ -22,6 +22,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { UnsavedDialog } from "@/components/ui/unsaved-dialog";
 import { ApiError } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
 import {
@@ -35,6 +36,7 @@ import {
   type SeatView,
 } from "@/lib/api/rankings";
 import { undoTrash } from "@/lib/api/trash";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 import { seatPage } from "@/lib/rankings";
 
@@ -69,6 +71,39 @@ export function RankingDetailPage({ rankingID }: { rankingID: string }) {
   const [removeSeat, setRemoveSeat] = useState<SeatView | null>(null);
   const [capacityOpen, setCapacityOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
+
+  const nameDirty = detail !== null && nameValue.trim() !== detail.name;
+  useEffect(() => {
+    markDirty(nameDirty);
+  }, [nameDirty, markDirty]);
+
+  useEffect(() => {
+    if (!nameDirty) return;
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [nameDirty]);
+
+  // 改名未保存时拦截站内链接，先确认是否放弃修改。
+  useEffect(() => {
+    if (!nameDirty) return;
+    function handleLinkClick(event: MouseEvent) {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element | null)?.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#")) return;
+      if (/^[a-z]+:/i.test(href)) return;
+      event.preventDefault();
+      requestLeave(() => router.push(href));
+    }
+    document.addEventListener("click", handleLinkClick, true);
+    return () => document.removeEventListener("click", handleLinkClick, true);
+  }, [nameDirty, requestLeave, router]);
 
   const reload = useCallback(() => setReloadTick((value) => value + 1), []);
 
@@ -138,6 +173,7 @@ export function RankingDetailPage({ rankingID }: { rankingID: string }) {
     try {
       const updated = await updateRanking(rankingID, { name: trimmed, version: detail.version });
       setDetail(updated);
+      reset();
       showToast({ tone: "success", message: messages.rankingUpdated(updated.name) });
       reload();
     } catch (cause) {
@@ -197,6 +233,7 @@ export function RankingDetailPage({ rankingID }: { rankingID: string }) {
           .catch((cause: unknown) => showToast({ tone: "error", message: toUserMessage(cause, messages.saveFailed) }));
       },
     });
+    reset();
     router.push("/rankings");
   }
 
@@ -419,6 +456,8 @@ export function RankingDetailPage({ rankingID }: { rankingID: string }) {
           />
         </>
       ) : null}
+
+      <UnsavedDialog open={confirmOpen} onKeepEditing={keepEditing} onDiscard={discardAndLeave} />
     </div>
   );
 }

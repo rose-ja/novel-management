@@ -249,8 +249,16 @@ func newSeedCmd() *cobra.Command {
 		Use:   "seed",
 		Short: "批量生成性能基线数据（默认 1000 人物），完成后刷新检索",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			const maxCharacters = 100000
+			const maxRelated = 10000
 			if characters < 0 || factions < 0 || locations < 0 {
 				return errors.New("造数数量不能为负数")
+			}
+			if characters > maxCharacters {
+				return fmt.Errorf("人物数量不能超过 %d", maxCharacters)
+			}
+			if factions > maxRelated || locations > maxRelated {
+				return fmt.Errorf("势力与地点数量不能超过 %d", maxRelated)
 			}
 			cfg, log, err := load()
 			if err != nil {

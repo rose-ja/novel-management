@@ -14,9 +14,23 @@ const workID = process.env.PERF_WORK_ID;
 test.describe("性能基线", () => {
   test.skip(!workID, "设置 PERF_WORK_ID 后运行性能基线");
 
+  let previousWorkID: string | null = null;
+
   test.beforeAll(async ({ request }) => {
+    const current = await request.get("/api/v1/settings");
+    expect(current.ok()).toBe(true);
+    previousWorkID = ((await current.json()) as { current_work_id?: string | null }).current_work_id ?? null;
+
     const response = await request.patch("/api/v1/settings", {
       data: { current_work_id: workID },
+      headers: JSON_HEADERS,
+    });
+    expect(response.ok()).toBe(true);
+  });
+
+  test.afterAll(async ({ request }) => {
+    const response = await request.patch("/api/v1/settings", {
+      data: { current_work_id: previousWorkID },
       headers: JSON_HEADERS,
     });
     expect(response.ok()).toBe(true);

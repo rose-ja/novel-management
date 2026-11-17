@@ -55,6 +55,7 @@ export default function TrashPage() {
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [highlightMissing, setHighlightMissing] = useState(false);
   const locatedFor = useRef<string | null>(null);
+  const scrolledFor = useRef<string | null>(null);
 
   // 深链参数在客户端解析，兼容静态导出；非法类型忽略。
   useEffect(() => {
@@ -101,8 +102,10 @@ export default function TrashPage() {
   // 定位后滚动到目标行并把焦点交给「恢复」按钮，键盘用户可直接操作。
   useEffect(() => {
     if (!highlightId || status !== "ready") return;
+    if (scrolledFor.current === highlightId) return;
     const marker = document.querySelector<HTMLElement>(`[data-trash-highlight="${highlightId}"]`);
     if (!marker) return;
+    scrolledFor.current = highlightId;
     marker.scrollIntoView({ block: "center" });
     const row = marker.closest("tr");
     row?.querySelector<HTMLElement>("button")?.focus();
@@ -113,6 +116,7 @@ export default function TrashPage() {
     setHighlightId(null);
     setHighlightMissing(false);
     locatedFor.current = null;
+    scrolledFor.current = null;
   }
 
   const load = useCallback(async () => {

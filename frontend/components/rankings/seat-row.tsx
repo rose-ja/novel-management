@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { CharacterImage } from "@/components/characters/character-image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UnsavedDialog } from "@/components/ui/unsaved-dialog";
 import { toUserMessage } from "@/lib/api/errors";
 import { putSeat, type SeatView } from "@/lib/api/rankings";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { messages } from "@/lib/messages";
 
 export function SeatNumberCell({ seatNo, highlighted }: { seatNo: number; highlighted?: boolean }) {
@@ -60,6 +62,17 @@ export function SeatNoteCell({
   const [value, setValue] = useState(seat.note ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
+
+  const dirty = editing && value !== (seat.note ?? "");
+  useEffect(() => {
+    markDirty(dirty);
+  }, [dirty, markDirty]);
+
+  function close() {
+    reset();
+    setEditing(false);
+  }
 
   if (!editing) {
     return (
@@ -71,6 +84,7 @@ export function SeatNoteCell({
           onClick={() => {
             setValue(seat.note ?? "");
             setError(null);
+            reset();
             setEditing(true);
           }}
         >
@@ -89,7 +103,7 @@ export function SeatNoteCell({
         version: seat.version,
       });
       onSaved(updated);
-      setEditing(false);
+      close();
     } catch (cause) {
       setError(toUserMessage(cause, messages.saveFailed));
     } finally {
@@ -109,10 +123,11 @@ export function SeatNoteCell({
       <Button size="sm" onClick={save} disabled={saving}>
         {saving ? messages.saving : messages.rankingSeatNoteSave}
       </Button>
-      <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+      <Button variant="ghost" size="sm" onClick={() => requestLeave(close)} disabled={saving}>
         {messages.cancel}
       </Button>
       {error ? <span className="ui-field__error">{error}</span> : null}
+      <UnsavedDialog open={confirmOpen} onKeepEditing={keepEditing} onDiscard={discardAndLeave} />
     </div>
   );
 }

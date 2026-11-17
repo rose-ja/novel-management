@@ -143,4 +143,26 @@ test.describe("榜单", () => {
     await dialog.getByRole("button", { name: "创建榜单" }).click();
     await expect(dialog.getByText("名称已存在，请换一个名称")).toBeVisible();
   });
+
+  test("榜单改名未保存时离开需确认", async ({ page, request }) => {
+    const work = await createWork(request, uniqueName("榜单守卫"));
+    const ranking = await createRanking(request, work.id, uniqueName("守卫榜"), 5);
+
+    await page.goto(`/rankings?id=${ranking.id}`);
+    const nameInput = page.getByLabel("榜单名称");
+    await expect(nameInput).toHaveValue(ranking.name);
+    await nameInput.fill(uniqueName("守卫榜改"));
+
+    const back = page.getByRole("link", { name: "返回榜单列表" });
+    await back.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("放弃未保存的修改？")).toBeVisible();
+    await dialog.getByRole("button", { name: "继续编辑" }).click();
+    await expect(page).toHaveURL(new RegExp(`/rankings\\?id=${ranking.id}`));
+    await expect(nameInput).not.toHaveValue(ranking.name);
+
+    await back.click();
+    await dialog.getByRole("button", { name: "放弃并离开" }).click();
+    await expect(page).toHaveURL(/\/rankings$/);
+  });
 });

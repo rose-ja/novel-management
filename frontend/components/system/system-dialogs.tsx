@@ -65,7 +65,7 @@ export function CreateCategoryDialog({ workID, onClose, onCreated }: CreateCateg
   const [submitting, setSubmitting] = useState(false);
   const { markDirty, requestLeave, reset, confirmOpen, keepEditing, discardAndLeave } = useUnsavedGuard();
 
-  const dirty = name.trim() !== "";
+  const dirty = name.trim() !== "" || categoryType !== "normal";
   useEffect(() => {
     markDirty(dirty);
   }, [dirty, markDirty]);

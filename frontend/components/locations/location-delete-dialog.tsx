@@ -189,7 +189,7 @@ export function LocationDeleteDialog({
                       {item.name}
                       {messages.locationRelationInTrash}
                     </span>
-                    <Link className="character-name-link" href="/trash">
+                    <Link className="character-name-link" href={item.href}>
                       {messages.locationGoTrash}
                     </Link>
                   </>
