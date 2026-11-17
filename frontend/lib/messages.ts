@@ -64,7 +64,7 @@ export const messages = {
     NODE_LEVEL_LIMIT: "体系节点最多两级",
     NODE_PARENT_MISMATCH: "上级节点与类别不匹配",
     CROSS_WORK_REFERENCE: "只能引用同一作品下的体系节点",
-    PRECONDITION_REQUIRED: "请求缺少版本信息，请刷新后重试",
+    PRECONDITION_REQUIRED: "页面数据已过期，请刷新后重试",
     HAS_CHILDREN: "仍有下级节点，无法删除",
     PARENT_DELETED: "上级或类别仍在回收站",
     REFERENCE_CONFLICT: "仍被其他记录引用，无法删除",
