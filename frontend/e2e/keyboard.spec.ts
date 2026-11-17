@@ -267,3 +267,94 @@ test.describe("检索页键盘", () => {
     await expect(page.getByLabel("实体类型")).toBeVisible();
   });
 });
+
+/** 人物键盘主流程：新建、编辑保存、删除确认与回收站恢复，Esc 关闭后回焦。 */
+test.describe("人物键盘主流程", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupE2E(request);
+  });
+
+  test("键盘完成新建、编辑、删除与恢复，Esc 关闭回焦", async ({ page, request }) => {
+    await createWork(request, uniqueName("键盘人物"));
+    const name = uniqueName("陆沉");
+    const renamed = uniqueName("陆沉改");
+
+    await page.goto("/characters");
+    await expect(page.getByRole("heading", { name: "人物", level: 1 })).toBeVisible();
+
+    const createTrigger = page.locator(".ui-page-header").getByRole("button", { name: "新建人物" });
+    await createTrigger.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "关闭" })).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(createTrigger).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Tab");
+    const nameInput = dialog.getByLabel("姓名");
+    await expect(nameInput).toBeFocused();
+    await page.keyboard.type(name);
+    const createSubmit = dialog.getByRole("button", { name: "创建人物" });
+    // 从姓名输入框反向 Tab：先到关闭按钮，再环绕到对话框末尾的提交按钮。
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await page.keyboard.press("Shift+Tab");
+      if (await createSubmit.evaluate((element) => element === document.activeElement)) break;
+    }
+    await expect(createSubmit).toBeFocused();
+    await page.keyboard.press("Enter");
+
+    await expect(page).toHaveURL(/\/characters\?id=/);
+    await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+
+    const editTrigger = page.locator(".ui-page-header").getByRole("button", { name: "编辑" });
+    await editTrigger.focus();
+    await page.keyboard.press("Enter");
+    const editName = page.getByLabel("姓名");
+    await editName.focus();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.type(renamed);
+    const save = page.getByRole("button", { name: "保存修改" });
+    await save.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { name: renamed, level: 1 })).toBeVisible();
+
+    const deleteTrigger = page.locator(".ui-page-header").getByRole("button", { name: "删除人物" });
+    await deleteTrigger.focus();
+    await page.keyboard.press("Enter");
+    const deleteDialog = page.getByRole("dialog");
+    await expect(deleteDialog).toBeVisible();
+    await expect(deleteDialog.getByRole("button", { name: "关闭" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(deleteDialog).toHaveCount(0);
+    await expect(deleteTrigger).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(deleteDialog).toBeVisible();
+    const confirmDelete = deleteDialog.getByRole("button", { name: "删除人物" });
+    await confirmDelete.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { name: "人物已移入回收站" })).toBeVisible();
+
+    await page.goto("/trash");
+    const restoreTrigger = page.getByRole("button", { name: `恢复人物「${renamed}」` });
+    await restoreTrigger.focus();
+    await page.keyboard.press("Enter");
+    const restoreDialog = page.getByRole("dialog");
+    await expect(restoreDialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(restoreDialog).toHaveCount(0);
+    await expect(restoreTrigger).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(restoreDialog).toBeVisible();
+    const restoreSubmit = restoreDialog.getByRole("button", { name: "恢复" });
+    await restoreSubmit.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".ui-table tbody tr").filter({ hasText: renamed })).toHaveCount(0);
+  });
+});
