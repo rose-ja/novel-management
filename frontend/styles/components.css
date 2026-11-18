@@ -158,9 +158,22 @@
   width: 320px;
   padding: var(--space-2);
   border: var(--border-width) solid var(--color-border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
+  animation: work-menu-in var(--motion-base) var(--ease-out);
+}
+
+@keyframes work-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .work-menu__header {
@@ -242,7 +255,24 @@
 .work-menu__footer {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
+}
+
+.work-menu__footer .ui-button {
+  width: 100%;
+  height: 36px;
+  justify-content: flex-start;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-primary);
+}
+
+.work-menu__footer .ui-button:hover:not(:disabled) {
+  background: var(--color-brand-50);
+  color: var(--color-brand-700);
 }
 
 .work-menu__empty {
@@ -518,6 +548,13 @@
   border: 2px solid currentColor;
   border-right-color: transparent;
   animation: ui-spin 700ms linear infinite;
+}
+
+/* 标签内图标与文字保持同一行，避免 Tailwind Preflight 的 svg{display:block} 造成换行。 */
+.ui-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 @keyframes ui-spin {

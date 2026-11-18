@@ -241,7 +241,7 @@ export function WorkSwitcher() {
           <div className="work-menu__divider" />
           <div className="work-menu__footer">
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 setOpen(false);

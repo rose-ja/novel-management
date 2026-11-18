@@ -33,6 +33,28 @@ test.describe("应用壳层", () => {
     await expect(page.getByRole("main").getByRole("button", { name: /新建作品/ })).toHaveCount(0);
   });
 
+  test("作品切换器底部操作单行对齐", async ({ page }) => {
+    await page.goto("/");
+    await page.locator(".shell__work--trigger").click();
+
+    const footer = page.locator(".work-menu__footer");
+    const create = footer.getByRole("button", { name: /新建作品/ });
+    const trash = footer.getByRole("link", { name: "回收站" });
+    await expect(create).toBeVisible();
+    await expect(trash).toBeVisible();
+
+    const createBox = await create.boundingBox();
+    const trashBox = await trash.boundingBox();
+    expect(createBox?.height).toBeLessThanOrEqual(36);
+    expect(trashBox?.height).toBeLessThanOrEqual(36);
+    expect(createBox?.x).toBeCloseTo(trashBox?.x ?? 0, 0);
+
+    const labelHeight = await create
+      .locator(".ui-button__label")
+      .evaluate((element) => element.getBoundingClientRect().height);
+    expect(labelHeight).toBeLessThanOrEqual(24);
+  });
+
   test("设置页只读展示系统信息", async ({ page }) => {
     await page.goto("/settings");
 
